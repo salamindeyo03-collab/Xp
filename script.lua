@@ -1,50 +1,49 @@
--- [1. 기본 UI 프레임 생성]
+-- 1. [UI 디자인] 배경 불투명도 0.3 설정
 local ScreenGui = Instance.new("ScreenGui", game.CoreGui)
 local MainFrame = Instance.new("Frame", ScreenGui)
-MainFrame.Size = UDim2.new(0, 700, 0, 500)
-MainFrame.Position = UDim2.new(0.5, -350, 0.5, -250)
-MainFrame.BackgroundColor3 = Color3.fromRGB(20, 20, 20) -- 어두운 테마
+MainFrame.Size = UDim2.new(0, 600, 0, 400)
+MainFrame.Position = UDim2.new(0.5, -300, 0.5, -200)
+MainFrame.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
+MainFrame.BackgroundTransparency = 0.3 -- 배경 불투명도 0.3 설정!
 
--- [2. 사이드바 (Combat, ESP 등 버튼)]
 local Sidebar = Instance.new("Frame", MainFrame)
-Sidebar.Size = UDim2.new(0.2, 0, 1, 0)
-Sidebar.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+Sidebar.Size = UDim2.new(0.3, 0, 1, 0)
+Sidebar.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
+Sidebar.BackgroundTransparency = 0.3
 
-local AimbotTabBtn = Instance.new("TextButton", Sidebar)
-AimbotTabBtn.Text = "Combat"
-AimbotTabBtn.Size = UDim2.new(1, 0, 0, 50)
+-- 버튼들...
+local AimbotBtn = Instance.new("TextButton", Sidebar)
+AimbotBtn.Text = "Aimbot: OFF"
+AimbotBtn.Size = UDim2.new(1, 0, 0, 50)
+AimbotBtn.Position = UDim2.new(0, 0, 0.1, 0)
 
--- [3. 기능 설정 탭 (Aimbot & Silent Aim)]
-local ContentFrame = Instance.new("Frame", MainFrame)
-ContentFrame.Position = UDim2.new(0.2, 0, 0, 0)
-ContentFrame.Size = UDim2.new(0.8, 0, 1, 0)
-ContentFrame.BackgroundTransparency = 1
+local SilentBtn = Instance.new("TextButton", Sidebar)
+SilentBtn.Text = "Silent: OFF"
+SilentBtn.Size = UDim2.new(1, 0, 0, 50)
+SilentBtn.Position = UDim2.new(0, 0, 0.3, 0)
 
-local AimbotToggle = Instance.new("TextButton", ContentFrame)
-AimbotToggle.Text = "Aimbot: OFF"
-AimbotToggle.Size = UDim2.new(0, 200, 0, 50)
-AimbotToggle.Position = UDim2.new(0.1, 0, 0.1, 0)
-
-local SilentToggle = Instance.new("TextButton", ContentFrame)
-SilentToggle.Text = "Silent Aim: OFF"
-SilentToggle.Size = UDim2.new(0, 200, 0, 50)
-SilentToggle.Position = UDim2.new(0.1, 0, 0.3, 0)
-
--- [4. 기능 엔진]
+-- 2. [기능 엔진]
 local aimEnabled = false
 local silentEnabled = false
 
-AimbotToggle.MouseButton1Click:Connect(function()
+AimbotBtn.MouseButton1Click:Connect(function()
     aimEnabled = not aimEnabled
-    AimbotToggle.Text = aimEnabled and "Aimbot: ON" or "Aimbot: OFF"
+    AimbotBtn.Text = aimEnabled and "Aimbot: ON" or "Aimbot: OFF"
 end)
 
-SilentToggle.MouseButton1Click:Connect(function()
+SilentBtn.MouseButton1Click:Connect(function()
     silentEnabled = not silentEnabled
-    SilentToggle.Text = silentEnabled and "Silent Aim: ON" or "Silent Aim: OFF"
+    SilentBtn.Text = silentEnabled and "Silent: ON" or "Silent: OFF"
 end)
 
--- 에임봇 루프 (카메라 제어)
+-- [기능: 우측 쉬프트로 끄고 켜기]
+game:GetService("UserInputService").InputBegan:Connect(function(input, gameProcessed)
+    if not gameProcessed and input.KeyCode == Enum.KeyCode.RightShift then
+        MainFrame.Visible = not MainFrame.Visible
+    end
+end)
+
+-- 에임봇 루프
 game:GetService("RunService").RenderStepped:Connect(function()
     if aimEnabled then
         local cam = workspace.CurrentCamera
