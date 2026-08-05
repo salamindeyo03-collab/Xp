@@ -87,10 +87,15 @@ local function robust_require(module)
             if ok and type(objects) == "table" then
                 for _, v in pairs(objects) do
                     if type(v) == "table" then
-                        if mName:find("CosmeticLibrary") and (v.Cosmetics or rawget(v, "Cosmetics")) and (type(v.Equip) == "function" or type(v.GetSkins) == "function") then return v end
-                        elseif mName:find("ItemLibrary") and (v.ViewModels or rawget(v, "ViewModels")) then return v end
-                        elseif mName:find("ClientViewModel") and (v.new or rawget(v, "new")) and (v.GetWrap or rawget(v, "GetWrap")) then return v end
-                        elseif mName:find("ReplicatedClass") and type(v.ToEnum) == "function" then return v end
+                        if mName:find("CosmeticLibrary") and (v.Cosmetics or rawget(v, "Cosmetics")) and (type(v.Equip) == "function" or type(v.GetSkins) == "function") then 
+                            return v 
+                        elseif mName:find("ItemLibrary") and (v.ViewModels or rawget(v, "ViewModels")) then 
+                            return v 
+                        elseif mName:find("ClientViewModel") and (v.new or rawget(v, "new")) and (v.GetWrap or rawget(v, "GetWrap")) then 
+                            return v 
+                        elseif mName:find("ReplicatedClass") and type(v.ToEnum) == "function" then 
+                            return v 
+                        end
                     end
                 end
             end
