@@ -1,18 +1,11 @@
---[[
-    LinoriaLib UI + Rivals Skin Changer
-    사용법: 실행 후 우측 Shift 키로 UI 열림/닫힘. UI Settings 탭에서 Save/Load 가능.
-]]
-
-local repo = "https://raw.githubusercontent.com/mstudio45/LinoriaLib/main/"
-local Library = loadstring(game:HttpGet(repo .. "Library.lua"))()
-local ThemeManager = loadstring(game:HttpGet(repo .. "addons/ThemeManager.lua"))()
-local SaveManager = loadstring(game:HttpGet(repo .. "addons/SaveManager.lua"))()
-
-local Options = Library.Options
-local Toggles = Library.Toggles
+local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local UserInputService = game:GetService("UserInputService")
+local player = Players.LocalPlayer
+local CoreGui = game:GetService("CoreGui")
 
 -- ═══════════════════════════════════════════════
--- SKIN LISTS (이전 데이터 그대로 유지)
+-- SKIN LISTS
 -- ═══════════════════════════════════════════════
 local SkinLists = {
     ["Assault Rifle"] = {"Default", "AK-47", "AUG", "Tommy Gun", "Boneclaw Rifle", "Gingerbread AUG", "AKEY-47", "100K Visits", "10 Billion Visits", "Phoenix Rifle"},
@@ -77,10 +70,6 @@ local WrapList = {
 -- ═══════════════════════════════════════════════
 -- GLOBAL STATE & INITIALIZATION
 -- ═══════════════════════════════════════════════
-local Players = game:GetService("Players")
-local ReplicatedStorage = game:GetService("ReplicatedStorage")
-local player = Players.LocalPlayer
-
 _G.EquippedData = _G.EquippedData or {}
 for weapon in pairs(SkinLists) do
     if not _G.EquippedData[weapon] then
@@ -177,159 +166,264 @@ task.spawn(function()
 end)
 
 -- ═══════════════════════════════════════════════
--- UI SETUP (Linoria)
+-- GUI CREATION
 -- ═══════════════════════════════════════════════
-Library.NotifySide = "Left"
+local oldGui = CoreGui:FindFirstChild("RivalsSkinChanger")
+if oldGui then oldGui:Destroy() end
 
-local Window = Library:CreateWindow({
-    Title = "Rivals Skin Changer",
-    Center = true,
-    AutoShow = true,
-    Resizable = true,
-    ShowCustomCursor = true,
-    UnlockMouseWhileOpen = true,
-    NotifySide = "Left",
-    TabPadding = 8,
-    MenuFadeTime = 0.2
-})
+local ScreenGui = Instance.new("ScreenGui", CoreGui)
+ScreenGui.Name = "RivalsSkinChanger"
+ScreenGui.ResetOnSpawn = false
 
-local Tabs = {
-    Main = Window:AddTab("Skin Changer"),
-    ["UI Settings"] = Window:AddTab("UI Settings"),
-}
+local Main = Instance.new("Frame", ScreenGui)
+Main.Size = UDim2.new(0, 950, 0, 660)
+Main.Position = UDim2.new(0.5, -475, 0.5, -330)
+Main.BackgroundColor3 = Color3.fromRGB(20, 20, 24)
+Main.BorderSizePixel = 0
+Main.Active = true
 
-local MainBox = Tabs.Main:AddLeftGroupbox("Weapon Settings")
-local InfoBox = Tabs.Main:AddRightGroupbox("Information")
+local Title = Instance.new("TextLabel", Main)
+Title.Size = UDim2.new(1, 0, 0, 50)
+Title.BackgroundColor3 = Color3.fromRGB(30, 30, 35)
+Title.Text = "Rivals Skin Changer  •  [ K ] Toggle"
+Title.TextColor3 = Color3.fromRGB(255, 80, 80)
+Title.Font = Enum.Font.GothamBlack
+Title.TextSize = 22
+Title.BorderSizePixel = 0
 
--- 무기 목록 배열로 변환 (정렬)
-local weaponNames = {}
-for weapon, _ in pairs(SkinLists) do
-    table.insert(weaponNames, weapon)
+local Left = Instance.new("Frame", Main)
+Left.Size = UDim2.new(0, 280, 1, -110)
+Left.Position = UDim2.new(0, 15, 0, 60)
+Left.BackgroundColor3 = Color3.fromRGB(28, 28, 34)
+Left.BorderSizePixel = 0
+
+local WeaponSearch = Instance.new("TextBox", Left)
+WeaponSearch.Size = UDim2.new(1, -20, 0, 35)
+WeaponSearch.Position = UDim2.new(0, 10, 0, 10)
+WeaponSearch.PlaceholderText = "Search weapon..."
+WeaponSearch.BackgroundColor3 = Color3.fromRGB(40, 40, 48)
+WeaponSearch.TextColor3 = Color3.new(1, 1, 1)
+WeaponSearch.Font = Enum.Font.Gotham
+WeaponSearch.TextSize = 14
+WeaponSearch.BorderSizePixel = 0
+WeaponSearch.ClearTextOnFocus = false
+WeaponSearch.Text = ""
+
+local WeaponScroll = Instance.new("ScrollingFrame", Left)
+WeaponScroll.Size = UDim2.new(1, -20, 1, -55)
+WeaponScroll.Position = UDim2.new(0, 10, 0, 55)
+WeaponScroll.BackgroundTransparency = 1
+WeaponScroll.ScrollBarThickness = 6
+WeaponScroll.BorderSizePixel = 0
+
+local WeaponLayout = Instance.new("UIListLayout", WeaponScroll)
+WeaponLayout.Padding = UDim.new(0, 6)
+WeaponLayout.SortOrder = Enum.SortOrder.Name
+
+local Right = Instance.new("Frame", Main)
+Right.Size = UDim2.new(1, -310, 1, -110)
+Right.Position = UDim2.new(0, 305, 0, 60)
+Right.BackgroundColor3 = Color3.fromRGB(28, 28, 34)
+Right.BorderSizePixel = 0
+
+local SelectedLabel = Instance.new("TextLabel", Right)
+SelectedLabel.Size = UDim2.new(1, -20, 0, 40)
+SelectedLabel.Position = UDim2.new(0, 10, 0, 10)
+SelectedLabel.BackgroundTransparency = 1
+SelectedLabel.Text = "Select a weapon on the left"
+SelectedLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
+SelectedLabel.Font = Enum.Font.GothamBold
+SelectedLabel.TextSize = 20
+
+local SkinScroll = Instance.new("ScrollingFrame", Right)
+SkinScroll.Size = UDim2.new(1, -20, 1, -70)
+SkinScroll.Position = UDim2.new(0, 10, 0, 60)
+SkinScroll.BackgroundTransparency = 1
+SkinScroll.ScrollBarThickness = 8
+SkinScroll.BorderSizePixel = 0
+
+local SkinGrid = Instance.new("UIGridLayout", SkinScroll)
+SkinGrid.CellSize = UDim2.new(0, 130, 0, 155)
+SkinGrid.CellPadding = UDim2.new(0, 15, 0, 15)
+
+local Toolbar = Instance.new("Frame", Main)
+Toolbar.Size = UDim2.new(1, 0, 0, 48)
+Toolbar.Position = UDim2.new(0, 0, 1, -48)
+Toolbar.BackgroundColor3 = Color3.fromRGB(26, 26, 32)
+Toolbar.BorderSizePixel = 0
+
+local StatusLabel = Instance.new("TextLabel", Toolbar)
+StatusLabel.Size = UDim2.new(1, -310, 1, 0)
+StatusLabel.Position = UDim2.new(0, 15, 0, 0)
+StatusLabel.BackgroundTransparency = 1
+StatusLabel.Text = "Ready"
+StatusLabel.TextColor3 = Color3.fromRGB(140, 140, 160)
+StatusLabel.Font = Enum.Font.Gotham
+StatusLabel.TextSize = 13
+StatusLabel.TextXAlignment = Enum.TextXAlignment.Left
+
+local function FlashStatus(msg, color)
+    StatusLabel.Text = msg
+    StatusLabel.TextColor3 = color or Color3.fromRGB(140, 200, 140)
+    task.delay(3, function()
+        StatusLabel.Text = "Ready"
+        StatusLabel.TextColor3 = Color3.fromRGB(140, 140, 160)
+    end)
 end
-table.sort(weaponNames)
 
--- 무기 선택 드롭다운
-MainBox:AddDropdown("WeaponDropdown", {
-    Values = weaponNames,
-    Default = 1,
-    Text = "Select Weapon",
-    Tooltip = "스킨을 적용할 무기를 선택하세요",
-    Callback = function(Value)
-        -- 선택한 무기에 맞춰 스킨 드롭다운 업데이트
-        local skins = SkinLists[Value]
-        Options.SkinDropdown:SetValues(skins)
-        Options.SkinDropdown:SetValue("Default")
-        
-        -- 현재 장착된 스킨이 있으면 불러오기
-        if _G.EquippedData[Value] then
-            Options.SkinDropdown:SetValue(_G.EquippedData[Value].Skin)
-            Options.WrapDropdown:SetValue(_G.EquippedData[Value].Wrap)
+local function GetThumb(name)
+    pcall(function()
+        if ItemLibrary and ItemLibrary.ViewModels and ItemLibrary.ViewModels[name] then
+            local data = ItemLibrary.ViewModels[name]
+            if data.ImageHighResolution then return data.ImageHighResolution end
+            if data.Image then return data.Image end
+            if data.Thumbnail then return data.Thumbnail end
         end
-    end
-})
-
--- 스킨 선택 드롭다운
-MainBox:AddDropdown("SkinDropdown", {
-    Values = {"Default"},
-    Default = 1,
-    Text = "Select Skin",
-    Tooltip = "해당 무기의 스킨을 선택하세요",
-    Callback = function(Value)
-        local selectedWeapon = Options.WeaponDropdown.Value
-        if selectedWeapon and _G.EquippedData[selectedWeapon] then
-            _G.EquippedData[selectedWeapon].Skin = Value
-            pcall(function() CosmeticLibrary.Equip(selectedWeapon, "Skin", Value) end)
-            Library:Notify("Skin Equipped: " .. selectedWeapon .. " - " .. Value, 3)
-        end
-    end
-})
-
--- 랩(Wrap) 선택 드롭다운
-MainBox:AddDropdown("WrapDropdown", {
-    Values = WrapList,
-    Default = 1,
-    Text = "Select Wrap",
-    Tooltip = "무기 랩(감싸기)을 선택하세요",
-    Callback = function(Value)
-        local selectedWeapon = Options.WeaponDropdown.Value
-        if selectedWeapon and _G.EquippedData[selectedWeapon] then
-            _G.EquippedData[selectedWeapon].Wrap = Value
-            pcall(function() CosmeticLibrary.Equip(selectedWeapon, "Wrap", Value) end)
-            Library:Notify("Wrap Equipped: " .. selectedWeapon .. " - " .. Value, 3)
-        end
-    end
-})
-
--- 강제 재장비 버튼
-MainBox:AddButton({
-    Text = "Refresh Weapon (강제 적용)",
-    Tooltip = "무기를 껐다 켜서 스킨을 즉시 렌더링합니다.",
-    Func = function()
-        local character = player.Character or player.CharacterAdded:Wait()
-        local tool = character:FindFirstChildOfClass("Tool")
-        if tool then
-            tool.Parent = player.Backpack
-            task.wait(0.2)
-            tool.Parent = character
-        else
-            local backpackTool = player.Backpack:FindFirstChildOfClass("Tool")
-            if backpackTool then
-                backpackTool.Parent = character
+        if CosmeticLibrary and CosmeticLibrary.Skins then
+            for _, tbl in pairs(CosmeticLibrary.Skins) do
+                if tbl[name] then
+                    local data = tbl[name]
+                    if data.ImageHighResolution then return data.ImageHighResolution end
+                    if data.Image then return data.Image end
+                    if data.Thumbnail then return data.Thumbnail end
+                end
             end
         end
-    end,
-    DoubleClick = false
-})
+    end)
+    return ""
+end
 
--- 정보 박스
-InfoBox:AddLabel("How to use:\n\n1. Select your weapon.\n2. Choose a Skin and Wrap.\n3. Press 'Refresh Weapon' to apply instantly.\n4. Go to UI Settings to Save/Load your config.\n\nPress Right Shift to toggle UI.", true)
+local function EquipSkin(weapon, skin)
+    _G.EquippedData[weapon].Skin = skin
+    pcall(function() CosmeticLibrary.Equip(weapon, "Skin", skin) end)
+    SelectedLabel.Text = "✅ EQUIPPED: " .. weapon .. " — " .. skin
+    FlashStatus("Skin applied! Switch weapon to update.")
+end
 
--- 워터마크 설정
-Library:SetWatermarkVisibility(true)
-local FrameTimer, FrameCounter, FPS = tick(), 0, 60
-local GetPing = (function() return math.floor(game:GetService("Stats").Network.ServerStatsItem["Data Ping"]:GetValue()) end)
-local CanDoPing = pcall(function() return GetPing(); end)
+local function MakeWeaponBtn(weapon)
+    local btn = Instance.new("TextButton")
+    btn.Size = UDim2.new(1, -10, 0, 52)
+    btn.BackgroundColor3 = Color3.fromRGB(40, 40, 48)
+    btn.Text = "   " .. weapon
+    btn.TextColor3 = Color3.new(1, 1, 1)
+    btn.TextXAlignment = Enum.TextXAlignment.Left
+    btn.Font = Enum.Font.GothamSemibold
+    btn.TextSize = 16
+    btn.BorderSizePixel = 0
+    btn.Parent = WeaponScroll
 
-local WatermarkConnection = game:GetService("RunService").RenderStepped:Connect(function()
-    FrameCounter += 1
-    if (tick() - FrameTimer) >= 1 then
-        FPS = FrameCounter
-        FrameTimer = tick()
-        FrameCounter = 0
+    local img = Instance.new("ImageLabel", btn)
+    img.Size = UDim2.new(0, 40, 0, 40)
+    img.Position = UDim2.new(1, -50, 0.5, -20)
+    img.BackgroundTransparency = 1
+    img.Image = GetThumb(weapon)
+
+    local badge = Instance.new("TextLabel", btn)
+    badge.Size = UDim2.new(0, 60, 0, 18)
+    badge.Position = UDim2.new(1, -120, 0, 4)
+    badge.BackgroundColor3 = Color3.fromRGB(255, 80, 80)
+    badge.TextColor3 = Color3.new(1, 1, 1)
+    badge.Font = Enum.Font.GothamBold
+    badge.TextSize = 10
+    badge.BorderSizePixel = 0
+    badge.TextScaled = true
+    local badgeCorner = Instance.new("UICorner", badge)
+    badgeCorner.CornerRadius = UDim.new(0, 4)
+    
+    local function UpdateBadge()
+        local skin = _G.EquippedData[weapon] and _G.EquippedData[weapon].Skin or "Default"
+        if skin ~= "Default" then
+            badge.Text = skin:sub(1, 8)
+            badge.Visible = true
+        else
+            badge.Visible = false
+        end
     end
-    if CanDoPing then
-        Library:SetWatermark(("Rivals Skin Changer | %d fps | %d ms"):format(math.floor(FPS), GetPing()))
-    else
-        Library:SetWatermark(("Rivals Skin Changer | %d fps"):format(math.floor(FPS)))
+    UpdateBadge()
+
+    btn.MouseButton1Click:Connect(function()
+        for _, b in pairs(WeaponScroll:GetChildren()) do
+            if b:IsA("TextButton") then b.BackgroundColor3 = Color3.fromRGB(40, 40, 48) end
+        end
+        btn.BackgroundColor3 = Color3.fromRGB(80, 140, 255)
+        for _, child in pairs(SkinScroll:GetChildren()) do
+            if child:IsA("ImageButton") then child:Destroy() end
+        end
+        SelectedLabel.Text = weapon .. " — Choose a Skin"
+        for _, skin in ipairs(SkinLists[weapon]) do
+            local sbtn = Instance.new("ImageButton")
+            sbtn.BackgroundColor3 = (_G.EquippedData[weapon] and _G.EquippedData[weapon].Skin == skin) and Color3.fromRGB(60, 130, 60) or Color3.fromRGB(35, 35, 42)
+            sbtn.Image = GetThumb(skin)
+            sbtn.BorderSizePixel = 0
+            sbtn.Parent = SkinScroll
+            local lbl = Instance.new("TextLabel", sbtn)
+            lbl.Size = UDim2.new(1, 0, 0, 35)
+            lbl.Position = UDim2.new(0, 0, 1, -35)
+            lbl.BackgroundTransparency = 0.3
+            lbl.BackgroundColor3 = Color3.new(0, 0, 0)
+            lbl.Text = skin
+            lbl.TextColor3 = Color3.new(1, 1, 1)
+            lbl.Font = Enum.Font.Gotham
+            lbl.TextScaled = true
+            lbl.BorderSizePixel = 0
+            sbtn.MouseButton1Click:Connect(function()
+                for _, c in pairs(SkinScroll:GetChildren()) do
+                    if c:IsA("ImageButton") then c.BackgroundColor3 = Color3.fromRGB(35, 35, 42) end
+                end
+                sbtn.BackgroundColor3 = Color3.fromRGB(60, 130, 60)
+                EquipSkin(weapon, skin)
+                UpdateBadge()
+            end)
+        end
+        SkinScroll.CanvasSize = UDim2.new(0, 0, 0, SkinGrid.AbsoluteContentSize.Y + 40)
+    end)
+end
+
+for weapon in pairs(SkinLists) do
+    MakeWeaponBtn(weapon)
+end
+WeaponScroll.CanvasSize = UDim2.new(0, 0, 0, WeaponLayout.AbsoluteContentSize.Y)
+
+WeaponSearch:GetPropertyChangedSignal("Text"):Connect(function()
+    local txt = WeaponSearch.Text:lower()
+    for _, btn in pairs(WeaponScroll:GetChildren()) do
+        if btn:IsA("TextButton") then
+            local btnText = btn.Text:match("^%s*(.-)%s*$"):lower()
+            btn.Visible = txt == "" or btnText:find(txt)
+        end
     end
 end)
 
-Library:OnUnload(function()
-    WatermarkConnection:Disconnect()
-    Library.Unloaded = true
+do
+    local dragging, dragStart, startPos
+    Title.Active = true
+
+    Title.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 then
+            dragging = true
+            dragStart = input.Position
+            startPos = Main.Position
+        end
+    end)
+    Title.InputEnded:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 then dragging = false end
+    end)
+    UserInputService.InputChanged:Connect(function(input)
+        if dragging and input.UserInputType == Enum.UserInputType.MouseMovement then
+            local delta = input.Position - dragStart
+            Main.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+        end
+    end)
+end
+
+UserInputService.InputBegan:Connect(function(i, g)
+    if not g and i.KeyCode == Enum.KeyCode.K then
+        Main.Visible = not Main.Visible
+        if not Main.Visible then
+            pcall(function() WeaponSearch:ReleaseFocus() end)
+            pcall(function() UserInputService.MouseBehavior = Enum.MouseBehavior.Default end)
+        end
+    end
 end)
 
--- UI Settings 탭 구성
-local MenuGroup = Tabs["UI Settings"]:AddLeftGroupbox("Menu")
-MenuGroup:AddToggle("KeybindMenuOpen", { Default = Library.KeybindFrame.Visible, Text = "Open Keybind Menu", Callback = function(value) Library.KeybindFrame.Visible = value end})
-MenuGroup:AddToggle("ShowCustomCursor", {Text = "Custom Cursor", Default = true, Callback = function(Value) Library.ShowCustomCursor = Value end})
-MenuGroup:AddDivider()
-MenuGroup:AddLabel("Menu bind"):AddKeyPicker("MenuKeybind", { Default = "RightShift", NoUI = true, Text = "Menu keybind" })
-MenuGroup:AddButton("Unload", function() Library:Unload() end)
-
-Library.ToggleKeybind = Options.MenuKeybind
-
--- SaveManager 설정 (Load 기능)
-ThemeManager:SetLibrary(Library)
-SaveManager:SetLibrary(Library)
-SaveManager:IgnoreThemeSettings()
-SaveManager:SetIgnoreIndexes({ "MenuKeybind" })
-
-ThemeManager:SetFolder("RivalsScriptHub")
-SaveManager:SetFolder("RivalsScriptHub/Rivals")
-
-SaveManager:BuildConfigSection(Tabs["UI Settings"])
-ThemeManager:ApplyToTab(Tabs["UI Settings"])
-SaveManager:LoadAutoloadConfig()
-
-print("[+] Rivals Linoria Skin Changer Loaded Successfully!")
+print("[+] Rivals Skin Changer Loaded! Press K to toggle UI.")
