@@ -1,434 +1,901 @@
-local Players = game:GetService("Players")
-local ReplicatedStorage = game:GetService("ReplicatedStorage")
-local UserInputService = game:GetService("UserInputService")
-local player = Players.LocalPlayer
-local CoreGui = game:GetService("CoreGui")
+--[[
+                                               _                                 
+                     __      ____ _ _ __ _ __ (_)_ __   __ _                     
+                     \ \ /\ / / _` | '__| '_ \| | '_ \ / _` |                    
+                      \ V  V / (_| | |  | | | | | | | | (_| |                    
+                       \_/\_/ \__,_|_|  |_| |_|_|_| |_|\__, |                    
+                                                       |___/                     
+       this example file is missing a lot of stuff and its pretty outdated       
+                i recommend using the documentation for Obsidian:                
+                         https://docs.mspaint.cc/obsidian                        
+                                                                                 
+               a lot of stuff is very similar but it's not the same              
+                 you can look through the source code of Linoria                 
+                                                                                 
+                 if anyone wants to expand on this example script                
+                        make an pull request or something                        
+                                                                                 
+                        Original example (mady by wally):                        
+       https://github.com/violin-suzutsuki/LinoriaLib/blob/main/Example.lua                
+ --]]
 
--- ═══════════════════════════════════════════════
--- SKIN LISTS
--- ═══════════════════════════════════════════════
-local SkinLists = {
-    ["Assault Rifle"] = {"Default", "AK-47", "AUG", "Tommy Gun", "Boneclaw Rifle", "Gingerbread AUG", "AKEY-47", "100K Visits", "10 Billion Visits", "Phoenix Rifle"},
-    ["Bow"] = {"Default", "Compound Bow", "Raven Bow", "Dream Bow", "Bat Bow", "Frostbite Bow", "Beloved Bow", "Balloon Bow", "Glorious Bow", "Key Bow", "Arch Bow"},
-    ["Burst Rifle"] = {"Default", "Electro Burst", "Aqua Burst", "FAMAS", "Spectral Burst", "Pine Burst"},
-    ["Crossbow"] = {"Default", "Pixel Crossbow", "Harpoon Crossbow", "Violin Crossbow", "Crossbone", "Frostbite Crossbow", "Arch Crossbow", "Glorious Crossbow"},
-    ["Distortion"] = {"Default", "Plasma Distortion", "Magma Distortion", "Cyber Distortion", "Expirement D15", "Sleighstortion"},
-    ["Energy Rifle"] = {"Default", "Hacker Rifle", "Hydro Rifle", "Void Rifle", "Soul Rifle", "New Years Energy Rifle"},
-    ["Flamethrower"] = {"Default", "Pixel Flamethrower", "Lamethrower", "Glitterthrower", "Jack O' Thrower", "Snowblower", "Keythrower", "Rainbowthrower"},
-    ["Grenade Launcher"] = {"Default", "Swashbuckler", "Uranium Launcher", "Gearnade Launcher", "Skull Grenade Launcher", "Snowball Launcher"},
-    ["Gunblade"] = {"Default", "Hyper Gunblade", "Crude Gunblade", "Gunsaw", "Boneblade", "Elf's Gunblade"},
-    ["Minigun"] = {"Default", "Lasergun 3000", "Pixel Minigun", "Fighter Jet", "Pumpkin Minigun", "Wrapped Minigun"},
-    ["Paintball Gun"] = {"Default", "Slime Gun", "Boba Gun", "Ketchup Gun", "Brain Gun", "Snowball Gun"},
-    ["RPG"] = {"Default", "Nuke Launcher", "Spaceship Launcher", "Squid Launcher", "Pumpkin Launcher", "Firework Launcher"},
-    ["Shotgun"] = {"Default", "Balloon Shotgun", "Hyper Shotgun", "Cactus Shotgun", "Broomstick", "Wrapped Shotgun"},
-    ["Sniper"] = {"Default", "Pixel Sniper", "Hyper Sniper", "Event Horizon", "Eyething Sniper", "Gingerbread Sniper", "Keyper", "Glorious Sniper"},
-    ["Daggers"] = {"Default", "Aces", "Paper Planes", "Shurikens", "Bat Daggers", "Cookies", "Crystal Daggers", "Keynais"},
-    ["Energy Pistols"] = {"Default", "Void Pistols", "Hydro Pistols", "Soul Pistols", "New Years Energy Pistols"},
-    ["Exogun"] = {"Default", "Singularity", "Raygun", "Repulsor", "Exogourd", "Midnight Festive Exogun"},
-    ["Flare Gun"] = {"Default", "Firework Gun", "Dynamite Gun", "Banana Flare", "Vexed Flare Gun", "Wrapped Flare Gun"},
-    ["Handgun"] = {"Default", "Blaster", "Hand Gun", "Gumball Handgun", "Pumpkin Handgun", "Gingerbread Handgun"},
-    ["Revolver"] = {"Default", "Desert Eagle", "Sheriff", "Peppergun", "Boneclaw Revolver", "Peppermint Sheriff"},
-    ["Shorty"] = {"Default", "Not So Shorty", "Lovely Shorty", "Balloon Shorty", "Demon Shorty", "Wrapped Shorty"},
-    ["Slingshot"] = {"Default", "Stick", "Goal Post", "Harp", "Boneshot", "Reindeer Slingshot", "Lucky Horseshoe"},
-    ["Spray"] = {"Default", "Lovely Spray", "Nail Gun", "Bottle Spray", "Boneclaw Spray", "Pine Spray", "Key Spray"},
-    ["Uzi"] = {"Default", "Water Uzi", "Electro Uzi", "Money Gun", "Demon Uzi", "Pine Uzi"},
-    ["Warper"] = {"Default", "Glitter Warper", "Arcane Warper", "Hotel Bell", "Experiment W4", "Frost Warper"},
-    ["Battle Axe"] = {"Default", "The Shred", "Ban Axe", "Cerulean Axe", "Mimic Axe", "Nordic Axe"},
-    ["Chainsaw"] = {"Default", "Blobsaw", "Handsaws", "Mega Drill", "Buzzsaw", "Festive Buzzsaw"},
-    ["Fists"] = {"Default", "Boxing Gloves", "Brass Knuckles", "Fists Of Hurt", "Pumpkin Claws", "Festive Fists"},
-    ["Katana"] = {"Default", "Saber", "Lightning Bolt", "Stellar Katana", "Evil Trident", "New Years Katana", "Keytana", "Arch Katana", "Crystal Katana", "Pixel Katana", "Glorious Katana"},
-    ["Knife"] = {"Default", "Chancla", "Karambit", "Balisong", "Machete", "Candy Cane", "Keylisong", "Keyrambit", "Caladbolg"},
-    ["Riot Shield"] = {"Default", "Door", "Energy Shield", "Masterpiece", "Tombstone Shield", "Sled"},
-    ["Scythe"] = {"Default", "Scythe of Death", "Anchor", "Sakura Scythe", "Bat Scythe", "Cryo Scythe", "Crystal Scythe", "Keythe", "Bug Net", "Arch Scythe"},
-    ["Trowel"] = {"Default", "Plastic Shovel", "Garden Shovel", "Paintbrush", "Pumpkin Carver", "Snow Shovel"},
-    ["Flashbang"] = {"Default", "Disco Ball", "Camera", "Lightbulb", "Skullbang", "Shining Star"},
-    ["Freeze Ray"] = {"Default", "Temporal Ray", "Bubble Ray", "Gum Ray", "Spider Ray", "Wrapped Freeze Ray"},
-    ["Grenade"] = {"Default", "Whoopee Cushion", "Water Balloon", "Dynamite", "Soul Grenade", "Jingle Grenade"},
-    ["Jump Pad"] = {"Default", "Trampoline", "Bounce House", "Shady Chicken Sandwich", "Spider Web", "Jolly Man"},
-    ["Medkit"] = {"Default", "Sandwich", "Laptop", "Medkitty", "Bucket of Candy", "Milk & Cookies", "Box of Chocolates", "Briefcase"},
-    ["Molotov"] = {"Default", "Coffee", "Torch", "Lava Lamp", "Vexed Candle", "Hot Coals", "Arch Molotov"},
-    ["Satchel"] = {"Default", "Advanced Satchel", "Notebook Satchel", "Bag O' Money", "Potion Satchel", "Suspicious Gift"},
-    ["Smoke Grenade"] = {"Default", "Emoji Cloud", "Balance", "Hourglass", "Eyeball", "Snowglobe"},
-    ["Subspace Tripmine"] = {"Default", "Don't Press", "Spring", "DIY Tripmine", "Trick or Treat", "Dev In the Box", "Pot O Keys"},
-    ["War Horn"] = {"Default", "Trumpet", "Megaphone", "Air Horn", "Boneclaw Horn", "Mammoth Horn"},
-    ["Warpstone"] = {"Default", "Cyber Warpstone", "Teleport Disc", "Electropunk Warpstone", "Warpbone", "Warpstar"},
-    ["Permafrost"] = {"Default", "Snowman Permafrost", "Ice Permafrost", "Glorious Permafrost"},
+local repo = "https://raw.githubusercontent.com/mstudio45/LinoriaLib/main/"
+
+local Library = loadstring(game:HttpGet(repo .. "Library.lua"))()
+local ThemeManager = loadstring(game:HttpGet(repo .. "addons/ThemeManager.lua"))()
+local SaveManager = loadstring(game:HttpGet(repo .. "addons/SaveManager.lua"))()
+
+local Options = Library.Options
+local Toggles = Library.Toggles
+
+Library.ShowToggleFrameInKeybinds = true 
+Library.ShowCustomCursor = true 
+Library.NotifySide = "Left" 
+
+local Window = Library:CreateWindow({
+    Title = "Example menu",
+    Center = true,
+    AutoShow = true,
+    Resizable = true,
+    ShowCustomCursor = true,
+    UnlockMouseWhileOpen = true,
+    NotifySide = "Left",
+    TabPadding = 8,
+    MenuFadeTime = 0.2
+})
+
+local Tabs = {
+    Main = Window:AddTab("Main"),
+    ["UI Settings"] = Window:AddTab("UI Settings"),
 }
 
-local WrapList = {
-    "None", "Gold", "Diamond", "Midas Touch", "Community Wrap", "Blush Wrapping", "Brain", "Crystalliz", 
-    "Damascus", "Black Damascus", ".exe wrap", "Groove", "Hollow Wrap", "Hesper", "Hyperdrive", 
-    "Gingerbread", "Neon Lights", "Hologram Arena", "Sunset", "Pink Lemonade", "Lovely Leopard", 
-    "Dawn", "Spectral", "Danger", "Termination", "Moonstone", "Starfall", "Black Glass", 
-    "Rift Wrap", "Starblaze", "Maganite", "Watermelon", "Reptile", "Water", "OranGG", "A5", "Cheese", 
-    "Nova", "Supernova", "Glass", "Mesh", "Meat Wrap", "Black Dark Wrap", "Cardinal", "Pixel Camo", 
-    "Nauseite", "Sensite", "Urban Camo", "Frosted", "Slime Wrap", "Carpet Wrap", "Cross Wrap", 
-    "Mainframe Wrap", "Honeycomb Wrap", "Black Opal Wrap", "Patriot", "PB&J Wrap", "Digital Camo", 
-    "Street Camo", "Ocean Camo", "Circuit", "Clouds", "Woven", "Ladybug"
-}
+local LeftGroupBox = Tabs.Main:AddLeftGroupbox("Groupbox")
 
--- ═══════════════════════════════════════════════
--- GLOBAL STATE & INITIALIZATION
--- ═══════════════════════════════════════════════
-_G.EquippedData = _G.EquippedData or {}
-for weapon in pairs(SkinLists) do
-    if not _G.EquippedData[weapon] then
-        _G.EquippedData[weapon] = {Skin = "Default", Wrap = "None"}
-    end
-end
+-- ==========================================
+-- UNLOCK ALL 기능 추가 부분
+-- ==========================================
+local UnlockGroupBox = Tabs.Main:AddRightGroupbox("Unlock All")
 
-local function robust_require(module)
-    local mName = tostring(module)
-    local getupvalues = debug.getupvalues or getupvalues
-    local scan_apis = {getgc, getregistry, debug.getregistry}
-    for _, api in pairs(scan_apis) do
-        if type(api) == "function" then
-            local ok, objects = pcall(api, true)
-            if ok and type(objects) == "table" then
-                for _, v in pairs(objects) do
-                    if type(v) == "table" then
-                        if mName:find("CosmeticLibrary") and (v.Cosmetics or rawget(v, "Cosmetics")) and (type(v.Equip) == "function" or type(v.GetSkins) == "function") then 
-                            return v 
-                        elseif mName:find("ItemLibrary") and (v.ViewModels or rawget(v, "ViewModels")) then 
-                            return v 
-                        elseif mName:find("ClientViewModel") and (v.new or rawget(v, "new")) and (v.GetWrap or rawget(v, "GetWrap")) then 
-                            return v 
-                        elseif mName:find("ReplicatedClass") and type(v.ToEnum) == "function" then 
-                            return v 
+local unlockAllExecuted = false
+
+UnlockGroupBox:AddButton({
+    Text = "Unlock All Cosmetics",
+    Tooltip = "Bypasses anti-cheat and unlocks all cosmetics/skins.",
+    Func = function()
+        if unlockAllExecuted then
+            Library:Notify("Unlock All has already been executed!")
+            return
+        end
+        unlockAllExecuted = true
+        Library:Notify("Running Unlock All script... Please wait.")
+
+        -- UnlockAll.lua 스크립트 비동기 실행
+        task.spawn(function()
+            local plrs = game:GetService("Players")
+            local rf = game:GetService("ReplicatedFirst")
+            local lp = plrs.LocalPlayer
+
+            print("bypass started")
+
+            -- Fake ClientAlert RemoteEvent the game tries to use upon loading
+            local fake = Instance.new("RemoteEvent")
+            fake.Name = "ClientAlert"
+            fake.Parent = lp
+
+            -- Spoof WaitForChild("ClientAlert") which the result from the LoadingScreen wanted to get
+            local pmt = getrawmetatable(lp)
+            local oldnc = pmt.__namecall
+            setreadonly(pmt, false)
+            pmt.__namecall = newcclosure(function(self, ...)
+                if getnamecallmethod() == "WaitForChild" and select(1, ...) == "ClientAlert" then
+                    return fake
+                end
+                return oldnc(self, ...)
+            end)
+            setreadonly(pmt, true)
+
+            -- Block :Kick and ClientAlert:FireServer in case it gets used
+            local mt = getrawmetatable(game)
+            local old = mt.__namecall
+            setreadonly(mt, false)
+            mt.__namecall = newcclosure(function(self, ...)
+                local m = getnamecallmethod()
+
+                if self == lp and (m == "Kick" or m == "kick") then return end
+                if m:lower():find("kick") or m == "Shutdown" then return end
+                if m == "FireServer" and self == fake then
+                    return
+                end
+                return old(self, ...)
+            end)
+            setreadonly(mt, true)
+
+            -- Neutered anti-cheat functions in LoadingScreen and LocalScript3
+            local ls3 = rf:WaitForChild("LocalScript3", 10)
+            local c = 0
+            for _, f in getgc(false) do
+                if typeof(f) == "function" then
+                    local ok, e = pcall(getfenv, f)
+                    if ok and e then
+                        local scr = rawget(e, "script")
+                        if scr and (scr == ls3 or tostring(scr):find("LoadingScreen")) then
+                            local ok2, cs = pcall(debug.getconstants, f)
+                            if ok2 then
+                                for _, k in cs do
+                                    if typeof(k) == "string" and (k:find("TakeTheL") or k:find("ban") or k:find("kick")) then 
+                                        hookfunction(f, function() end)
+                                        c = c + 1
+                                        break
+                                    end
+                                end
+                            end
                         end
                     end
                 end
             end
+
+            -- stupid unlock all below --
+            local Players = game:GetService("Players")
+            local ReplicatedStorage = game:GetService("ReplicatedStorage")
+            local HttpService = game:GetService("HttpService")
+            local player = Players.LocalPlayer
+            local playerScripts = player.PlayerScripts
+            local controllers = playerScripts.Controllers
+            local EnumLibrary = require(ReplicatedStorage.Modules:WaitForChild("EnumLibrary", 10))
+            if EnumLibrary then EnumLibrary:WaitForEnumBuilder() end
+            local CosmeticLibrary = require(ReplicatedStorage.Modules:WaitForChild("CosmeticLibrary", 10))
+            local ItemLibrary = require(ReplicatedStorage.Modules:WaitForChild("ItemLibrary", 10))
+            local DataController = require(controllers:WaitForChild("PlayerDataController", 10))
+            local equipped, favorites = {}, {}
+            local constructingWeapon, viewingProfile = nil, nil
+            local lastUsedWeapon = nil
+            
+            local function cloneCosmetic(name, cosmeticType, options)
+                local base = CosmeticLibrary.Cosmetics[name]
+                if not base then return nil end
+                local data = {}
+                for key, value in pairs(base) do data[key] = value end
+                data.Name = name
+                data.Type = data.Type or cosmeticType
+                data.Seed = data.Seed or math.random(1, 1000000)
+                if EnumLibrary then
+                    local success, enumId = pcall(EnumLibrary.ToEnum, EnumLibrary, name)
+                    if success and enumId then data.Enum, data.ObjectID = enumId, data.ObjectID or enumId end
+                end
+                if options then
+                    if options.inverted ~= nil then data.Inverted = options.inverted end
+                    if options.favoritesOnly ~= nil then data.OnlyUseFavorites = options.favoritesOnly end
+                end
+                return data
+            end
+            
+            local saveFile = "unlockall/config.json"
+            local function saveConfig()
+                if not writefile then return end
+                pcall(function()
+                    local config = {equipped = {}, favorites = favorites}
+                    for weapon, cosmetics in pairs(equipped) do
+                        config.equipped[weapon] = {}
+                        for cosmeticType, cosmeticData in pairs(cosmetics) do
+                            if cosmeticData and cosmeticData.Name then
+                                config.equipped[weapon][cosmeticType] = {
+                                    name = cosmeticData.Name, seed = cosmeticData.Seed, inverted = cosmeticData.Inverted
+                                }
+                            end
+                        end
+                    end
+                    makefolder("unlockall")
+                    writefile(saveFile, HttpService:JSONEncode(config))
+                end)
+            end
+            
+            local function loadConfig()
+                if not readfile or not isfile or not isfile(saveFile) then return end
+                pcall(function()
+                    local config = HttpService:JSONDecode(readfile(saveFile))
+                    if config.equipped then
+                        for weapon, cosmetics in pairs(config.equipped) do
+                            equipped[weapon] = {}
+                            for cosmeticType, cosmeticData in pairs(cosmetics) do
+                                local cloned = cloneCosmetic(cosmeticData.name, cosmeticType, {inverted = cosmeticData.inverted})
+                                if cloned then cloned.Seed = cosmeticData.seed equipped[weapon][cosmeticType] = cloned end
+                            end
+                        end
+                    end
+                    favorites = config.favorites or {}
+                end)
+            end
+            
+            CosmeticLibrary.OwnsCosmeticNormally = function() return true end
+            CosmeticLibrary.OwnsCosmeticUniversally = function() return true end
+            CosmeticLibrary.OwnsCosmeticForWeapon = function() return true end
+            local originalOwnsCosmetic = CosmeticLibrary.OwnsCosmetic
+            CosmeticLibrary.OwnsCosmetic = function(self, inventory, name, weapon)
+                if name:find("MISSING_") then return originalOwnsCosmetic(self, inventory, name, weapon) end
+                return true
+            end
+            
+            local originalGet = DataController.Get
+            DataController.Get = function(self, key)
+                local data = originalGet(self, key)
+                if key == "CosmeticInventory" then
+                    local proxy = {}
+                    if data then for k, v in pairs(data) do proxy[k] = v end end
+                    return setmetatable(proxy, {__index = function() return true end})
+                end
+                if key == "FavoritedCosmetics" then
+                    local result = data and table.clone(data) or {}
+                    for weapon, favs in pairs(favorites) do
+                        result[weapon] = result[weapon] or {}
+                        for name, isFav in pairs(favs) do result[weapon][name] = isFav end
+                    end
+                    return result
+                end
+                return data
+            end
+            
+            local originalGetWeaponData = DataController.GetWeaponData
+            DataController.GetWeaponData = function(self, weaponName)
+                local data = originalGetWeaponData(self, weaponName)
+                if not data then return nil end
+                
+                local merged = {}
+                for key, value in pairs(data) do merged[key] = value end
+                merged.Name = weaponName
+                if equipped[weaponName] then
+                    for cosmeticType, cosmeticData in pairs(equipped[weaponName]) do merged[cosmeticType] = cosmeticData end
+                end
+                return merged
+            end
+            
+            local FighterController
+            pcall(function() FighterController = require(controllers:WaitForChild("FighterController", 10)) end)
+            if hookmetamethod then
+                local remotes = ReplicatedStorage:FindFirstChild("Remotes")
+                local dataRemotes = remotes and remotes:FindFirstChild("Data")
+                local equipRemote = dataRemotes and dataRemotes:FindFirstChild("EquipCosmetic")
+                local favoriteRemote = dataRemotes and dataRemotes:FindFirstChild("FavoriteCosmetic")
+                local replicationRemotes = remotes and remotes:FindFirstChild("Replication")
+                local fighterRemotes = replicationRemotes and replicationRemotes:FindFirstChild("Fighter")
+                local useItemRemote = fighterRemotes and fighterRemotes:FindFirstChild("UseItem")
+                if equipRemote then
+                    local oldNamecall
+                    oldNamecall = hookmetamethod(game, "__namecall", function(self, ...)
+                        if getnamecallmethod() ~= "FireServer" then return oldNamecall(self, ...) end
+                        local args = {...}
+                        if useItemRemote and self == useItemRemote then
+                            local objectID = args[1]
+                            if FighterController then
+                                pcall(function()
+                                    local fighter = FighterController:GetFighter(player)
+                                    if fighter and fighter.Items then
+                                        for _, item in pairs(fighter.Items) do
+                                            if item:Get("ObjectID") == objectID then
+                                                lastUsedWeapon = item.Name
+                                                break
+                                            end
+                                        end
+                                    end
+                                end)
+                            end
+                        end            
+                        if self == equipRemote then
+                            local weaponName, cosmeticType, cosmeticName, options = args[1], args[2], args[3], args[4] or {}                
+                            if cosmeticName and cosmeticName ~= "None" and cosmeticName ~= "" then
+                                local inventory = DataController:Get("CosmeticInventory")
+                                if inventory and rawget(inventory, cosmeticName) then return oldNamecall(self, ...) end
+                            end                
+                            equipped[weaponName] = equipped[weaponName] or {}                
+                            if not cosmeticName or cosmeticName == "None" or cosmeticName == "" then
+                                equipped[weaponName][cosmeticType] = nil
+                                if not next(equipped[weaponName]) then equipped[weaponName] = nil end
+                            else
+                                local cloned = cloneCosmetic(cosmeticName, cosmeticType, {inverted = options.IsInverted, favoritesOnly = options.OnlyUseFavorites})
+                                if cloned then equipped[weaponName][cosmeticType] = cloned end
+                            end                
+                            task.defer(function()
+                                pcall(function() DataController.CurrentData:Replicate("WeaponInventory") end)
+                                task.wait(0.2)
+                                saveConfig()
+                            end)
+                            return
+                        end            
+                        if self == favoriteRemote then
+                            favorites[args[1]] = favorites[args[1]] or {}
+                            favorites[args[1]][args[2]] = args[3] or nil
+                            saveConfig()
+                            task.spawn(function() pcall(function() DataController.CurrentData:Replicate("FavoritedCosmetics") end) end)
+                            return
+                        end            
+                        return oldNamecall(self, ...)
+                    end)
+                end
+            end
+            
+            local ClientItem
+            pcall(function() ClientItem = require(player.PlayerScripts.Modules.ClientReplicatedClasses.ClientFighter.ClientItem) end)
+            if ClientItem and ClientItem._CreateViewModel then
+                local originalCreateViewModel = ClientItem._CreateViewModel
+                ClientItem._CreateViewModel = function(self, viewmodelRef)
+                    local weaponName = self.Name
+                    local weaponPlayer = self.ClientFighter and self.ClientFighter.Player
+                    constructingWeapon = (weaponPlayer == player) and weaponName or nil    
+                    if weaponPlayer == player and equipped[weaponName] and equipped[weaponName].Skin and viewmodelRef then
+                        local dataKey, skinKey, nameKey = self:ToEnum("Data"), self:ToEnum("Skin"), self:ToEnum("Name")
+                        if viewmodelRef[dataKey] then
+                            viewmodelRef[dataKey][skinKey] = equipped[weaponName].Skin
+                            viewmodelRef[dataKey][nameKey] = equipped[weaponName].Skin.Name
+                        elseif viewmodelRef.Data then
+                            viewmodelRef.Data.Skin = equipped[weaponName].Skin
+                            viewmodelRef.Data.Name = equipped[weaponName].Skin.Name
+                        end
+                    end
+                    local result = originalCreateViewModel(self, viewmodelRef)
+                    constructingWeapon = nil
+                    return result
+                end
+            end
+            
+            local viewModelModule = player.PlayerScripts.Modules.ClientReplicatedClasses.ClientFighter.ClientItem:FindFirstChild("ClientViewModel")
+            if viewModelModule then
+                local ClientViewModel = require(viewModelModule)
+                if ClientViewModel.GetWrap then
+                    local originalGetWrap = ClientViewModel.GetWrap
+                    ClientViewModel.GetWrap = function(self)
+                        local weaponName = self.ClientItem and self.ClientItem.Name
+                        local weaponPlayer = self.ClientItem and self.ClientItem.ClientFighter and self.ClientItem.ClientFighter.Player
+                        if weaponName and weaponPlayer == player and equipped[weaponName] and equipped[weaponName].Wrap then
+                            return equipped[weaponName].Wrap
+                        end
+                        return originalGetWrap(self)
+                    end
+                end
+                local originalNew = ClientViewModel.new
+                ClientViewModel.new = function(replicatedData, clientItem)
+                    local weaponPlayer = clientItem.ClientFighter and clientItem.ClientFighter.Player
+                    local weaponName = constructingWeapon or clientItem.Name
+                    if weaponPlayer == player and equipped[weaponName] then
+                        local ReplicatedClass = require(ReplicatedStorage.Modules.ReplicatedClass)
+                        local dataKey = ReplicatedClass:ToEnum("Data")
+                        replicatedData[dataKey] = replicatedData[dataKey] or {}
+                        local cosmetics = equipped[weaponName]
+                        if cosmetics.Skin then replicatedData[dataKey][ReplicatedClass:ToEnum("Skin")] = cosmetics.Skin end
+                        if cosmetics.Wrap then replicatedData[dataKey][ReplicatedClass:ToEnum("Wrap")] = cosmetics.Wrap end
+                        if cosmetics.Charm then replicatedData[dataKey][ReplicatedClass:ToEnum("Charm")] = cosmetics.Charm end
+                    end
+                    local result = originalNew(replicatedData, clientItem)
+                    if weaponPlayer == player and equipped[weaponName] and equipped[weaponName].Wrap and result._UpdateWrap then
+                        result:_UpdateWrap()
+                        task.delay(0.1, function() if not result._destroyed then result:_UpdateWrap() end end)
+                    end
+                    return result
+                end
+            end
+            
+            local originalGetViewModelImage = ItemLibrary.GetViewModelImageFromWeaponData
+            ItemLibrary.GetViewModelImageFromWeaponData = function(self, weaponData, highRes)
+                if not weaponData then return originalGetViewModelImage(self, weaponData, highRes) end
+                local weaponName = weaponData.Name
+                local shouldShowSkin = (weaponData.Skin and equipped[weaponName] and weaponData.Skin == equipped[weaponName].Skin) or (viewingProfile == player and equipped[weaponName] and equipped[weaponName].Skin)
+                if shouldShowSkin and equipped[weaponName] and equipped[weaponName].Skin then
+                    local skinInfo = self.ViewModels[equipped[weaponName].Skin.Name]
+                    if skinInfo then return skinInfo[highRes and "ImageHighResolution" or "Image"] or skinInfo.Image end
+                end
+                return originalGetViewModelImage(self, weaponData, highRes)
+            end
+            
+            pcall(function()
+                local ViewProfile = require(player.PlayerScripts.Modules.Pages.ViewProfile)
+                if ViewProfile and ViewProfile.Fetch then
+                    local originalFetch = ViewProfile.Fetch
+                    ViewProfile.Fetch = function(self, targetPlayer)
+                        viewingProfile = targetPlayer
+                        return originalFetch(self, targetPlayer)
+                    end
+                end
+            end)
+            
+            local ClientEntity
+            pcall(function() ClientEntity = require(player.PlayerScripts.Modules.ClientReplicatedClasses.ClientEntity) end)
+            if ClientEntity and ClientEntity.ReplicateFromServer then
+                local originalReplicateFromServer = ClientEntity.ReplicateFromServer
+                ClientEntity.ReplicateFromServer = function(self, action, ...)
+                    if action == "FinisherEffect" then
+                        local args = {...}
+                        local killerName = args[3]            
+                        local decodedKiller = killerName
+                        if type(killerName) == "userdata" and EnumLibrary and EnumLibrary.FromEnum then
+                            local ok, decoded = pcall(EnumLibrary.FromEnum, EnumLibrary, killerName)
+                            if ok and decoded then decodedKiller = decoded end
+                        end            
+                        local isOurKill = tostring(decodedKiller) == player.Name or tostring(decodedKiller):lower() == player.Name:lower()            
+                        if isOurKill and lastUsedWeapon and equipped[lastUsedWeapon] and equipped[lastUsedWeapon].Finisher then
+                            local finisherData = equipped[lastUsedWeapon].Finisher
+                            local finisherEnum = finisherData.Enum                
+                            if not finisherEnum and EnumLibrary then
+                                local ok, result = pcall(EnumLibrary.ToEnum, EnumLibrary, finisherData.Name)
+                                if ok and result then finisherEnum = result end
+                            end                
+                            if finisherEnum then
+                                args[1] = finisherEnum
+                                return originalReplicateFromServer(self, action, unpack(args))
+                            end
+                        end
+                    end        
+                    return originalReplicateFromServer(self, action, ...)
+                end
+            end
+            
+            loadConfig()
+            
+            Library:Notify("Unlock All successfully loaded!")
+        end)
+    end
+})
+-- ==========================================
+
+-- 기존 UI 요소들 (그대로 유지)
+LeftGroupBox:AddToggle("MyToggle", {
+    Text = "This is a toggle",
+    Tooltip = "This is a tooltip", 
+    DisabledTooltip = "I am disabled!", 
+    Default = true, 
+    Disabled = false, 
+    Visible = true, 
+    Risky = false, 
+    Callback = function(Value)
+        print("[cb] MyToggle changed to:", Value)
+    end
+}):AddColorPicker("ColorPicker1", {
+    Default = Color3.new(1, 0, 0),
+    Title = "Some color1", 
+    Transparency = 0, 
+    Callback = function(Value, Transparency)
+        print("[cb] Color changed!", Value, "| Transparency changed to:", Transparency)
+    end
+}):AddColorPicker("ColorPicker2", {
+    Default = Color3.new(0, 1, 0),
+    Title = "Some color2",
+    Transparency = 0,
+    Callback = function(Value, Transparency)
+        print("[cb] Color changed!", Value, "| Transparency changed to:", Transparency)
+    end
+}):AddColorPicker("ColorPicker3", {
+    Default = Color3.new(0, 0, 1),
+    Title = "Some color3",
+    Transparency = 0,
+    Callback = function(Value, Transparency)
+        print("[cb] Color changed!", Value, "| Transparency changed to:", Transparency)
+    end
+})
+
+Toggles.MyToggle:OnChanged(function()
+    print("MyToggle changed to:", Toggles.MyToggle.Value)
+end)
+
+Toggles.MyToggle:SetValue(false)
+
+local MyButton = LeftGroupBox:AddButton({
+    Text = "Button",
+    Func = function()
+        print("You clicked a button!")
+        Library:Notify("This is a notification")
+    end,
+    DoubleClick = false,
+    Tooltip = "This is the main button",
+    DisabledTooltip = "I am disabled!",
+    Disabled = false, 
+    Visible = true 
+})
+
+local MyButton2 = MyButton:AddButton({
+    Text = "Sub button",
+    Func = function()
+        print("You clicked a sub button!")
+        Library:Notify("This is a notification with sound", nil, 4590657391)
+    end,
+    DoubleClick = true, 
+    Tooltip = "This is the sub button (double click me!)"
+})
+
+local MyDisabledButton = LeftGroupBox:AddButton({
+    Text = "Disabled Button",
+    Func = function()
+        print("You somehow clicked a disabled button!")
+    end,
+    DoubleClick = false,
+    Tooltip = "This is a disabled button",
+    DisabledTooltip = "I am disabled!", 
+    Disabled = true
+})
+
+LeftGroupBox:AddLabel("This is a label")
+LeftGroupBox:AddLabel("This is a label\n\nwhich wraps its text!", true)
+LeftGroupBox:AddLabel("This is a label exposed to Labels", true, "TestLabel")
+LeftGroupBox:AddLabel("SecondTestLabel", {
+    Text = "This is a label made with table options and an index",
+    DoesWrap = true 
+})
+
+LeftGroupBox:AddLabel("SecondTestLabel", {
+    Text = "This is a label that doesn\"t wrap it\"s own text",
+    DoesWrap = false 
+})
+
+LeftGroupBox:AddDivider()
+
+LeftGroupBox:AddSlider("MySlider", {
+    Text = "This is my slider!",
+    Default = 0,
+    Min = 0,
+    Max = 5,
+    Rounding = 1,
+    Compact = false,
+    Callback = function(Value)
+        print("[cb] MySlider was changed! New value:", Value)
+    end,
+    Tooltip = "I am a slider!", 
+    DisabledTooltip = "I am disabled!", 
+    Disabled = false, 
+    Visible = true, 
+})
+
+local Number = Options.MySlider.Value
+Options.MySlider:OnChanged(function()
+    print("MySlider was changed! New value:", Options.MySlider.Value)
+end)
+
+Options.MySlider:SetValue(3)
+
+LeftGroupBox:AddSlider("MySlider2", {
+    Text = "This is my custom display slider!",
+    Default = 0,
+    Min = 0,
+    Max = 5,
+    Rounding = 1,
+    Compact = false,
+    FormatDisplayValue = function(slider, value)
+        if value == slider.Max then return "Everything" end
+        if value == slider.Min then return "Nothing" end
+    end,
+    Tooltip = "I am a slider!", 
+    DisabledTooltip = "I am disabled!", 
+    Disabled = false, 
+    Visible = true, 
+})
+
+LeftGroupBox:AddInput("MyTextbox", {
+    Default = "My textbox!",
+    Numeric = false, 
+    Finished = false, 
+    ClearTextOnFocus = true, 
+    Text = "This is a textbox",
+    Tooltip = "This is a tooltip", 
+    Placeholder = "Placeholder text", 
+    Callback = function(Value)
+        print("[cb] Text updated. New text:", Value)
+    end
+})
+
+Options.MyTextbox:OnChanged(function()
+    print("Text updated. New text:", Options.MyTextbox.Value)
+end)
+
+local DropdownGroupBox = Tabs.Main:AddRightGroupbox("Dropdowns")
+
+DropdownGroupBox:AddDropdown("MyDropdown", {
+    Values = { "This", "is", "a", "dropdown" },
+    Default = 1, 
+    Multi = false, 
+    Text = "A dropdown",
+    Tooltip = "This is a tooltip", 
+    DisabledTooltip = "I am disabled!", 
+    Searchable = false, 
+    Callback = function(Value)
+        print("[cb] Dropdown got changed. New value:", Value)
+    end,
+    Disabled = false, 
+    Visible = true, 
+})
+
+Options.MyDropdown:OnChanged(function()
+    print("Dropdown got changed. New value:", Options.MyDropdown.Value)
+end)
+
+Options.MyDropdown:SetValue("This")
+
+DropdownGroupBox:AddDropdown("MySearchableDropdown", {
+    Values = { "This", "is", "a", "searchable", "dropdown" },
+    Default = 1, 
+    Multi = false, 
+    Text = "A searchable dropdown",
+    Tooltip = "This is a tooltip", 
+    DisabledTooltip = "I am disabled!", 
+    Searchable = true, 
+    Callback = function(Value)
+        print("[cb] Dropdown got changed. New value:", Value)
+    end,
+    Disabled = false, 
+    Visible = true, 
+})
+
+DropdownGroupBox:AddDropdown("MyDisplayFormattedDropdown", {
+    Values = { "This", "is", "a", "formatted", "dropdown" },
+    Default = 1, 
+    Multi = false, 
+    Text = "A display formatted dropdown",
+    Tooltip = "This is a tooltip", 
+    DisabledTooltip = "I am disabled!", 
+    FormatDisplayValue = function(Value) 
+        if Value == "formatted" then
+            return "display formatted" 
+        end;
+        return Value
+    end,
+    Searchable = false, 
+    Callback = function(Value)
+        print("[cb] Display formatted dropdown got changed. New value:", Value)
+    end,
+    Disabled = false, 
+    Visible = true, 
+})
+
+DropdownGroupBox:AddDropdown("MyMultiDropdown", {
+    Values = { "This", "is", "a", "dropdown" },
+    Default = 1,
+    Multi = true, 
+    Text = "A multi dropdown",
+    Tooltip = "This is a tooltip", 
+    Callback = function(Value)
+        print("[cb] Multi dropdown got changed:")
+        for key, value in next, Options.MyMultiDropdown.Value do
+            print(key, value) 
         end
     end
-    return require(module)
-end
+})
+
+Options.MyMultiDropdown:SetValue({
+    This = true,
+    is = true,
+})
+
+DropdownGroupBox:AddDropdown("MyDisabledDropdown", {
+    Values = { "This", "is", "a", "dropdown" },
+    Default = 1, 
+    Multi = false, 
+    Text = "A disabled dropdown",
+    Tooltip = "This is a tooltip", 
+    DisabledTooltip = "I am disabled!", 
+    Callback = function(Value)
+        print("[cb] Disabled dropdown got changed. New value:", Value)
+    end,
+    Disabled = true, 
+    Visible = true, 
+})
+
+DropdownGroupBox:AddDropdown("MyDisabledValueDropdown", {
+    Values = { "This", "is", "a", "dropdown", "with", "disabled", "value" },
+    DisabledValues = { "disabled" }, 
+    Default = 1, 
+    Multi = false, 
+    Text = "A dropdown with disabled value",
+    Tooltip = "This is a tooltip", 
+    DisabledTooltip = "I am disabled!", 
+    Callback = function(Value)
+        print("[cb] Dropdown with disabled value got changed. New value:", Value)
+    end,
+    Disabled = false, 
+    Visible = true, 
+})
+
+DropdownGroupBox:AddDropdown("MyVeryLongDropdown", {
+    Values = { "This", "is", "a", "very", "long", "dropdown", "with", "a", "lot", "of", "values", "but", "you", "can", "see", "more", "than", "8", "values" },
+    Default = 1, 
+    Multi = false, 
+    MaxVisibleDropdownItems = 12, 
+    Text = "A very long dropdown",
+    Tooltip = "This is a tooltip", 
+    DisabledTooltip = "I am disabled!", 
+    Searchable = false, 
+    Callback = function(Value)
+        print("[cb] Very long dropdown got changed. New value:", Value)
+    end,
+    Disabled = false, 
+    Visible = true, 
+})
+
+DropdownGroupBox:AddDropdown("MyPlayerDropdown", {
+    SpecialType = "Player",
+    ExcludeLocalPlayer = true, 
+    Text = "A player dropdown",
+    Tooltip = "This is a tooltip", 
+    Callback = function(Value)
+        print("[cb] Player dropdown got changed:", Value)
+    end
+})
+
+DropdownGroupBox:AddDropdown("MyTeamDropdown", {
+    SpecialType = "Team",
+    Text = "A team dropdown",
+    Tooltip = "This is a tooltip", 
+    Callback = function(Value)
+        print("[cb] Team dropdown got changed:", Value)
+    end
+})
+
+LeftGroupBox:AddLabel("Color"):AddColorPicker("ColorPicker", {
+    Default = Color3.new(0, 1, 0), 
+    Title = "Some color", 
+    Transparency = 0, 
+    Callback = function(Value)
+        print("[cb] Color changed!", Value)
+    end
+})
+
+Options.ColorPicker:OnChanged(function()
+    print("Color changed!", Options.ColorPicker.Value)
+    print("Transparency changed!", Options.ColorPicker.Transparency)
+end)
+
+Options.ColorPicker:SetValueRGB(Color3.fromRGB(0, 255, 140))
+
+LeftGroupBox:AddLabel("Keybind"):AddKeyPicker("KeyPicker", {
+    Default = "MB2", 
+    SyncToggleState = false,
+    Mode = "Toggle", 
+    Text = "Auto lockpick safes", 
+    NoUI = false, 
+    Callback = function(Value)
+        print("[cb] Keybind clicked!", Value)
+    end,
+    ChangedCallback = function(NewKey, NewModifiers)
+        print("[cb] Keybind changed!", NewKey, table.unpack(NewModifiers or {}))
+    end,
+})
+
+Options.KeyPicker:OnClick(function()
+    print("Keybind clicked!", Options.KeyPicker:GetState())
+end)
+
+Options.KeyPicker:OnChanged(function()
+    print("Keybind changed!", Options.KeyPicker.Value, table.unpack(Options.KeyPicker.Modifiers or {}))
+end)
 
 task.spawn(function()
-    task.wait(1.5)
-    CosmeticLibrary = robust_require(ReplicatedStorage:WaitForChild("Modules", 20):WaitForChild("CosmeticLibrary", 20))
-    ItemLibrary = robust_require(ReplicatedStorage.Modules:WaitForChild("ItemLibrary", 20))
-    ReplicatedClass = robust_require(ReplicatedStorage.Modules:WaitForChild("ReplicatedClass", 20))
+    while task.wait(1) do
+        local state = Options.KeyPicker:GetState()
+        if state then
+            print("KeyPicker is being held down")
+        end
 
-    local Modules = player.PlayerScripts:WaitForChild("Modules", 15)
-    local ClientItem = robust_require(Modules:WaitForChild("ClientReplicatedClasses", 15):WaitForChild("ClientFighter", 15):WaitForChild("ClientItem", 15))
-    ClientViewModel = robust_require(Modules.ClientReplicatedClasses.ClientFighter.ClientItem:WaitForChild("ClientViewModel", 15))
-
-    local function getCosmeticData(name, cType)
-        local base = CosmeticLibrary.Cosmetics[name]
-        if not base then return nil end
-        local data = table.clone(base)
-        data.Name = name
-        data.Type = cType
-        return data
-    end
-
-    local oldGetWrap = ClientViewModel.GetWrap
-    ClientViewModel.GetWrap = function(self)
-        local ok, result = pcall(function()
-            local weaponName = self.ClientItem and self.ClientItem.Name
-            if weaponName and _G.EquippedData[weaponName] then
-                local wrapName = _G.EquippedData[weaponName].Wrap
-                if wrapName and wrapName ~= "None" then
-                    return getCosmeticData(wrapName, "Wrap")
-                end
-            end
-        end)
-        if ok and result then return result end
-        return oldGetWrap(self)
-    end
-
-    local oldNew = ClientViewModel.new
-    ClientViewModel.new = function(replicatedData, clientItem)
-        pcall(function()
-            if not clientItem then return end
-            local weaponName = clientItem.Name
-            if not weaponName or not _G.EquippedData[weaponName] then return end
-
-            local cf = rawget(clientItem, "ClientFighter") or (pcall(function() return clientItem.ClientFighter end) and clientItem.ClientFighter)
-            if not cf or cf.Player ~= player then return end
-
-            local selectedSkin = _G.EquippedData[weaponName].Skin
-            if not selectedSkin or selectedSkin == "Default" then return end
-
-            local cosData = getCosmeticData(selectedSkin, "Skin")
-            if not cosData then return end
-
-            local dataKey = ReplicatedClass:ToEnum("Data")
-            local skinKey = ReplicatedClass:ToEnum("Skin")
-            local nameKey = ReplicatedClass:ToEnum("Name")
-            replicatedData[dataKey] = replicatedData[dataKey] or {}
-            replicatedData[dataKey][skinKey] = cosData
-            replicatedData[dataKey][nameKey] = selectedSkin
-        end)
-
-        local vm = oldNew(replicatedData, clientItem)
-        task.delay(0.1, function()
-            pcall(function() if vm and vm._UpdateWrap then vm:_UpdateWrap() end end)
-        end)
-        return vm
+        if Library.Unloaded then break end
     end
 end)
 
--- ═══════════════════════════════════════════════
--- GUI CREATION
--- ═══════════════════════════════════════════════
-local oldGui = CoreGui:FindFirstChild("RivalsSkinChanger")
-if oldGui then oldGui:Destroy() end
+Options.KeyPicker:SetValue({ "MB2", "Hold" }) 
 
-local ScreenGui = Instance.new("ScreenGui", CoreGui)
-ScreenGui.Name = "RivalsSkinChanger"
-ScreenGui.ResetOnSpawn = false
+local KeybindNumber = 0
 
-local Main = Instance.new("Frame", ScreenGui)
-Main.Size = UDim2.new(0, 950, 0, 660)
-Main.Position = UDim2.new(0.5, -475, 0.5, -330)
-Main.BackgroundColor3 = Color3.fromRGB(20, 20, 24)
-Main.BorderSizePixel = 0
-Main.Active = true
-
-local Title = Instance.new("TextLabel", Main)
-Title.Size = UDim2.new(1, 0, 0, 50)
-Title.BackgroundColor3 = Color3.fromRGB(30, 30, 35)
-Title.Text = "Rivals Skin Changer  •  [ K ] Toggle"
-Title.TextColor3 = Color3.fromRGB(255, 80, 80)
-Title.Font = Enum.Font.GothamBlack
-Title.TextSize = 22
-Title.BorderSizePixel = 0
-
-local Left = Instance.new("Frame", Main)
-Left.Size = UDim2.new(0, 280, 1, -110)
-Left.Position = UDim2.new(0, 15, 0, 60)
-Left.BackgroundColor3 = Color3.fromRGB(28, 28, 34)
-Left.BorderSizePixel = 0
-
-local WeaponSearch = Instance.new("TextBox", Left)
-WeaponSearch.Size = UDim2.new(1, -20, 0, 35)
-WeaponSearch.Position = UDim2.new(0, 10, 0, 10)
-WeaponSearch.PlaceholderText = "Search weapon..."
-WeaponSearch.BackgroundColor3 = Color3.fromRGB(40, 40, 48)
-WeaponSearch.TextColor3 = Color3.new(1, 1, 1)
-WeaponSearch.Font = Enum.Font.Gotham
-WeaponSearch.TextSize = 14
-WeaponSearch.BorderSizePixel = 0
-WeaponSearch.ClearTextOnFocus = false
-WeaponSearch.Text = ""
-
-local WeaponScroll = Instance.new("ScrollingFrame", Left)
-WeaponScroll.Size = UDim2.new(1, -20, 1, -55)
-WeaponScroll.Position = UDim2.new(0, 10, 0, 55)
-WeaponScroll.BackgroundTransparency = 1
-WeaponScroll.ScrollBarThickness = 6
-WeaponScroll.BorderSizePixel = 0
-
-local WeaponLayout = Instance.new("UIListLayout", WeaponScroll)
-WeaponLayout.Padding = UDim.new(0, 6)
-WeaponLayout.SortOrder = Enum.SortOrder.Name
-
-local Right = Instance.new("Frame", Main)
-Right.Size = UDim2.new(1, -310, 1, -110)
-Right.Position = UDim2.new(0, 305, 0, 60)
-Right.BackgroundColor3 = Color3.fromRGB(28, 28, 34)
-Right.BorderSizePixel = 0
-
-local SelectedLabel = Instance.new("TextLabel", Right)
-SelectedLabel.Size = UDim2.new(1, -20, 0, 40)
-SelectedLabel.Position = UDim2.new(0, 10, 0, 10)
-SelectedLabel.BackgroundTransparency = 1
-SelectedLabel.Text = "Select a weapon on the left"
-SelectedLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
-SelectedLabel.Font = Enum.Font.GothamBold
-SelectedLabel.TextSize = 20
-
-local SkinScroll = Instance.new("ScrollingFrame", Right)
-SkinScroll.Size = UDim2.new(1, -20, 1, -70)
-SkinScroll.Position = UDim2.new(0, 10, 0, 60)
-SkinScroll.BackgroundTransparency = 1
-SkinScroll.ScrollBarThickness = 8
-SkinScroll.BorderSizePixel = 0
-
-local SkinGrid = Instance.new("UIGridLayout", SkinScroll)
-SkinGrid.CellSize = UDim2.new(0, 130, 0, 155)
-SkinGrid.CellPadding = UDim2.new(0, 15, 0, 15)
-
-local Toolbar = Instance.new("Frame", Main)
-Toolbar.Size = UDim2.new(1, 0, 0, 48)
-Toolbar.Position = UDim2.new(0, 0, 1, -48)
-Toolbar.BackgroundColor3 = Color3.fromRGB(26, 26, 32)
-Toolbar.BorderSizePixel = 0
-
-local StatusLabel = Instance.new("TextLabel", Toolbar)
-StatusLabel.Size = UDim2.new(1, -310, 1, 0)
-StatusLabel.Position = UDim2.new(0, 15, 0, 0)
-StatusLabel.BackgroundTransparency = 1
-StatusLabel.Text = "Ready"
-StatusLabel.TextColor3 = Color3.fromRGB(140, 140, 160)
-StatusLabel.Font = Enum.Font.Gotham
-StatusLabel.TextSize = 13
-StatusLabel.TextXAlignment = Enum.TextXAlignment.Left
-
-local function FlashStatus(msg, color)
-    StatusLabel.Text = msg
-    StatusLabel.TextColor3 = color or Color3.fromRGB(140, 200, 140)
-    task.delay(3, function()
-        StatusLabel.Text = "Ready"
-        StatusLabel.TextColor3 = Color3.fromRGB(140, 140, 160)
-    end)
-end
-
-local function GetThumb(name)
-    pcall(function()
-        if ItemLibrary and ItemLibrary.ViewModels and ItemLibrary.ViewModels[name] then
-            local data = ItemLibrary.ViewModels[name]
-            if data.ImageHighResolution then return data.ImageHighResolution end
-            if data.Image then return data.Image end
-            if data.Thumbnail then return data.Thumbnail end
-        end
-        if CosmeticLibrary and CosmeticLibrary.Skins then
-            for _, tbl in pairs(CosmeticLibrary.Skins) do
-                if tbl[name] then
-                    local data = tbl[name]
-                    if data.ImageHighResolution then return data.ImageHighResolution end
-                    if data.Image then return data.Image end
-                    if data.Thumbnail then return data.Thumbnail end
-                end
-            end
-        end
-    end)
-    return ""
-end
-
-local function EquipSkin(weapon, skin)
-    _G.EquippedData[weapon].Skin = skin
-    pcall(function() CosmeticLibrary.Equip(weapon, "Skin", skin) end)
-    SelectedLabel.Text = "✅ EQUIPPED: " .. weapon .. " — " .. skin
-    FlashStatus("Skin applied! Switch weapon to update.")
-end
-
-local function MakeWeaponBtn(weapon)
-    local btn = Instance.new("TextButton")
-    btn.Size = UDim2.new(1, -10, 0, 52)
-    btn.BackgroundColor3 = Color3.fromRGB(40, 40, 48)
-    btn.Text = "   " .. weapon
-    btn.TextColor3 = Color3.new(1, 1, 1)
-    btn.TextXAlignment = Enum.TextXAlignment.Left
-    btn.Font = Enum.Font.GothamSemibold
-    btn.TextSize = 16
-    btn.BorderSizePixel = 0
-    btn.Parent = WeaponScroll
-
-    local img = Instance.new("ImageLabel", btn)
-    img.Size = UDim2.new(0, 40, 0, 40)
-    img.Position = UDim2.new(1, -50, 0.5, -20)
-    img.BackgroundTransparency = 1
-    img.Image = GetThumb(weapon)
-
-    local badge = Instance.new("TextLabel", btn)
-    badge.Size = UDim2.new(0, 60, 0, 18)
-    badge.Position = UDim2.new(1, -120, 0, 4)
-    badge.BackgroundColor3 = Color3.fromRGB(255, 80, 80)
-    badge.TextColor3 = Color3.new(1, 1, 1)
-    badge.Font = Enum.Font.GothamBold
-    badge.TextSize = 10
-    badge.BorderSizePixel = 0
-    badge.TextScaled = true
-    local badgeCorner = Instance.new("UICorner", badge)
-    badgeCorner.CornerRadius = UDim.new(0, 4)
-    
-    local function UpdateBadge()
-        local skin = _G.EquippedData[weapon] and _G.EquippedData[weapon].Skin or "Default"
-        if skin ~= "Default" then
-            badge.Text = skin:sub(1, 8)
-            badge.Visible = true
-        else
-            badge.Visible = false
-        end
+LeftGroupBox:AddLabel("Press Keybind"):AddKeyPicker("KeyPicker2", {
+    Default = "X", 
+    Mode = "Press",
+    WaitForCallback = false, 
+    Text = "Increase Number", 
+    Callback = function()
+        KeybindNumber = KeybindNumber + 1
+        print("[cb] Keybind clicked! Number increased to:", KeybindNumber)
     end
-    UpdateBadge()
+})
 
-    btn.MouseButton1Click:Connect(function()
-        for _, b in pairs(WeaponScroll:GetChildren()) do
-            if b:IsA("TextButton") then b.BackgroundColor3 = Color3.fromRGB(40, 40, 48) end
-        end
-        btn.BackgroundColor3 = Color3.fromRGB(80, 140, 255)
-        for _, child in pairs(SkinScroll:GetChildren()) do
-            if child:IsA("ImageButton") then child:Destroy() end
-        end
-        SelectedLabel.Text = weapon .. " — Choose a Skin"
-        for _, skin in ipairs(SkinLists[weapon]) do
-            local sbtn = Instance.new("ImageButton")
-            sbtn.BackgroundColor3 = (_G.EquippedData[weapon] and _G.EquippedData[weapon].Skin == skin) and Color3.fromRGB(60, 130, 60) or Color3.fromRGB(35, 35, 42)
-            sbtn.Image = GetThumb(skin)
-            sbtn.BorderSizePixel = 0
-            sbtn.Parent = SkinScroll
-            local lbl = Instance.new("TextLabel", sbtn)
-            lbl.Size = UDim2.new(1, 0, 0, 35)
-            lbl.Position = UDim2.new(0, 0, 1, -35)
-            lbl.BackgroundTransparency = 0.3
-            lbl.BackgroundColor3 = Color3.new(0, 0, 0)
-            lbl.Text = skin
-            lbl.TextColor3 = Color3.new(1, 1, 1)
-            lbl.Font = Enum.Font.Gotham
-            lbl.TextScaled = true
-            lbl.BorderSizePixel = 0
-            sbtn.MouseButton1Click:Connect(function()
-                for _, c in pairs(SkinScroll:GetChildren()) do
-                    if c:IsA("ImageButton") then c.BackgroundColor3 = Color3.fromRGB(35, 35, 42) end
-                end
-                sbtn.BackgroundColor3 = Color3.fromRGB(60, 130, 60)
-                EquipSkin(weapon, skin)
-                UpdateBadge()
-            end)
-        end
-        SkinScroll.CanvasSize = UDim2.new(0, 0, 0, SkinGrid.AbsoluteContentSize.Y + 40)
-    end)
-end
+LeftGroupBox:AddLabel("Dropdown"):AddDropdown("MyDropdown", {
+    Values = { "Addon", "Dropdown" },
+    Default = 1, 
+    Multi = false, 
+    Tooltip = "This is a tooltip", 
+    DisabledTooltip = "I am disabled!", 
+    Searchable = false, 
+    Callback = function(Value)
+        print("[cb] Dropdown got changed. New value:", Value)
+    end,
+    Disabled = false, 
+    Visible = true, 
+})
 
-for weapon in pairs(SkinLists) do
-    MakeWeaponBtn(weapon)
-end
-WeaponScroll.CanvasSize = UDim2.new(0, 0, 0, WeaponLayout.AbsoluteContentSize.Y)
+local LeftGroupBox2 = Tabs.Main:AddLeftGroupbox("Groupbox #2");
+LeftGroupBox2:AddLabel("Oh no...\nThis label spans multiple lines!\n\nWe\'re gonna run out of UI space...\nJust kidding! Scroll down!\n\n\nHello from below!", true)
 
-WeaponSearch:GetPropertyChangedSignal("Text"):Connect(function()
-    local txt = WeaponSearch.Text:lower()
-    for _, btn in pairs(WeaponScroll:GetChildren()) do
-        if btn:IsA("TextButton") then
-            local btnText = btn.Text:match("^%s*(.-)%s*$"):lower()
-            btn.Visible = txt == "" or btnText:find(txt)
-        end
+local TabBox = Tabs.Main:AddRightTabbox() 
+
+local Tab1 = TabBox:AddTab("Tab 1")
+Tab1:AddToggle("Tab1Toggle", { Text = "Tab1 Toggle" });
+
+local Tab2 = TabBox:AddTab("Tab 2")
+Tab2:AddToggle("Tab2Toggle", { Text = "Tab2 Toggle" });
+
+local RightGroupbox = Tabs.Main:AddRightGroupbox("Groupbox #3");
+RightGroupbox:AddToggle("ControlToggle", { Text = "Dependency box toggle" });
+
+local Depbox = RightGroupbox:AddDependencyBox();
+Depbox:AddToggle("DepboxToggle", { Text = "Sub-dependency box toggle" });
+
+local SubDepbox = Depbox:AddDependencyBox();
+SubDepbox:AddSlider("DepboxSlider", { Text = "Slider", Default = 50, Min = 0, Max = 100, Rounding = 0 });
+SubDepbox:AddDropdown("DepboxDropdown", { Text = "Dropdown", Default = 1, Values = {"a", "b", "c"} });
+
+local SecretDepbox = SubDepbox:AddDependencyBox();
+SecretDepbox:AddLabel("You found a seĉret!")
+
+Depbox:SetupDependencies({
+    { Toggles.ControlToggle, true } 
+});
+
+SubDepbox:SetupDependencies({
+    { Toggles.DepboxToggle, true }
+});
+
+SecretDepbox:SetupDependencies({
+    { Options.DepboxDropdown, "ĉ"} 
+})
+
+Library:SetWatermarkVisibility(true)
+
+local FrameTimer = tick()
+local FrameCounter = 0;
+local FPS = 60;
+local GetPing = (function() return math.floor(game:GetService("Stats").Network.ServerStatsItem["Data Ping"]:GetValue()) end)
+local CanDoPing = pcall(function() return GetPing(); end)
+
+local WatermarkConnection = game:GetService("RunService").RenderStepped:Connect(function()
+    FrameCounter += 1;
+
+    if (tick() - FrameTimer) >= 1 then
+        FPS = FrameCounter;
+        FrameTimer = tick();
+        FrameCounter = 0;
+    end;
+
+    if CanDoPing then
+        Library:SetWatermark(("LinoriaLib demo | %d fps | %d ms"):format(
+            math.floor(FPS),
+            GetPing()
+        ));
+    else
+        Library:SetWatermark(("LinoriaLib demo | %d fps"):format(
+            math.floor(FPS)
+        ));
     end
+end);
+
+Library:OnUnload(function()
+    WatermarkConnection:Disconnect()
+
+    print("Unloaded!")
+    Library.Unloaded = true
 end)
 
-do
-    local dragging, dragStart, startPos
-    Title.Active = true
+local MenuGroup = Tabs["UI Settings"]:AddLeftGroupbox("Menu")
 
-    Title.InputBegan:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.MouseButton1 then
-            dragging = true
-            dragStart = input.Position
-            startPos = Main.Position
-        end
-    end)
-    Title.InputEnded:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.MouseButton1 then dragging = false end
-    end)
-    UserInputService.InputChanged:Connect(function(input)
-        if dragging and input.UserInputType == Enum.UserInputType.MouseMovement then
-            local delta = input.Position - dragStart
-            Main.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
-        end
-    end)
-end
+MenuGroup:AddToggle("KeybindMenuOpen", { Default = Library.KeybindFrame.Visible, Text = "Open Keybind Menu", Callback = function(value) Library.KeybindFrame.Visible = value end})
+MenuGroup:AddToggle("ShowCustomCursor", {Text = "Custom Cursor", Default = true, Callback = function(Value) Library.ShowCustomCursor = Value end})
+MenuGroup:AddDivider()
+MenuGroup:AddLabel("Menu bind"):AddKeyPicker("MenuKeybind", { Default = "RightShift", NoUI = true, Text = "Menu keybind" })
+MenuGroup:AddButton("Unload", function() Library:Unload() end)
 
-UserInputService.InputBegan:Connect(function(i, g)
-    if not g and i.KeyCode == Enum.KeyCode.K then
-        Main.Visible = not Main.Visible
-        if not Main.Visible then
-            pcall(function() WeaponSearch:ReleaseFocus() end)
-            pcall(function() UserInputService.MouseBehavior = Enum.MouseBehavior.Default end)
-        end
-    end
-end)
+Library.ToggleKeybind = Options.MenuKeybind 
 
-print("[+] Rivals Skin Changer Loaded! Press K to toggle UI.")
+ThemeManager:SetLibrary(Library)
+SaveManager:SetLibrary(Library)
+
+SaveManager:IgnoreThemeSettings()
+
+SaveManager:SetIgnoreIndexes({ "MenuKeybind" })
+
+ThemeManager:SetFolder("MyScriptHub")
+SaveManager:SetFolder("MyScriptHub/specific-game")
+SaveManager:SetSubFolder("specific-place") 
+
+SaveManager:BuildConfigSection(Tabs["UI Settings"])
+
+ThemeManager:ApplyToTab(Tabs["UI Settings"])
+
+SaveManager:LoadAutoloadConfig()
