@@ -33,23 +33,20 @@ local success, err = pcall(function()
         MenuFadeTime = 0.2
     })
 
-    -- UI 중앙에 로고 이미지 배치 (임시 링크 만료 대비 완벽 대응)
+    -- UI 중앙에 로고 이미지 배치 (임시 링크 만료 대비 및 투명도 조절)
     task.spawn(function()
         task.wait(1) -- UI가 완전히 생성될 때까지 대기
         pcall(function()
-            local logoUrl = "https://z-cdn-media.chatglm.cn/files/928a87a4-596f-4983-9d32-9cd8b7ead281.png"
-            local assetId = "rbxassetid://0" -- 기본값
+            local logoUrl = "https://z-cdn-media.chatglm.cn/files/928a87a4-596f-4983-9d32-9cd8b7ead281.png" -- 여기에 영구 링크를 넣으세요
+            local assetId = "rbxassetid://177778303" -- 대체 이미지 (해골)
             
             if writefile and (getcustomasset or getsynasset) then
-                local needDownload = true
-                if isfile("necro_logo.png") then
-                    local fileSize = #readfile("necro_logo.png")
-                    if fileSize > 1000 then -- 1KB 이상이면 정상 파일로 판단
-                        needDownload = false
-                    end
+                -- 기존에 다운로드된 깨진 파일 삭제 (1KB 이하)
+                if isfile("necro_logo.png") and #readfile("necro_logo.png") < 1000 then
+                    pcall(function() delfile("necro_logo.png") end)
                 end
                 
-                if needDownload then
+                if not isfile("necro_logo.png") then
                     local ok, imgData = pcall(function() return game:HttpGet(logoUrl) end)
                     if ok and imgData and #imgData > 1000 then
                         writefile("necro_logo.png", imgData)
@@ -59,12 +56,7 @@ local success, err = pcall(function()
                 if isfile("necro_logo.png") and #readfile("necro_logo.png") > 1000 then
                     local getAsset = getcustomasset or getsynasset
                     assetId = getAsset("necro_logo.png")
-                else
-                    -- 임시 링크가 만료되어 다운로드 실패 시 로블록스 기본 이미지로 대체
-                    assetId = "rbxasset://textures/whiteCircle.png" 
                 end
-            else
-                assetId = "rbxasset://textures/whiteCircle.png"
             end
             
             -- Linoria의 메인 UI 프레임 찾기 (버전 호환성)
@@ -87,7 +79,7 @@ local success, err = pcall(function()
                 logoImg.Position = UDim2.new(0.5, 0, 0.5, 0) -- 정중앙
                 logoImg.AnchorPoint = Vector2.new(0.5, 0.5) -- 중심 기준 정렬
                 logoImg.ZIndex = 10 -- UI 다른 요소들보다 무조건 앞에 오도록 설정
-                logoImg.ImageTransparency = 0.5 -- 50% 투명
+                logoImg.ImageTransparency = 0.85 -- 투명도 85% (버튼 안가리게 워터마크 처리)
                 logoImg.Active = false -- 마우스 클릭 방지
                 logoImg.Parent = windowFrame
             end
