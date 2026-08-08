@@ -71,51 +71,56 @@ local success, err = pcall(function()
             end
             
             if windowFrame then
-                -- 1. 중앙 로고 이미지 삽입 (가장 뒤쪽 레이어로 보냄)
+                -- 1. 중앙 로고 이미지 삽입 (배경을 검은색으로 꽉 채움)
                 if assetId then
                     local logoImg = Instance.new("ImageLabel")
                     logoImg.Name = "CenterLogo"
                     logoImg.Image = assetId
-                    logoImg.BackgroundTransparency = 1
-                    logoImg.Size = UDim2.new(0, 600, 0, 600)
+                    -- 사진 주변 배경을 검은색으로 완전히 채우기
+                    logoImg.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+                    logoImg.BackgroundTransparency = 0 
+                    
+                    logoImg.Size = UDim2.new(0, 500, 0, 500)
                     logoImg.Position = UDim2.new(0.5, 0, 0.5, 0)
                     logoImg.AnchorPoint = Vector2.new(0.5, 0.5)
-                    -- ZIndex를 0으로 설정하여 모든 UI(버튼, 토글 등) 뒤에 가려지게 만듦
-                    logoImg.ZIndex = 0 
+                    -- ZIndex를 2로 설정하여 버튼(ZIndex 5 이상) 뒤로 가려지게 만듭니다.
+                    logoImg.ZIndex = 2 
                     logoImg.ImageTransparency = 0.1 -- 로고가 또렷하게 보이게 투명도 감소
                     logoImg.ScaleType = Enum.ScaleType.Fit
                     logoImg.Active = false
                     logoImg.Parent = windowFrame
                 end
                 
-                -- 2. 글꼴을 일반 폰트로 고정 및 그룹박스 배경/테두리 완전 제거
+                -- 2. 글꼴을 일반 폰트로 고정 및 UI 창 배경 검은색화 + 그룹박스 테두리/층 완전 제거
                 for _, v in pairs(windowFrame:GetDescendants()) do
                     -- 글꼴 통일
                     if v:IsA("TextLabel") or v:IsA("TextButton") or v:IsA("TextBox") then
                         v.Font = Enum.Font.Gotham
                     end
                     
-                    -- 그룹박스(Groupbox) 배경 및 테두리 완전 제거 (버튼들만 남게 함)
-                    if v.Name == "GroupBox" then
-                        if v:IsA("Frame") then
-                            v.BackgroundTransparency = 1 -- 배경 투명화
-                        end
-                        -- 그룹박스 제목 숨기기
-                        local title = v:FindFirstChild("Title")
-                        if title then title.Visible = false end
-                        
-                        -- 그룹박스 내부 테두리 삭제
-                        local stroke = v:FindFirstChildWhichIsA("UIStroke")
-                        if stroke then
-                            stroke.Transparency = 1
-                            stroke.Thickness = 0
-                        end
+                    -- 메인 창 배경을 검은색으로 변경
+                    if v:IsA("Frame") and v.Name == "Background" then
+                        v.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+                        v.BackgroundTransparency = 0
                     end
                     
-                    -- 메인 창 및 탭 등의 외곽 테두리도 제거
-                    if v:IsA("UIStroke") and v.Parent and (v.Parent.Name == "Window" or v.Parent.Name == "TabBox" or v.Parent.Name == "WindowFrame") then
+                    -- 그룹박스(Groupbox)의 테두리, 배경, 그림자, 제목 등 '층'을 완전히 제거
+                    if v:IsA("Frame") and v.Name == "GroupBox" then
+                        v.BackgroundTransparency = 1
+                        v.BorderSizePixel = 0
+                    elseif v:IsA("Frame") and v.Name == "Container" and v.Parent and v.Parent.Name == "GroupBox" then
+                        v.BackgroundTransparency = 1
+                        v.BorderSizePixel = 0
+                    elseif v:IsA("Frame") and v.Name == "Background" and v.Parent and v.Parent.Name == "GroupBox" then
+                        v.BackgroundTransparency = 1
+                        v.BorderSizePixel = 0
+                    elseif v:IsA("UIStroke") and v.Parent and v.Parent.Name == "GroupBox" then
                         v.Transparency = 1
                         v.Thickness = 0
+                    elseif v:IsA("ImageLabel") and v.Name == "Shadow" and v.Parent and v.Parent.Name == "GroupBox" then
+                        v.Visible = false
+                    elseif v:IsA("TextLabel") and v.Name == "Title" and v.Parent and v.Parent.Name == "GroupBox" then
+                        v.Visible = false
                     end
                 end
             end
