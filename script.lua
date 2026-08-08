@@ -725,33 +725,14 @@ local success, err = pcall(function()
                                 end            
                                 local isOurKill = tostring(decodedKiller) == player.Name or tostring(decodedKiller):lower() == player.Name:lower()            
                                 
-                                if isOurKill then
-                                    local finisherEnum = nil
-                                    
-                                    -- 1. 마지막으로 사용한 무기에 피니셔가 있는지 확인
-                                    if lastUsedWeapon and equipped[lastUsedWeapon] and equipped[lastUsedWeapon].Finisher then
-                                        finisherEnum = equipped[lastUsedWeapon].Finisher.Enum
-                                        if not finisherEnum and EnumLibrary then
-                                            local ok, result = pcall(EnumLibrary.ToEnum, EnumLibrary, equipped[lastUsedWeapon].Finisher.Name)
-                                            if ok and result then finisherEnum = result end
-                                        end
-                                    end
-                                    
-                                    -- 2. 없으면 장착된 무기 중 피니셔가 있는 것을 찾음 (폴백)
-                                    if not finisherEnum then
-                                        for weaponName, cosmetics in pairs(equipped) do
-                                            if cosmetics.Finisher then
-                                                finisherEnum = cosmetics.Finisher.Enum
-                                                if not finisherEnum and EnumLibrary then
-                                                    local ok, result = pcall(EnumLibrary.ToEnum, EnumLibrary, cosmetics.Finisher.Name)
-                                                    if ok and result then finisherEnum = result end
-                                                end
-                                                if finisherEnum then break end
-                                            end
-                                        end
-                                    end
-                                    
-                                    -- 3. 피니셔를 찾았다면 적용
+                                -- 피니셔 무기별 독립 적용: 오직 마지막으로 사용한 무기의 피니셔만 적용 (폴백 로직 제거)
+                                if isOurKill and lastUsedWeapon and equipped[lastUsedWeapon] and equipped[lastUsedWeapon].Finisher then
+                                    local finisherData = equipped[lastUsedWeapon].Finisher
+                                    local finisherEnum = finisherData.Enum                
+                                    if not finisherEnum and EnumLibrary then
+                                        local ok, result = pcall(EnumLibrary.ToEnum, EnumLibrary, finisherData.Name)
+                                        if ok and result then finisherEnum = result end
+                                    end                
                                     if finisherEnum then
                                         args[1] = finisherEnum
                                         return originalReplicateFromServer(self, action, unpack(args, 1, argCount))
