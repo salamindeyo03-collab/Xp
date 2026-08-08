@@ -54,6 +54,7 @@ local success, err = pcall(function()
     local MAX_DISTANCE = 1000
     local aimbotEnabled = false
     local teamCheck = true
+    local wallCheck = true -- 벽 체크 변수 추가
     local showFOV = false
 
     local fovCircle = nil
@@ -77,6 +78,11 @@ local success, err = pcall(function()
         local localRoot = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
         if not localRoot then return nil end
         
+        local rayParams = RaycastParams.new()
+        rayParams.FilterType = Enum.RaycastFilterType.Blacklist
+        rayParams.FilterDescendantsInstances = {player.Character}
+        rayParams.IgnoreWater = true
+        
         for _, plr in pairs(Players:GetPlayers()) do
             if plr ~= player then
                 local char = plr.Character
@@ -90,8 +96,21 @@ local success, err = pcall(function()
                                 if onScreen then
                                     local d = (Vector2.new(screenPos.X, screenPos.Y) - screenCenter).Magnitude
                                     if d < dist then
-                                        dist = d
-                                        closest = char
+                                        -- 벽 체크 로직
+                                        local canSee = true
+                                        if wallCheck then
+                                            local origin = camera.CFrame.Position
+                                            local direction = (char.Head.Position - origin)
+                                            local hit = workspace:Raycast(origin, direction, rayParams)
+                                            if hit and hit.Instance and not hit.Instance:IsDescendantOf(char) then
+                                                canSee = false
+                                            end
+                                        end
+                                        
+                                        if canSee then
+                                            dist = d
+                                            closest = char
+                                        end
                                     end
                                 end
                             end
@@ -181,6 +200,15 @@ local success, err = pcall(function()
         Default = true,
         Callback = function(Value)
             teamCheck = Value
+        end
+    })
+
+    AimbotGroupBox:AddToggle("AimbotWallCheck", {
+        Text = "Wall Check",
+        Tooltip = "Prevents aimbot from targeting players behind walls",
+        Default = true,
+        Callback = function(Value)
+            wallCheck = Value
         end
     })
 
@@ -541,7 +569,6 @@ local success, err = pcall(function()
                                 local dataKey = self:ToEnum("Data")
                                 local cosmetics = equipped[weaponName]
                                 
-                                -- Finisher는 무기 모델에 주입하지 않음
                                 if viewmodelRef[dataKey] then
                                     if cosmetics.Skin then
                                         viewmodelRef[dataKey][self:ToEnum("Skin")] = cosmetics.Skin
@@ -666,7 +693,6 @@ local success, err = pcall(function()
                         end
                     end
                     
-                    -- 피니셔(Finisher) 처형 액션 처리
                     local ClientEntity = safeRequire(safeWait(clientClasses, "ClientEntity", 10))
                     if ClientEntity and ClientEntity.ReplicateFromServer then
                         local originalReplicateFromServer = ClientEntity.ReplicateFromServer
