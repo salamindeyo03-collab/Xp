@@ -169,8 +169,9 @@ local success, err = pcall(function()
     -- SILENT AIM 설정 (Raycast 후킹 방식)
     -- ==========================================
     local SA_ENABLED = false
-    local SA_FOV = 300
+    local SA_FOV = 50 -- 기본값 50으로 낮춤
     local SA_SHOW_FOV = false
+    local SA_TEAMCHECK = true
     local SA_HIT_PART = "Head"
 
     local saFovCircle = nil
@@ -199,18 +200,26 @@ local success, err = pcall(function()
     local function getSilentTargetPart()
         local screenCenter = Vector2.new(camera.ViewportSize.X / 2, camera.ViewportSize.Y / 2)
         local closestPart = nil
-        local shortestDist = SA_FOV -- UI에서 설정한 FOV 값 사용
+        local shortestDist = SA_FOV -- 슬라이더에서 설정한 FOV 값 사용
 
         for _, entity in CollectionService:GetTagged("Entity") do
             if entity ~= player.Character then
-                local hitPart = entity:FindFirstChild(SA_HIT_PART, true)
-                if hitPart and hitPart:IsA("BasePart") then
-                    local screenPos, onScreen = camera:WorldToViewportPoint(hitPart.Position)
-                    if onScreen then
-                        local dist = (screenCenter - Vector2.new(screenPos.X, screenPos.Y)).Magnitude
-                        if dist < shortestDist then
-                            shortestDist = dist
-                            closestPart = hitPart
+                local isTeammate = false
+                local entityPlayer = Players:GetPlayerFromCharacter(entity)
+                if entityPlayer and SA_TEAMCHECK and player.Team and entityPlayer.Team == player.Team then
+                    isTeammate = true
+                end
+                
+                if not isTeammate then
+                    local hitPart = entity:FindFirstChild(SA_HIT_PART, true)
+                    if hitPart and hitPart:IsA("BasePart") then
+                        local screenPos, onScreen = camera:WorldToViewportPoint(hitPart.Position)
+                        if onScreen and screenPos.Z > 0 then
+                            local dist = (screenCenter - Vector2.new(screenPos.X, screenPos.Y)).Magnitude
+                            if dist < shortestDist then
+                                shortestDist = dist
+                                closestPart = hitPart
+                            end
                         end
                     end
                 end
@@ -265,8 +274,19 @@ local success, err = pcall(function()
 
     local SilentAimGroupBox = Tabs.Main:AddLeftGroupbox("Silent Aim")
     SilentAimGroupBox:AddToggle("SilentAimToggle", { Text = "Enable Silent Aim", Default = false, Callback = function(Value) SA_ENABLED = Value end })
+    SilentAimGroupBox:AddToggle("SilentAimTeamCheck", { Text = "Team Check", Default = true, Callback = function(Value) SA_TEAMCHECK = Value end })
     SilentAimGroupBox:AddToggle("SilentAimShowFOV", { Text = "Show Silent FOV", Default = false, Callback = function(Value) SA_SHOW_FOV = Value end })
-    SilentAimGroupBox:AddSlider("SilentAimFOV", { Text = "Silent FOV Radius", Default = 300, Min = 1, Max = 1000, Rounding = 0, Callback = function(Value) SA_FOV = Value end })
+    SilentAimGroupBox:AddSlider("SilentAimFOV", { 
+        Text = "Silent FOV Radius", 
+        Default = 50, 
+        Min = 10, 
+        Max = 1000, 
+        Rounding = 0, 
+        Callback = function(Value) 
+            SA_FOV = Value 
+            print("Silent FOV set to:", SA_FOV) -- 콘솔에서 FOV 변경 확인용
+        end 
+    })
     SilentAimGroupBox:AddDropdown("SilentAimHitPart", { Text = "Hit Part", Values = {"Head", "HumanoidRootPart", "Torso"}, Default = 1, Callback = function(Value) SA_HIT_PART = Value end })
 
     -- ==========================================
@@ -739,7 +759,6 @@ local success, err = pcall(function()
                                 if isOurKill then
                                     local finisherEnum = nil
                                     
-                                    -- 1. 마지막으로 사용한 무기 확인
                                     if lastUsedWeapon and equipped[lastUsedWeapon] and equipped[lastUsedWeapon].Finisher then
                                         finisherEnum = equipped[lastUsedWeapon].Finisher.Enum
                                         if not finisherEnum and EnumLibrary then
@@ -748,7 +767,6 @@ local success, err = pcall(function()
                                         end
                                     end
                                     
-                                    -- 2. 마지막 무기에 없으면 장착된 무기 중 피니셔 찾기 (폴백)
                                     if not finisherEnum then
                                         for weaponName, cosmetics in pairs(equipped) do
                                             if cosmetics.Finisher then
@@ -762,7 +780,6 @@ local success, err = pcall(function()
                                         end
                                     end
                                     
-                                    -- 3. 피니셔 적용
                                     if finisherEnum then
                                         args[1] = finisherEnum
                                         return originalReplicateFromServer(self, action, unpack(args, 1, argCount))
@@ -919,5 +936,4 @@ local success, err = pcall(function()
 end)
 
 if not success then
-    warn("Script failed to load:", err)
-end
+    warn
