@@ -222,7 +222,6 @@ local success, err = pcall(function()
         return success and module or nil
     end
 
-    -- table.clone이 없을 수 있으므로 안전한 복사 함수 사용
     local function safeClone(t)
         if not t then return {} end
         if type(table) == "table" and type(table.clone) == "function" then
@@ -1157,6 +1156,30 @@ local success, err = pcall(function()
     ThemeManager:ApplyToTab(Tabs["UI Settings"])
 
     SaveManager:LoadAutoloadConfig()
+
+    -- ==========================================
+    -- 유리(Glass) 반투명 UI 효과 적용
+    -- ==========================================
+    local function ApplyGlassEffect()
+        pcall(function()
+            local windowFrame = Library.Window
+            if windowFrame then
+                windowFrame.BackgroundTransparency = 0.5
+                for _, v in pairs(windowFrame:GetDescendants()) do
+                    if v:IsA("Frame") then
+                        -- 주요 배경 프레임들 반투명하게 만들기
+                        if v.Name == "Groupbox" or v.Name == "Tabbox" or v.Name == "Panel" or v.Name == "Container" or v.Name == "Background" or v.Name == "Frame" then
+                            v.BackgroundTransparency = 0.5
+                        end
+                    end
+                end
+            end
+        end)
+    end
+
+    ApplyGlassEffect()
+    -- UI가 새로고침 될 때 다시 적용되도록 약간의 딜레이 후 한 번 더 호출
+    task.delay(1, ApplyGlassEffect)
 end)
 
 if not success then
