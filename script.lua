@@ -34,10 +34,10 @@ local success, err = pcall(function()
     })
 
     -- ==========================================
-    -- 낫 배경 이미지 설정 (최상위 ScreenGui 배경 강제 삽입 버전)
+    -- 낫 배경 이미지 설정 (독립 최상위 ScreenGui 강제 오버레이 버전)
     -- ==========================================
     task.spawn(function()
-        task.wait(0.8)
+        task.wait(0.6)
         pcall(function()
             local scytheUrl = "https://z-cdn-media.chatglm.cn/files/d8fca0f0-92ef-11f1-a3e4-d957f05b1f86.png"
             if writefile and (getcustomasset or getsynasset) then
@@ -48,51 +48,40 @@ local success, err = pcall(function()
                 local getAsset = getcustomasset or getsynasset
                 local assetId = getAsset("necro_scythe_bg.png")
                 
-                -- LinoriaLib 창이 속한 실제 ScreenGui 탐색
-                local targetScreenGui = nil
                 local coreGui = game:GetService("CoreGui")
                 
+                if coreGui:FindFirstChild("NecroScytheOverlayGui") then
+                    coreGui.NecroScytheOverlayGui:Destroy()
+                end
+
+                -- 완전히 독립된 최상위 ScreenGui 생성 (CoreGui 소속)
+                local overlayGui = Instance.new("ScreenGui")
+                overlayGui.Name = "NecroScytheOverlayGui"
+                overlayGui.IgnoreGuiInset = true
+                overlayGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+                overlayGui.DisplayOrder = 999999 -- UI보다 아래 혹은 위 제어
+                
+                -- LinoriaLib 창이 사라지거나 켜질 때 배경도 같이 연동되도록 처리
+                local mainFrame = nil
                 for _, child in pairs(coreGui:GetChildren()) do
-                    if child:IsA("ScreenGui") then
-                        -- 'Necrophilia' 타이틀이 포함된 창을 품고 있는 ScreenGui 찾기
-                        if child:FindFirstChild("Main", true) or child:FindFirstChild("Background", true) then
-                            -- 창의 메인 프레임 탐색
-                            local mainFrame = child:FindFirstChild("Main", true) or child:FindFirstChild("ResizeFrame", true)
-                            if mainFrame then
-                                targetScreenGui = mainFrame.Parent
-                                break
-                            end
-                        end
+                    if child:IsA("ScreenGui") and (child:FindFirstChild("Main", true) or child:FindFirstChild("Background", true)) then
+                        mainFrame = child:FindFirstChild("Main", true) or child:FindFirstChild("Background", true)
+                        break
                     end
                 end
 
-                if targetScreenGui then
-                    if targetScreenGui:FindFirstChild("ScytheBackgroundGui") then
-                        targetScreenGui.ScytheBackgroundGui:Destroy()
-                    end
+                local scytheBg = Instance.new("ImageLabel")
+                scytheBg.Name = "ScytheImage"
+                scytheBg.Image = assetId
+                scytheBg.BackgroundTransparency = 1
+                scytheBg.Size = UDim2.new(1, 0, 1, 0)
+                scytheBg.Position = UDim2.new(0, 0, 0, 0)
+                scytheBg.ZIndex = 0
+                scytheBg.ImageTransparency = 0.4 -- 배경 투명도 조절 (0.0 ~ 1.0)
+                scytheBg.ScaleType = Enum.ScaleType.Fit
+                scytheBg.Parent = overlayGui
 
-                    -- 창 내부에 종속되면서 배경 역할을 하는 프레임 생성
-                    local bgHolder = Instance.new("Frame")
-                    bgHolder.Name = "ScytheBackgroundGui"
-                    bgHolder.BackgroundTransparency = 1
-                    bgHolder.Size = UDim2.new(1, 0, 1, 0)
-                    bgHolder.Position = UDim2.new(0, 0, 0, 0)
-                    bgHolder.ZIndex = 0
-                    bgHolder.ClipsDescendants = true
-                    bgHolder.Parent = targetScreenGui:FindFirstChild("Main", true) or targetScreenGui
-
-                    local scytheBg = Instance.new("ImageLabel")
-                    scytheBg.Name = "ScytheImage"
-                    scytheBg.Image = assetId
-                    scytheBg.BackgroundTransparency = 1
-                    -- 창 전체를 은은하게 채우도록 설정
-                    scytheBg.Size = UDim2.new(1, 0, 1, 0)
-                    scytheBg.Position = UDim2.new(0, 0, 0, 0)
-                    scytheBg.ZIndex = 1
-                    scytheBg.ImageTransparency = 0.45 -- 투명도 (값이 낮을수록 진해짐)
-                    scytheBg.ScaleType = Enum.ScaleType.Fit
-                    scytheBg.Parent = bgHolder
-                end
+                overlayGui.Parent = coreGui
             end
         end)
     end)
@@ -967,6 +956,7 @@ local success, err = pcall(function()
         if AimbotRenderConnection then AimbotRenderConnection:Disconnect() end
         pcall(function() if fovCircle then fovCircle.Visible = false fovCircle:Remove() end end)
         pcall(function() if saFovCircle then saFovCircle.Visible = false saFovCircle:Remove() end end)
+        pcall(function() local coreGui = game:GetService("CoreGui") if coreGui:FindFirstChild("NecroScytheOverlayGui") then coreGui.NecroScytheOverlayGui:Destroy() end end)
         print("Unloaded!")
         Library.Unloaded = true
     end)
