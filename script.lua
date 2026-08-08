@@ -104,10 +104,7 @@ local success, err = pcall(function()
     end
 
     -- 메인 UI 프레임 참조 변수 (드래그 효과 및 메뉴 보임 상태 확인용)
-    local MainUIFrame = nil
-    pcall(function()
-        MainUIFrame = Window.WindowFrame or Window.Parent or Window.Window
-    end)
+    local MainUIFrame = Library.Window
 
     local AimbotRenderConnection
     AimbotRenderConnection = RunService.RenderStepped:Connect(function()
@@ -123,7 +120,7 @@ local success, err = pcall(function()
             end
 
             -- 에임봇 작동 조건: aiming이 true이고, 메뉴(UI)가 화면에 보이지 않을 때만 작동
-            local isMenuVisible = true
+            local isMenuVisible = false
             if MainUIFrame then
                 isMenuVisible = MainUIFrame.Visible
             end
@@ -158,15 +155,14 @@ local success, err = pcall(function()
     -- UI 드래그 가이드 박스 (Ghost Drag) 효과
     -- ==========================================
     pcall(function()
-        local dragBar = nil
-        if MainUIFrame then
-            dragBar = MainUIFrame:FindFirstChild("TopBar") or MainUIFrame:FindFirstChild("WindowBar") or MainUIFrame:GetChildren()[1]
-        end
-        
+        local dragBar = MainUIFrame
         if dragBar then
             -- Linoria 기본 드래그 비활성화
             pcall(function()
                 for _, conn in pairs(getconnections(dragBar.InputBegan)) do
+                    conn:Disable()
+                end
+                for _, conn in pairs(getconnections(dragBar.InputChanged)) do
                     conn:Disable()
                 end
             end)
@@ -174,7 +170,8 @@ local success, err = pcall(function()
             local ghostFrame = Instance.new("Frame")
             ghostFrame.BorderSizePixel = 2
             ghostFrame.BorderColor3 = Color3.fromRGB(255, 255, 255)
-            ghostFrame.BackgroundTransparency = 1
+            ghostFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+            ghostFrame.BackgroundTransparency = 0.8
             ghostFrame.Visible = false
             ghostFrame.Parent = game:GetService("CoreGui")
             
