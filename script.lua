@@ -26,6 +26,7 @@ local Window = Library:CreateWindow({
     AutoShow = true,
     Resizable = true,
     ShowCustomCursor = true,
+    UnlockMouseWhileOpen = true,
     NotifySide = "Left",
     TabPadding = 8,
     MenuFadeTime = 0.2
@@ -48,6 +49,7 @@ local camera = workspace.CurrentCamera
 local AIM_RADIUS = 200
 local SMOOTH_FACTOR = 1.0
 local aiming = false
+local teamCheck = true -- 팀 체크 기본값
 
 local gui = Instance.new("ScreenGui", player:WaitForChild("PlayerGui"))
 gui.Name = "AimbotGui"
@@ -63,16 +65,29 @@ stroke.Thickness = 3
 stroke.Transparency = 0.7
 stroke.Color = Color3.new(1, 1, 1)
 
+-- 최적화된 타겟 찾기 함수 (플레이어만 검사, 팀체크 및 자기 자신/죽은 사람 제외)
 local function getTarget()
     local root = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
     if not root then return end
+    
     local closest, dist = nil, AIM_RADIUS
-    for _, m in pairs(workspace:GetDescendants()) do
-        if m:IsA("Model") and m:FindFirstChild("Humanoid") and m:FindFirstChild("Head") and m ~= player.Character then
-            local d = (m.Head.Position - root.Position).Magnitude
-            if d < dist then
-                dist = d
-                closest = m
+    for _, plr in pairs(Players:GetPlayers()) do
+        if plr ~= player then -- 자기 자신 제외
+            local char = plr.Character
+            if char and char:FindFirstChild("Head") and char:FindFirstChild("Humanoid") then
+                local humanoid = char.Humanoid
+                if humanoid.Health > 0 then -- 살아있는 플레이어만
+                    -- 팀 체크가 켜져 있고, 같은 팀일 경우 스킵
+                    if teamCheck and player.Team and plr.Team == player.Team then
+                        continue
+                    end
+                    
+                    local d = (char.Head.Position - root.Position).Magnitude
+                    if d < dist then
+                        dist = d
+                        closest = char
+                    end
+                end
             end
         end
     end
@@ -91,6 +106,7 @@ RunService.RenderStepped:Connect(function()
     end
 end)
 
+-- 맨 왼쪽 그룹박스에 에임봇 UI 추가
 local AimbotGroupBox = Tabs.Main:AddLeftGroupbox("Aimbot")
 
 AimbotGroupBox:AddToggle("AimbotToggle", {
@@ -100,6 +116,15 @@ AimbotGroupBox:AddToggle("AimbotToggle", {
     Callback = function(Value)
         aiming = Value
         fov.Visible = Value
+    end
+})
+
+AimbotGroupBox:AddToggle("AimbotTeamCheck", {
+    Text = "Team Check",
+    Tooltip = "Prevents aimbot from targeting teammates",
+    Default = true,
+    Callback = function(Value)
+        teamCheck = Value
     end
 })
 
@@ -126,6 +151,7 @@ AimbotGroupBox:AddSlider("AimbotFOV", {
     end
 })
 
+-- 기존 그룹박스들
 local LeftGroupBox = Tabs.Main:AddLeftGroupbox("Groupbox")
 local UnlockGroupBox = Tabs.Main:AddRightGroupbox("Unlock All")
 
@@ -385,7 +411,7 @@ UnlockGroupBox:AddButton({
                                     favorites[args[1]][args[2]] = args[3] or nil
                                     saveConfig()
                                     task.spawn(function() pcall(function() DataController.CurrentData:Replicate("FavoritedCosmetics") end) end)
-                                end
+                                }
                                 return
                             end
                             
