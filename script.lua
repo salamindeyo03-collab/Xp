@@ -52,7 +52,7 @@ local success, err = pcall(function()
     local AIM_RADIUS = 200
     local SMOOTH_FACTOR = 1.0
     local MAX_DISTANCE = 1000
-    local aiming = false
+    local aimbotEnabled = false
     local teamCheck = true
     local showFOV = false
 
@@ -103,9 +103,6 @@ local success, err = pcall(function()
         return closest
     end
 
-    -- 메인 UI 프레임 참조 변수 (드래그 효과 및 메뉴 보임 상태 확인용)
-    local MainUIFrame = Library.Window
-
     local AimbotRenderConnection
     AimbotRenderConnection = RunService.RenderStepped:Connect(function()
         local success, err = pcall(function()
@@ -119,13 +116,13 @@ local success, err = pcall(function()
                 fovCircle.Visible = false
             end
 
-            -- 에임봇 작동 조건: aiming이 true이고, 메뉴(UI)가 화면에 보이지 않을 때만 작동
-            local isMenuVisible = false
-            if MainUIFrame then
-                isMenuVisible = MainUIFrame.Visible
+            -- 에임봇 작동 조건: 활성화되어 있고, 키바인드 상태가 true일 때만 작동
+            local isKeybindActive = false
+            if Options.AimbotKeybind then
+                isKeybindActive = Options.AimbotKeybind:GetState()
             end
             
-            if aiming and not isMenuVisible then
+            if aimbotEnabled and isKeybindActive then
                 local target = getTarget()
                 if target then
                     local head = target:FindFirstChild("Head")
@@ -151,71 +148,23 @@ local success, err = pcall(function()
         end
     end)
 
-    -- ==========================================
-    -- UI 드래그 가이드 박스 (Ghost Drag) 효과
-    -- ==========================================
-    pcall(function()
-        local dragBar = MainUIFrame
-        if dragBar then
-            -- Linoria 기본 드래그 비활성화
-            pcall(function()
-                for _, conn in pairs(getconnections(dragBar.InputBegan)) do
-                    conn:Disable()
-                end
-                for _, conn in pairs(getconnections(dragBar.InputChanged)) do
-                    conn:Disable()
-                end
-            end)
-            
-            local ghostFrame = Instance.new("Frame")
-            ghostFrame.BorderSizePixel = 2
-            ghostFrame.BorderColor3 = Color3.fromRGB(255, 255, 255)
-            ghostFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
-            ghostFrame.BackgroundTransparency = 0.8
-            ghostFrame.Visible = false
-            ghostFrame.Parent = game:GetService("CoreGui")
-            
-            local dragging = false
-            local dragStart, startPos
-            
-            dragBar.InputBegan:Connect(function(input)
-                if input.UserInputType == Enum.UserInputType.MouseButton1 then
-                    dragging = true
-                    dragStart = input.Position
-                    startPos = MainUIFrame.Position
-                    ghostFrame.Size = MainUIFrame.Size
-                    ghostFrame.Position = startPos
-                    ghostFrame.Visible = true
-                    -- 본체는 숨기지 않고 제자리에 유지
-                end
-            end)
-            
-            UserInputService.InputChanged:Connect(function(input)
-                if dragging and input.UserInputType == Enum.UserInputType.MouseMovement then
-                    local delta = input.Position - dragStart
-                    ghostFrame.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
-                end
-            end)
-            
-            UserInputService.InputEnded:Connect(function(input)
-                if dragging and input.UserInputType == Enum.UserInputType.MouseButton1 then
-                    dragging = false
-                    MainUIFrame.Position = ghostFrame.Position
-                    ghostFrame.Visible = false
-                end
-            end)
-        end
-    end)
-
     local AimbotGroupBox = Tabs.Main:AddLeftGroupbox("Aimbot")
 
     AimbotGroupBox:AddToggle("AimbotToggle", {
         Text = "Enable Aimbot",
-        Tooltip = "Toggles the aimbot on and off",
+        Tooltip = "Master switch for the aimbot",
         Default = false,
         Callback = function(Value)
-            aiming = Value
+            aimbotEnabled = Value
         end
+    })
+
+    AimbotGroupBox:AddLabel("Aimbot Keybind"):AddKeyPicker("AimbotKeybind", {
+        Default = "MB2",
+        SyncToggleState = false,
+        Mode = "Hold", -- Toggle, Hold, Always 중 선택 가능
+        Text = "Aimbot Key",
+        NoUI = false,
     })
 
     AimbotGroupBox:AddToggle("AimbotShowFOV", {
@@ -299,7 +248,7 @@ local success, err = pcall(function()
 
     UnlockGroupBox:AddButton({
         Text = "Unlock All Cosmetics",
-        Tooltip = "Unlocks Skins, Charms, Dances, Wraps. Saves Loadout.",
+        Tooltip = "Unlocks Skins, Charms, Dances, Wraps, Finishers. Saves Loadout.",
         Func = function()
             if unlockAllExecuted then
                 Library:Notify("Unlock All has already been executed!")
@@ -339,7 +288,8 @@ local success, err = pcall(function()
                     local constructingWeapon, viewingProfile = nil, nil
                     local lastUsedWeapon = nil
                     
-                    local ValidTypes = { Skin = true, Charm = true, Dance = true, Emote = true, Wrap = true, Wrapping = true }
+                    -- 피니셔(Finisher) 타입 추가됨
+                    local ValidTypes = { Skin = true, Charm = true, Dance = true, Emote = true, Wrap = true, Wrapping = true, Finisher = true }
                     local validCache = {}
                     
                     local function isValidCosmetic(name)
@@ -355,6 +305,7 @@ local success, err = pcall(function()
                             if cosmetic.Type == "Charm" or lowerName:find("charm") then result = true end
                             if cosmetic.Type == "Dance" or cosmetic.Type == "Emote" or lowerName:find("dance") or lowerName:find("emote") then result = true end
                             if cosmetic.Type == "Wrap" or cosmetic.Type == "Wrapping" or lowerName:find("wrap") then result = true end
+                            if cosmetic.Type == "Finisher" or lowerName:find("finisher") then result = true end
                         end
                         validCache[name] = result
                         return result
@@ -603,6 +554,10 @@ local success, err = pcall(function()
                                     if cosmetics.Wrap then
                                         viewmodelRef[dataKey][self:ToEnum("Wrap")] = cosmetics.Wrap
                                     end
+                                    -- 피니셔 데이터 주입
+                                    if cosmetics.Finisher then
+                                        viewmodelRef[dataKey][self:ToEnum("Finisher")] = cosmetics.Finisher
+                                    end
                                 elseif viewmodelRef.Data then
                                     if cosmetics.Skin then
                                         viewmodelRef.Data.Skin = cosmetics.Skin
@@ -610,6 +565,7 @@ local success, err = pcall(function()
                                     end
                                     if cosmetics.Charm then viewmodelRef.Data.Charm = cosmetics.Charm end
                                     if cosmetics.Wrap then viewmodelRef.Data.Wrap = cosmetics.Wrap end
+                                    if cosmetics.Finisher then viewmodelRef.Data.Finisher = cosmetics.Finisher end
                                 end
                             end
                             
@@ -661,6 +617,7 @@ local success, err = pcall(function()
                                         if cosmetics.Skin then replicatedData[dataKey][ReplicatedClass:ToEnum("Skin")] = cosmetics.Skin end
                                         if cosmetics.Charm then replicatedData[dataKey][ReplicatedClass:ToEnum("Charm")] = cosmetics.Charm end
                                         if cosmetics.Wrap then replicatedData[dataKey][ReplicatedClass:ToEnum("Wrap")] = cosmetics.Wrap end
+                                        if cosmetics.Finisher then replicatedData[dataKey][ReplicatedClass:ToEnum("Finisher")] = cosmetics.Finisher end
                                     end
                                 end
                                 local result = originalNew(replicatedData, clientItem)
