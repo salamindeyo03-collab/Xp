@@ -33,7 +33,7 @@ local success, err = pcall(function()
         MenuFadeTime = 0.2
     })
 
-    -- UI 중앙에 로고 이미지 배치 및 유리(Glass) 테두리 효과 적용
+    -- UI 중앙에 로고 이미지 배치 및 그룹 테두리 효과 적용
     task.spawn(function()
         task.wait(1) -- UI가 완전히 생성될 때까지 대기
         pcall(function()
@@ -87,19 +87,16 @@ local success, err = pcall(function()
                     logoImg.Parent = windowFrame
                 end
                 
-                -- 2. 글꼴을 일반 폰트로 고정 및 유리(Glass) 효과 적용
+                -- 2. 글꼴을 일반 폰트로 고정 및 그룹박스 테두리만 안 보이게 처리
                 for _, v in pairs(windowFrame:GetDescendants()) do
                     -- 글꼴이 깨지는 현상 방지: 모든 텍스트를 일반 Gotham 폰트로 강제 통일
                     if v:IsA("TextLabel") or v:IsA("TextButton") or v:IsA("TextBox") then
                         v.Font = Enum.Font.Gotham
                     end
                     
-                    -- 유리(Glass) 테두리 효과: 두께를 살짝 두껍게 하고 투명도를 조절해 유리 느낌 부여
-                    if v:IsA("UIStroke") then
-                        v.Transparency = 0.3 -- 투명도를 줄여 테두리가 더 또렷하게 보이게 함
-                        v.Color = Color3.fromRGB(255, 255, 255) -- 유리 느낌의 흰색 테두리
-                        v.Thickness = 1.5 -- 두께를 1.5로 증가시켜 유리창 테두리처럼 보이게 함
-                        v.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+                    -- 그룹박스(Groupbox) 테두리만 안 보이게 투명도 조절 (버튼 등 다른 테두리는 건드리지 않음)
+                    if v:IsA("UIStroke") and v.Parent and v.Parent.Name == "GroupBox" then
+                        v.Transparency = 1 -- 완전히 투명하게 처리하여 안 보이게 만듭니다.
                     end
                 end
             end
