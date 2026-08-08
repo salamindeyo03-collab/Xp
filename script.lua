@@ -34,12 +34,11 @@ local success, err = pcall(function()
     })
 
     -- ==========================================
-    -- 낫 배경 이미지 설정 (UI 배경 적용)
+    -- 낫 배경 이미지 설정 (강제 렌더링 수정 버전)
     -- ==========================================
     task.spawn(function()
-        task.wait(0.5)
+        task.wait(0.6)
         pcall(function()
-            -- 제공해주신 낫 사진의 실제 이미지 링크
             local scytheUrl = "https://z-cdn-media.chatglm.cn/files/d8fca0f0-92ef-11f1-a3e4-d957f05b1f86.png"
             if writefile and (getcustomasset or getsynasset) then
                 if not isfile("necro_scythe_bg.png") then
@@ -49,35 +48,46 @@ local success, err = pcall(function()
                 local getAsset = getcustomasset or getsynasset
                 local assetId = getAsset("necro_scythe_bg.png")
                 
-                -- LinoriaLib의 메인 배경 프레임 안전하게 찾기
-                local targetParent = Window.Main or Window.WindowFrame or Window.Base
-                if not targetParent and Window.Holder then
-                    targetParent = Window.Holder:FindFirstChildOfClass("Frame")
+                -- LinoriaLib의 실제 메인 GUI 컨테이너 및 배경 프레임 찾기
+                local guiRoot = Window.Holder and Window.Holder.Parent
+                if not guiRoot then
+                    guiRoot = game:GetService("CoreGui"):FindFirstChild("ScreenGui") or player.PlayerGui:FindFirstChild("ScreenGui")
                 end
-                
-                -- 만약 못 찾았을 경우 Window 내부에서 Frame 찾기
-                if not targetParent then
-                    for _, v in pairs(Window) do
-                        if typeof(v) == "Instance" and v:IsA("Frame") then
-                            targetParent = v
-                            break
+
+                local targetFrame = nil
+                if Window.Main then
+                    targetFrame = Window.Main
+                elseif Window.WindowFrame then
+                    targetFrame = Window.WindowFrame
+                else
+                    -- 화면 내에서 'Necrophilia' 타이틀을 가진 창 찾기
+                    for _, gui in pairs(game:GetService("CoreGui"):GetChildren()) do
+                        if gui:IsA("ScreenGui") then
+                            local found = gui:FindFirstChild("Main", true)
+                            if found and found:IsA("Frame") then
+                                targetFrame = found
+                                break
+                            end
                         end
                     end
                 end
 
-                if targetParent then
+                if targetFrame then
+                    -- 이미지가 이미 생성되어 있다면 중복 생성 방지
+                    if targetFrame:FindFirstChild("ScytheBackground") then
+                        targetFrame.ScytheBackground:Destroy()
+                    end
+
                     local scytheBg = Instance.new("ImageLabel")
                     scytheBg.Name = "ScytheBackground"
                     scytheBg.Image = assetId
                     scytheBg.BackgroundTransparency = 1
-                    scytheBg.Size = UDim2.new(1, 0, 1, 0) -- 창 크기에 꽉 차게 조절
+                    scytheBg.Size = UDim2.new(1, 0, 1, 0)
                     scytheBg.Position = UDim2.new(0, 0, 0, 0)
-                    scytheBg.AnchorPoint = Vector2.new(0, 0)
-                    scytheBg.ZIndex = 0 -- 다른 UI 요소들보다 뒤에 오도록 설정
-                    scytheBg.ImageTransparency = 0.4 -- 배경 투명도 (값이 높을수록 연해짐, 0.4는 적당히 잘 보이는 투명도)
-                    scytheBg.ScaleType = Enum.ScaleType.Fit -- 비율 유지하며 창에 맞춤
-                    scytheBg.Active = false
-                    scytheBg.Parent = targetParent
+                    scytheBg.ZIndex = -999 -- 가장 밑단 레이어로 설정하여 UI 조작을 방해하지 않음
+                    scytheBg.ImageTransparency = 0.5 -- 투명도 조절 (0에 가까울수록 진해짐)
+                    scytheBg.ScaleType = Enum.ScaleType.Fit
+                    scytheBg.Parent = targetFrame
                 end
             end
         end)
