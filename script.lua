@@ -2,7 +2,7 @@
                                                _                                 
                      __      ____ _ _ __ _ __ (_)_ __   __ _                     
                      \ \ /\ / / _` | '__| '_ \| | '_ \ / _` |                    
-                      \ V  V / (_{ | |  | | | | | | | | (_{ |                    
+                      \ V  V / (_{ | |  | | | | | | | | | (_{ |                    
                        \_/\_/ \__,_|_|  |_| |_|_|_| |_|\__, |                    
                                                        |___/                     
  --]]
@@ -32,6 +32,8 @@ local success, err = pcall(function()
         TabPadding = 8,
         MenuFadeTime = 0.2
     })
+
+    -- (친구 조언대로 UI 디자인을 망치던 task.spawn 투명도 강제 설정은 완전히 삭제했습니다)
 
     local Tabs = {
         Main = Window:AddTab("Main"),
@@ -926,7 +928,7 @@ local success, err = pcall(function()
     ThemeManager:ApplyToTab(Tabs["UI Settings"])
     
     -- ==========================================
-    -- 다크 레드 테마 강제 적용
+    -- 다크 레드 테마 강제 적용 (친구 조언 반영)
     -- ==========================================
     ThemeManager.Theme = ThemeManager.Theme or {}
     ThemeManager.Theme.Main = Color3.fromRGB(25, 25, 25)
@@ -940,28 +942,9 @@ local success, err = pcall(function()
     
     SaveManager:LoadAutoloadConfig()
 
-    -- 💡 UI 강제 유지 루프 (지인 조언 반영 + 메인 배경 예외처리)
+    -- 💡 [여기에 추가] UI 테마가 업데이트되어도 그룹박스 투명도를 강제로 유지하는 코드
     task.spawn(function()
-        -- 로고 이미지 다운로드
-        local logoUrl = "https://raw.githubusercontent.com/salamindeyo03-collab/SLogo/main/RealLast.png"
-        local assetId = nil
-
-        pcall(function()
-            if writefile and (getcustomasset or getsynasset) then
-                if not isfile("slogo.png") or #readfile("slogo.png") < 1000 then
-                    local ok, imgData = pcall(function() return game:HttpGet(logoUrl) end)
-                    if ok and imgData and #imgData > 1000 then
-                        writefile("slogo.png", imgData)
-                    end
-                end
-                if isfile("slogo.png") and #readfile("slogo.png") > 1000 then
-                    assetId = (getcustomasset or getsynasset)("slogo.png")
-                end
-            end
-        end)
-
-        -- 0.2초마다 덮어씌워지는 배경을 투명하게 유지
-        while task.wait(0.2) do 
+        while task.wait(0.2) do -- 0.2초마다 덮어씌워지는 배경을 투명하게 유지
             pcall(function()
                 local windowFrame = Window.Window or Window.WindowFrame or Window.Main
                 if not windowFrame then
@@ -975,52 +958,27 @@ local success, err = pcall(function()
 
                 if windowFrame then
                     for _, v in pairs(windowFrame:GetDescendants()) do
-                        -- 1. 루트 Background (창 전체 배경) - 검은색 불투명 고정 및 로고 삽입
-                        if v.Name == "Background" and v.Parent == windowFrame then
-                            v.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
-                            v.BackgroundTransparency = 0
-                            
-                            if assetId and not v:FindFirstChild("CenterLogo") then
-                                local logoImg = Instance.new("ImageLabel")
-                                logoImg.Name = "CenterLogo"
-                                logoImg.Image = assetId
-                                logoImg.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
-                                logoImg.BackgroundTransparency = 0
-                                logoImg.Size = UDim2.new(1, 0, 1, 0)
-                                logoImg.Position = UDim2.new(0.5, 0, 0.5, 0)
-                                logoImg.AnchorPoint = Vector2.new(0.5, 0.5)
-                                logoImg.ZIndex = 1
-                                logoImg.ImageTransparency = 0.4
-                                logoImg.ScaleType = Enum.ScaleType.Fit
-                                logoImg.Parent = v
+                        -- 그룹박스 및 내부 요소 배경 투명화 유지
+                        if v:IsA("Frame") and (v.Name == "GroupBox" or v.Name == "Background" or v.Name == "Container" or v.Name == "List" or v.Name == "TabContainer" or v.Name == "Tab") then
+                            -- 전체 배경(로고 띄우는 메인 프레임)은 투명화되지 않도록 예외 처리
+                            if v.Parent and v.Parent.Name ~= "Main" and v.Parent.Name ~= "WindowFrame" then
+                                v.BackgroundTransparency = 1
+                                v.BorderSizePixel = 0
                             end
-                        
-                        -- 2. 내부 Background, GroupBox, 탭 등 - 투명화하여 로고가 보이게 함
-                        elseif v:IsA("Frame") and (v.Name == "Background" or v.Name == "Container" or v.Name == "List" or v.Name == "TabContainer" or v.Name == "Tab" or v.Name == "GroupBox") then
-                            v.BackgroundTransparency = 1
-                            v.BorderSizePixel = 0
                         end
                         
-                        -- 3. 그림자 강제 숨김 유지
+                        -- 그림자 강제 숨김 유지
                         if v:IsA("ImageLabel") and v.Name == "Shadow" then
                             v.Visible = false
                         end
                         
-                        -- 4. 그룹박스 외곽선 투명도 0.6 유지, 메인 창 테두리는 제거
-                        if v:IsA("UIStroke") and v.Parent then
-                            if v.Parent.Name == "GroupBox" then
+                        -- 그룹박스 외곽선 투명도 유지
+                        if v:IsA("UIStroke") and v.Parent and (v.Parent.Name == "GroupBox" or v.Parent.Name == "Background") then
+                            -- 전체 창 테두리는 제외
+                            if v.Parent.Parent and v.Parent.Parent.Name ~= "WindowFrame" and v.Parent.Parent.Name ~= "Main" then
                                 v.Transparency = 0.6
                                 v.Thickness = 1
-                                v.Color = Color3.fromRGB(255, 255, 255)
-                            elseif v.Parent.Name == "Window" or v.Parent.Name == "WindowFrame" or v.Parent.Name == "Background" then
-                                v.Transparency = 1
-                                v.Thickness = 0
                             end
-                        end
-                        
-                        -- 5. 글꼴 고정
-                        if v:IsA("TextLabel") or v:IsA("TextButton") or v:IsA("TextBox") then
-                            v.Font = Enum.Font.Gotham
                         end
                     end
                 end
