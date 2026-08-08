@@ -1134,6 +1134,36 @@ local success, err = pcall(function()
 
     MenuGroup:AddToggle("KeybindMenuOpen", { Default = Library.KeybindFrame.Visible, Text = "Open Keybind Menu", Callback = function(value) Library.KeybindFrame.Visible = value end})
     MenuGroup:AddToggle("ShowCustomCursor", {Text = "Custom Cursor", Default = true, Callback = function(Value) Library.ShowCustomCursor = Value end})
+    
+    -- Glass Mode 토글 추가
+    MenuGroup:AddToggle("GlassModeToggle", {
+        Text = "Glass Mode (Semi-transparent)", 
+        Tooltip = "Makes the UI background semi-transparent and gray.", 
+        Default = false, 
+        Callback = function(Value)
+            pcall(function()
+                local trans = Value and 0.5 or 0
+                local color = Value and Color3.fromRGB(35, 35, 35) or Color3.fromRGB(20, 20, 20)
+                
+                -- 메인 윈도우 배경 투명도 설정
+                if Library.Window then
+                    Library.Window.BackgroundTransparency = Value and 0.2 or 0
+                end
+                
+                -- 내부 배경 프레임들 탐색 및 수정
+                for _, v in pairs(Library.Window:GetDescendants()) do
+                    if v:IsA("Frame") or v:IsA("ScrollingFrame") then
+                        -- 기존에 불투명(0)했던 배경들만 변경하여 원래 투명했던 것들을 건드리지 않음
+                        if v.BackgroundTransparency == 0 or v.BackgroundTransparency == trans then
+                            v.BackgroundTransparency = trans
+                            v.BackgroundColor3 = color
+                        end
+                    end
+                end
+            end)
+        end
+    })
+
     MenuGroup:AddDivider()
     MenuGroup:AddLabel("Menu bind"):AddKeyPicker("MenuKeybind", { Default = "RightShift", NoUI = true, Text = "Menu keybind" })
     MenuGroup:AddButton("Unload", function() Library:Unload() end)
@@ -1156,30 +1186,6 @@ local success, err = pcall(function()
     ThemeManager:ApplyToTab(Tabs["UI Settings"])
 
     SaveManager:LoadAutoloadConfig()
-
-    -- ==========================================
-    -- 유리(Glass) 반투명 UI 효과 적용
-    -- ==========================================
-    local function ApplyGlassEffect()
-        pcall(function()
-            local windowFrame = Library.Window
-            if windowFrame then
-                windowFrame.BackgroundTransparency = 0.5
-                for _, v in pairs(windowFrame:GetDescendants()) do
-                    if v:IsA("Frame") then
-                        -- 주요 배경 프레임들 반투명하게 만들기
-                        if v.Name == "Groupbox" or v.Name == "Tabbox" or v.Name == "Panel" or v.Name == "Container" or v.Name == "Background" or v.Name == "Frame" then
-                            v.BackgroundTransparency = 0.5
-                        end
-                    end
-                end
-            end
-        end)
-    end
-
-    ApplyGlassEffect()
-    -- UI가 새로고침 될 때 다시 적용되도록 약간의 딜레이 후 한 번 더 호출
-    task.delay(1, ApplyGlassEffect)
 end)
 
 if not success then
