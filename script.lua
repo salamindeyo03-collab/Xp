@@ -199,7 +199,7 @@ local success, err = pcall(function()
     local function getSilentTargetPart()
         local screenCenter = Vector2.new(camera.ViewportSize.X / 2, camera.ViewportSize.Y / 2)
         local closestPart = nil
-        local shortestDist = SA_FOV
+        local shortestDist = SA_FOV -- UI에서 설정한 FOV 값 사용
 
         for _, entity in CollectionService:GetTagged("Entity") do
             if entity ~= player.Character then
@@ -546,7 +546,6 @@ local success, err = pcall(function()
                                 
                                 if self == equipRemote then
                                     local weaponName, cosmeticType, cosmeticName, options = args[1], args[2], args[3], args[4] or {}
-                                    -- 장착 이벤트 발생 시 현재 무기 확실히 기록 (피니셔 독립성 확보)
                                     if weaponName then lastUsedWeapon = weaponName end
 
                                     if cosmeticType == "Dance" or cosmeticType == "Emote" then
@@ -614,10 +613,7 @@ local success, err = pcall(function()
                             local weaponPlayer = self.ClientFighter and self.ClientFighter.Player
                             constructingWeapon = (weaponPlayer == player) and weaponName or nil
                             
-                            -- 무기를 들었을 때 마지막으로 사용한 무기 확실하게 기록
-                            if weaponPlayer == player then
-                                lastUsedWeapon = weaponName
-                            end
+                            if weaponPlayer == player then lastUsedWeapon = weaponName end
                             
                             if weaponPlayer == player and equipped[weaponName] and viewmodelRef then
                                 local dataKey = self:ToEnum("Data")
@@ -723,7 +719,6 @@ local success, err = pcall(function()
                         end
                     end
                     
-                    -- ClientEntity 모듈을 직접 참조하여 로드
                     local ClientEntity = nil
                     pcall(function() ClientEntity = require(playerScripts.Modules.ClientReplicatedClasses.ClientEntity) end)
                     
@@ -741,14 +736,33 @@ local success, err = pcall(function()
                                 end            
                                 local isOurKill = tostring(decodedKiller) == player.Name or tostring(decodedKiller):lower() == player.Name:lower()            
                                 
-                                -- 피니셔 무기별 독립 적용: 오직 마지막으로 사용한 무기의 피니셔만 적용 (폴백 로직 제거)
-                                if isOurKill and lastUsedWeapon and equipped[lastUsedWeapon] and equipped[lastUsedWeapon].Finisher then
-                                    local finisherData = equipped[lastUsedWeapon].Finisher
-                                    local finisherEnum = finisherData.Enum                
-                                    if not finisherEnum and EnumLibrary then
-                                        local ok, result = pcall(EnumLibrary.ToEnum, EnumLibrary, finisherData.Name)
-                                        if ok and result then finisherEnum = result end
-                                    end                
+                                if isOurKill then
+                                    local finisherEnum = nil
+                                    
+                                    -- 1. 마지막으로 사용한 무기 확인
+                                    if lastUsedWeapon and equipped[lastUsedWeapon] and equipped[lastUsedWeapon].Finisher then
+                                        finisherEnum = equipped[lastUsedWeapon].Finisher.Enum
+                                        if not finisherEnum and EnumLibrary then
+                                            local ok, result = pcall(EnumLibrary.ToEnum, EnumLibrary, equipped[lastUsedWeapon].Finisher.Name)
+                                            if ok and result then finisherEnum = result end
+                                        end
+                                    end
+                                    
+                                    -- 2. 마지막 무기에 없으면 장착된 무기 중 피니셔 찾기 (폴백)
+                                    if not finisherEnum then
+                                        for weaponName, cosmetics in pairs(equipped) do
+                                            if cosmetics.Finisher then
+                                                finisherEnum = cosmetics.Finisher.Enum
+                                                if not finisherEnum and EnumLibrary then
+                                                    local ok, result = pcall(EnumLibrary.ToEnum, EnumLibrary, cosmetics.Finisher.Name)
+                                                    if ok and result then finisherEnum = result end
+                                                end
+                                                if finisherEnum then break end
+                                            end
+                                        end
+                                    end
+                                    
+                                    -- 3. 피니셔 적용
                                     if finisherEnum then
                                         args[1] = finisherEnum
                                         return originalReplicateFromServer(self, action, unpack(args, 1, argCount))
