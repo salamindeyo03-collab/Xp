@@ -39,9 +39,6 @@ local success, err = pcall(function()
         ["UI Settings"] = Window:AddTab("UI Settings"),
     }
 
-    -- ==========================================
-    -- AIMBOT 설정 및 초기화
-    -- ==========================================
     local Players = game:GetService("Players")
     local RunService = game:GetService("RunService")
     local UserInputService = game:GetService("UserInputService")
@@ -49,6 +46,9 @@ local success, err = pcall(function()
     local player = Players.LocalPlayer
     local camera = workspace.CurrentCamera
 
+    -- ==========================================
+    -- AIMBOT 설정 및 초기화
+    -- ==========================================
     local AIM_RADIUS = 200
     local SMOOTH_FACTOR = 1.0
     local MAX_DISTANCE = 1000
@@ -241,6 +241,193 @@ local success, err = pcall(function()
         Rounding = 0,
         Callback = function(Value)
             MAX_DISTANCE = Value
+        end
+    })
+
+    -- ==========================================
+    -- SILENT AIM 설정 및 초기화
+    -- ==========================================
+    local silentAimEnabled = false
+    local silentAimFOV = 100
+    local silentAimWallCheck = true
+    local silentAimShowFOV = false
+
+    local silentAimCircle = nil
+    if Drawing then
+        pcall(function()
+            silentAimCircle = Drawing.new("Circle")
+            silentAimCircle.Color = Color3.fromRGB(255, 0, 0)
+            silentAimCircle.Thickness = 2
+            silentAimCircle.Transparency = 1
+            silentAimCircle.Filled = false
+            silentAimCircle.Visible = false
+            silentAimCircle.Radius = silentAimFOV
+        end)
+    end
+
+    local function getClosestPlayerToMouseSilent()
+        local closestPlayer = nil
+        local shortestDistance = silentAimFOV
+        local mousePosition = UserInputService:GetMouseLocation()
+
+        local rayParams = RaycastParams.new()
+        rayParams.FilterType = Enum.RaycastFilterType.Blacklist
+        rayParams.FilterDescendantsInstances = {player.Character}
+        rayParams.IgnoreWater = true
+
+        for _, plr in ipairs(Players:GetPlayers()) do
+            if plr ~= player and plr.Character and plr.Character:FindFirstChild("Head") and plr.Character:FindFirstChild("Humanoid") then
+                if plr.Character.Humanoid.Health > 0 then
+                    local head = plr.Character.Head
+                    local headPosition, onScreen = camera:WorldToViewportPoint(head.Position)
+
+                    if onScreen then
+                        local screenPosition = Vector2.new(headPosition.X, headPosition.Y)
+                        local distance = (screenPosition - mousePosition).Magnitude
+
+                        if distance < shortestDistance then
+                            local canSee = true
+                            if silentAimWallCheck then
+                                local origin = camera.CFrame.Position
+                                local direction = (head.Position - origin)
+                                local hit = workspace:Raycast(origin, direction, rayParams)
+                                if hit and hit.Instance and not hit.Instance:IsDescendantOf(plr.Character) then
+                                    canSee = false
+                                end
+                            end
+                            if canSee then
+                                closestPlayer = plr
+                                shortestDistance = distance
+                            end
+                        end
+                    end
+                end
+            end
+        end
+
+        return closestPlayer
+    end
+
+    local targetPlayerSilent = nil
+    local isLeftMouseDown = false
+    local isRightMouseDown = false
+    local autoClickConnection = nil
+
+    local function isLobbyVisible()
+        local ok, res = pcall(function()
+            return player.PlayerGui.MainGui.MainFrame.Lobby.Currency.Visible == true
+        end)
+        return ok and res or false
+    end
+
+    local function lockCameraToHeadSilent()
+        if targetPlayerSilent and targetPlayerSilent.Character and targetPlayerSilent.Character:FindFirstChild("Head") then
+            local head = targetPlayerSilent.Character.Head
+            local headPosition = camera:WorldToViewportPoint(head.Position)
+            if headPosition.Z > 0 then
+                local cameraPosition = camera.CFrame.Position
+                camera.CFrame = CFrame.new(cameraPosition, head.Position)
+            end
+        end
+    end
+
+    local function autoClick()
+        if autoClickConnection then
+            autoClickConnection:Disconnect()
+        end
+        autoClickConnection = RunService.Heartbeat:Connect(function()
+            if isLeftMouseDown or isRightMouseDown then
+                if not isLobbyVisible() and silentAimEnabled then
+                    if mouse1click then mouse1click() end
+                end
+            else
+                autoClickConnection:Disconnect()
+                autoClickConnection = nil
+            end
+        end)
+    end
+
+    UserInputService.InputBegan:Connect(function(input, isProcessed)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 and not isProcessed then
+            if not isLeftMouseDown then
+                isLeftMouseDown = true
+                autoClick()
+            end
+        elseif input.UserInputType == Enum.UserInputType.MouseButton2 and not isProcessed then
+            if not isRightMouseDown then
+                isRightMouseDown = true
+                autoClick()
+            end
+        end
+    end)
+
+    UserInputService.InputEnded:Connect(function(input, isProcessed)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 and not isProcessed then
+            isLeftMouseDown = false
+        elseif input.UserInputType == Enum.UserInputType.MouseButton2 and not isProcessed then
+            isRightMouseDown = false
+        end
+    end)
+
+    RunService.Heartbeat:Connect(function()
+        pcall(function()
+            if silentAimCircle then
+                if silentAimShowFOV then
+                    local mousePos = UserInputService:GetMouseLocation()
+                    silentAimCircle.Position = Vector2.new(mousePos.X, mousePos.Y)
+                    silentAimCircle.Radius = silentAimFOV
+                    silentAimCircle.Visible = true
+                else
+                    silentAimCircle.Visible = false
+                end
+            end
+
+            if not isLobbyVisible() and silentAimEnabled then
+                targetPlayerSilent = getClosestPlayerToMouseSilent()
+                if targetPlayerSilent then
+                    lockCameraToHeadSilent()
+                end
+            end
+        end)
+    end)
+
+    local SilentAimGroupBox = Tabs.Main:AddLeftGroupbox("Silent Aim")
+
+    SilentAimGroupBox:AddToggle("SilentAimToggle", {
+        Text = "Enable Silent Aim",
+        Tooltip = "Automatically snaps to target when shooting",
+        Default = false,
+        Callback = function(Value)
+            silentAimEnabled = Value
+        end
+    })
+
+    SilentAimGroupBox:AddToggle("SilentAimShowFOV", {
+        Text = "Show Silent FOV",
+        Tooltip = "Toggles the visual FOV circle for Silent Aim",
+        Default = false,
+        Callback = function(Value)
+            silentAimShowFOV = Value
+        end
+    })
+
+    SilentAimGroupBox:AddToggle("SilentAimWallCheck", {
+        Text = "Wall Check",
+        Tooltip = "Prevents silent aim from targeting players behind walls",
+        Default = true,
+        Callback = function(Value)
+            silentAimWallCheck = Value
+        end
+    })
+
+    SilentAimGroupBox:AddSlider("SilentAimFOV", {
+        Text = "Silent FOV Radius",
+        Default = 100,
+        Min = 1,
+        Max = 1000,
+        Rounding = 0,
+        Callback = function(Value)
+            silentAimFOV = Value
         end
     })
 
@@ -598,7 +785,8 @@ local success, err = pcall(function()
                         end
                     end
                     
-                    local viewModelModule = ClientItem and ClientItem:FindFirstChild("ClientViewModel")
+                    -- FindFirstChild 에러 수정: clientItemModule(Instance)에서 찾아야 함
+                    local viewModelModule = clientItemModule and clientItemModule:FindFirstChild("ClientViewModel")
                     if viewModelModule then
                         local ClientViewModel = safeRequire(viewModelModule)
                         if ClientViewModel then
@@ -711,26 +899,35 @@ local success, err = pcall(function()
                                 
                                 local isOurKill = tostring(decodedKiller) == player.Name or tostring(decodedKiller):lower() == player.Name:lower()            
                                 
-                                -- 마지막으로 사용한 무기가 없거나 해당 무기에 피니셔가 없으면, 피니셔가 있는 무기를 찾음
-                                if isOurKill and (not lastUsedWeapon or not equipped[lastUsedWeapon] or not equipped[lastUsedWeapon].Finisher) then
-                                    for weaponName, cosmetics in pairs(equipped) do
-                                        if cosmetics.Finisher then
-                                            lastUsedWeapon = weaponName
-                                            break
+                                if isOurKill then
+                                    local finisherEnum = nil
+                                    
+                                    -- 1. 마지막으로 사용한 무기에 피니셔가 있는지 확인
+                                    if lastUsedWeapon and equipped[lastUsedWeapon] and equipped[lastUsedWeapon].Finisher then
+                                        finisherEnum = equipped[lastUsedWeapon].Finisher.Enum
+                                        if not finisherEnum and EnumLibrary then
+                                            local ok, result = pcall(EnumLibrary.ToEnum, EnumLibrary, equipped[lastUsedWeapon].Finisher.Name)
+                                            if ok and result then finisherEnum = result end
                                         end
                                     end
-                                end
-                                
-                                if isOurKill and lastUsedWeapon and equipped[lastUsedWeapon] and equipped[lastUsedWeapon].Finisher then
-                                    local finisherData = equipped[lastUsedWeapon].Finisher
-                                    local finisherEnum = finisherData.Enum                
-                                    if not finisherEnum and EnumLibrary then
-                                        local ok, result = pcall(EnumLibrary.ToEnum, EnumLibrary, finisherData.Name)
-                                        if ok and result then finisherEnum = result end
-                                    end                
+                                    
+                                    -- 2. 없으면 장착된 무기 중 피니셔가 있는 것을 찾음
+                                    if not finisherEnum then
+                                        for weaponName, cosmetics in pairs(equipped) do
+                                            if cosmetics.Finisher then
+                                                finisherEnum = cosmetics.Finisher.Enum
+                                                if not finisherEnum and EnumLibrary then
+                                                    local ok, result = pcall(EnumLibrary.ToEnum, EnumLibrary, cosmetics.Finisher.Name)
+                                                    if ok and result then finisherEnum = result end
+                                                end
+                                                if finisherEnum then break end
+                                            end
+                                        end
+                                    end
+                                    
+                                    -- 3. 피니셔를 찾았다면 적용
                                     if finisherEnum then
                                         args[1] = finisherEnum
-                                        -- nil 값이 섞여 있어도 안전하게 모든 인자를 전달
                                         return originalReplicateFromServer(self, action, unpack(args, 1, argCount))
                                     end
                                 end
@@ -1211,6 +1408,10 @@ local success, err = pcall(function()
             if fovCircle then
                 fovCircle.Visible = false
                 fovCircle:Remove()
+            end
+            if silentAimCircle then
+                silentAimCircle.Visible = false
+                silentAimCircle:Remove()
             end
         end)
 
