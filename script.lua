@@ -33,29 +33,29 @@ local success, err = pcall(function()
         MenuFadeTime = 0.2
     })
 
-    -- UI 중앙에 로고 이미지 배치 및 그룹 테두리 효과 적용
+    -- UI 중앙에 로고 이미지 배치 및 불필요한 테두리 숨김 처리
     task.spawn(function()
         task.wait(1) -- UI가 완전히 생성될 때까지 대기
         pcall(function()
-            -- Scy.png 이미지 링크
-            local logoUrl = "https://raw.githubusercontent.com/salamindeyo03-collab/ScyLogo/main/Scy.png"
+            -- 새로운 CLogo 이미지 링크
+            local logoUrl = "https://raw.githubusercontent.com/salamindeyo03-collab/CLogo/main/d3650a90-9305-11f1-8d9b-7b07d89febc0.webp"
             local assetId = nil
             
             if writefile and (getcustomasset or getsynasset) then
-                if isfile("scy_logo.png") and #readfile("scy_logo.png") < 1000 then
-                    pcall(function() delfile("scy_logo.png") end)
+                if isfile("clogo.webp") and #readfile("clogo.webp") < 1000 then
+                    pcall(function() delfile("clogo.webp") end)
                 end
                 
-                if not isfile("scy_logo.png") then
+                if not isfile("clogo.webp") then
                     local ok, imgData = pcall(function() return game:HttpGet(logoUrl) end)
                     if ok and imgData and #imgData > 1000 then
-                        writefile("scy_logo.png", imgData)
+                        writefile("clogo.webp", imgData)
                     end
                 end
                 
-                if isfile("scy_logo.png") and #readfile("scy_logo.png") > 1000 then
+                if isfile("clogo.webp") and #readfile("clogo.webp") > 1000 then
                     local getAsset = getcustomasset or getsynasset
-                    assetId = getAsset("scy_logo.png")
+                    assetId = getAsset("clogo.webp")
                 end
             end
             
@@ -71,34 +71,42 @@ local success, err = pcall(function()
             end
             
             if windowFrame then
-                -- 1. 중앙 로고 이미지 삽입
+                -- 1. 중앙 로고 이미지 삽입 (UI 요소들에 가려지도록 설정)
                 if assetId then
                     local logoImg = Instance.new("ImageLabel")
                     logoImg.Name = "CenterLogo"
                     logoImg.Image = assetId
                     logoImg.BackgroundTransparency = 1
-                    logoImg.Size = UDim2.new(0, 350, 0, 350)
+                    -- 크기를 500x500으로 설정 (UI 창을 채우면서 버튼 뒤로 가려짐)
+                    logoImg.Size = UDim2.new(0, 500, 0, 500)
                     logoImg.Position = UDim2.new(0.5, 0, 0.5, 0)
                     logoImg.AnchorPoint = Vector2.new(0.5, 0.5)
-                    logoImg.ZIndex = 999
-                    logoImg.ImageTransparency = 0.5
+                    -- ZIndex를 2로 낮춰서 버튼이나 토글(ZIndex 5 이상) 뒤로 가려지게 만듭니다.
+                    logoImg.ZIndex = 2 
+                    logoImg.ImageTransparency = 0.2 -- 투명도를 살짝 주어 배경처럼 자연스럽게
                     logoImg.ScaleType = Enum.ScaleType.Fit
                     logoImg.Active = false
                     logoImg.Parent = windowFrame
                 end
                 
-                -- 2. 글꼴을 일반 폰트로 고정 및 그룹박스 테두리만 안 보이게 처리
+                -- 2. 글꼴을 일반 폰트로 고정 및 불필요한 주변 테두리 제거
                 for _, v in pairs(windowFrame:GetDescendants()) do
-                    -- 글꼴이 깨지는 현상 방지: 모든 텍스트를 일반 Gotham 폰트로 강제 통일
+                    -- 글꼴이 깨지는 현상 방지
                     if v:IsA("TextLabel") or v:IsA("TextButton") or v:IsA("TextBox") then
                         v.Font = Enum.Font.Gotham
                     end
                     
-                    -- 그룹박스(Groupbox) 테두리만 투명도를 올려서 거의 안 보이게 만듭니다.
-                    -- (버튼, 토글 등 다른 UIStroke는 건드리지 않음)
-                    if v:IsA("UIStroke") and v.Parent and v.Parent.Name == "GroupBox" then
-                        v.Transparency = 1 -- 투명도 100%로 숨김
-                        v.Thickness = 0
+                    -- 불필요한 주변 테두리(창 외곽선, 그룹박스 등) 안 보이게 처리
+                    if v:IsA("UIStroke") then
+                        -- 그룹박스 테두리 완전 숨김
+                        if v.Parent and v.Parent.Name == "GroupBox" then
+                            v.Transparency = 1
+                            v.Thickness = 0
+                        -- 메인 창(Window) 외곽 테두리 및 탭 테두리 등도 숨김
+                        elseif v.Parent and (v.Parent.Name == "Window" or v.Parent.Name == "TabBox" or v.Parent.Name == "WindowFrame" or v.Parent.Name == "ScrollBar") then
+                            v.Transparency = 1
+                            v.Thickness = 0
+                        end
                     end
                 end
             end
