@@ -38,10 +38,11 @@ local Tabs = {
 }
 
 -- ==========================================
--- AIMBOT 설정 및 초기화
+-- AIMBOT 설정 및 초기화 (수정됨)
 -- ==========================================
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
+local UserInputService = game:GetService("UserInputService")
 
 local player = Players.LocalPlayer
 local camera = workspace.CurrentCamera
@@ -52,31 +53,25 @@ local aiming = false
 local teamCheck = true
 local showFOV = false
 
-local gui = Instance.new("ScreenGui", player:WaitForChild("PlayerGui"))
-gui.Name = "AimbotGui"
-local fov = Instance.new("Frame", gui)
-fov.AnchorPoint = Vector2.new(0.5, 0.5)
-fov.Position = UDim2.new(0.5, 0, 0.5, 0)
-fov.Size = UDim2.new(0, AIM_RADIUS, 0, AIM_RADIUS)
-fov.BackgroundTransparency = 1
-fov.Visible = false
-Instance.new("UICorner", fov).CornerRadius = UDim.new(1, 0)
-local stroke = Instance.new("UIStroke", fov)
-stroke.Thickness = 3
-stroke.Transparency = 0.7
-stroke.Color = Color3.new(1, 1, 1)
+-- Drawing API를 사용한 FOV 원 (1인칭/3인칭 모두 작동)
+local fovCircle = Drawing.new("Circle")
+fovCircle.Color = Color3.fromRGB(255, 255, 255)
+fovCircle.Thickness = 2
+fovCircle.Transparency = 1
+fovCircle.Filled = false
+fovCircle.Visible = false
+fovCircle.Radius = AIM_RADIUS
 
--- 최적화된 타겟 찾기 함수 (플레이어만 검사, 2D FOV 체크)
+-- FOV 안에 있는 가장 가까운 적 찾기 (플레이어만, 2D 거리 계산)
 local function getTarget()
     local closest, dist = nil, AIM_RADIUS
     local screenCenter = Vector2.new(camera.ViewportSize.X / 2, camera.ViewportSize.Y / 2)
     
     for _, plr in pairs(Players:GetPlayers()) do
-        if plr:IsA("Player") and plr ~= player then -- 플레이어만, 자기 자신 제외
+        if plr ~= player then -- 자기 자신 제외
             local char = plr.Character
             if char and char:FindFirstChild("Head") and char:FindFirstChild("Humanoid") then
-                local humanoid = char.Humanoid
-                if humanoid.Health > 0 then -- 살아있는 플레이어만
+                if char.Humanoid.Health > 0 then -- 살아있는 플레이어만
                     -- 팀 체크가 켜져 있고, 같은 팀일 경우 스킵
                     if teamCheck and player.Team and plr.Team == player.Team then
                         continue
@@ -99,13 +94,33 @@ local function getTarget()
 end
 
 RunService.RenderStepped:Connect(function()
+    -- FOV 원 그리기 (마우스 위치 기준)
+    if showFOV then
+        local mousePos = UserInputService:GetMouseLocation()
+        fovCircle.Position = Vector2.new(mousePos.X, mousePos.Y)
+        fovCircle.Radius = AIM_RADIUS
+        fovCircle.Visible = true
+    else
+        fovCircle.Visible = false
+    end
+
+    -- 에임봇 작동
     if not aiming then return end
+    
     local target = getTarget()
     if target then
         local head = target:FindFirstChild("Head")
         if head then
-            local cf = CFrame.new(camera.CFrame.Position, head.Position)
-            camera.CFrame = camera.CFrame:Lerp(cf, SMOOTH_FACTOR)
+            local screenPos = camera:WorldToViewportPoint(head.Position)
+            local targetVec = Vector2.new(screenPos.X, screenPos.Y)
+            local screenCenter = Vector2.new(camera.ViewportSize.X / 2, camera.ViewportSize.Y / 2)
+            
+            local move = targetVec - screenCenter
+            local smooth = math.max(1, SMOOTH_FACTOR)
+            local moveStep = move / smooth
+            
+            -- mousemoverel을 사용해 실제 마우스를 이동시킴 (총이 정확히 맞음)
+            mousemoverel(moveStep.X, moveStep.Y)
         end
     end
 end)
@@ -119,7 +134,6 @@ AimbotGroupBox:AddToggle("AimbotToggle", {
     Default = false,
     Callback = function(Value)
         aiming = Value
-        fov.Visible = Value and showFOV
     end
 })
 
@@ -129,7 +143,6 @@ AimbotGroupBox:AddToggle("AimbotShowFOV", {
     Default = false,
     Callback = function(Value)
         showFOV = Value
-        fov.Visible = aiming and Value
     end
 })
 
@@ -149,7 +162,7 @@ AimbotGroupBox:AddSlider("AimbotSmoothness", {
     Max = 10,
     Rounding = 0,
     Callback = function(Value)
-        SMOOTH_FACTOR = 1.1 - (Value / 10)
+        SMOOTH_FACTOR = Value
     end
 })
 
@@ -161,7 +174,6 @@ AimbotGroupBox:AddSlider("AimbotFOV", {
     Rounding = 0,
     Callback = function(Value)
         AIM_RADIUS = Value
-        fov.Size = UDim2.new(0, Value, 0, Value)
     end
 })
 
@@ -557,7 +569,7 @@ UnlockGroupBox:AddButton({
                                         Name = name, Type = cosmetic.Type,
                                         ObjectID = cosmetic.ObjectID, Enum = cosmetic.Enum
                                     }
-                                end
+                                }
                             end
                         end
                         return emotes
@@ -599,6 +611,7 @@ UnlockGroupBox:AddButton({
     end
 })
 
+-- 기존 UI 요소들 유지
 LeftGroupBox:AddToggle("MyToggle", {
     Text = "This is a toggle",
     Tooltip = "This is a tooltip", 
