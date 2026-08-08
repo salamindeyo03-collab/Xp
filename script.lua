@@ -116,7 +116,6 @@ local success, err = pcall(function()
                 fovCircle.Visible = false
             end
 
-            -- 에임봇 작동 조건: 활성화되어 있고, 키바인드 상태가 true일 때만 작동
             local isKeybindActive = false
             if Options.AimbotKeybind then
                 isKeybindActive = Options.AimbotKeybind:GetState()
@@ -162,7 +161,7 @@ local success, err = pcall(function()
     AimbotGroupBox:AddLabel("Aimbot Keybind"):AddKeyPicker("AimbotKeybind", {
         Default = "MB2",
         SyncToggleState = false,
-        Mode = "Hold", -- Toggle, Hold, Always 중 선택 가능
+        Mode = "Hold",
         Text = "Aimbot Key",
         NoUI = false,
     })
@@ -288,7 +287,6 @@ local success, err = pcall(function()
                     local constructingWeapon, viewingProfile = nil, nil
                     local lastUsedWeapon = nil
                     
-                    -- 피니셔(Finisher) 타입 추가됨
                     local ValidTypes = { Skin = true, Charm = true, Dance = true, Emote = true, Wrap = true, Wrapping = true, Finisher = true }
                     local validCache = {}
                     
@@ -543,6 +541,7 @@ local success, err = pcall(function()
                                 local dataKey = self:ToEnum("Data")
                                 local cosmetics = equipped[weaponName]
                                 
+                                -- Finisher는 무기 모델에 주입하지 않음
                                 if viewmodelRef[dataKey] then
                                     if cosmetics.Skin then
                                         viewmodelRef[dataKey][self:ToEnum("Skin")] = cosmetics.Skin
@@ -554,10 +553,6 @@ local success, err = pcall(function()
                                     if cosmetics.Wrap then
                                         viewmodelRef[dataKey][self:ToEnum("Wrap")] = cosmetics.Wrap
                                     end
-                                    -- 피니셔 데이터 주입
-                                    if cosmetics.Finisher then
-                                        viewmodelRef[dataKey][self:ToEnum("Finisher")] = cosmetics.Finisher
-                                    end
                                 elseif viewmodelRef.Data then
                                     if cosmetics.Skin then
                                         viewmodelRef.Data.Skin = cosmetics.Skin
@@ -565,7 +560,6 @@ local success, err = pcall(function()
                                     end
                                     if cosmetics.Charm then viewmodelRef.Data.Charm = cosmetics.Charm end
                                     if cosmetics.Wrap then viewmodelRef.Data.Wrap = cosmetics.Wrap end
-                                    if cosmetics.Finisher then viewmodelRef.Data.Finisher = cosmetics.Finisher end
                                 end
                             end
                             
@@ -617,7 +611,6 @@ local success, err = pcall(function()
                                         if cosmetics.Skin then replicatedData[dataKey][ReplicatedClass:ToEnum("Skin")] = cosmetics.Skin end
                                         if cosmetics.Charm then replicatedData[dataKey][ReplicatedClass:ToEnum("Charm")] = cosmetics.Charm end
                                         if cosmetics.Wrap then replicatedData[dataKey][ReplicatedClass:ToEnum("Wrap")] = cosmetics.Wrap end
-                                        if cosmetics.Finisher then replicatedData[dataKey][ReplicatedClass:ToEnum("Finisher")] = cosmetics.Finisher end
                                     end
                                 end
                                 local result = originalNew(replicatedData, clientItem)
@@ -670,6 +663,38 @@ local success, err = pcall(function()
                         ViewProfile.Fetch = function(self, targetPlayer)
                             viewingProfile = targetPlayer
                             return originalFetch(self, targetPlayer)
+                        end
+                    end
+                    
+                    -- 피니셔(Finisher) 처형 액션 처리
+                    local ClientEntity = safeRequire(safeWait(clientClasses, "ClientEntity", 10))
+                    if ClientEntity and ClientEntity.ReplicateFromServer then
+                        local originalReplicateFromServer = ClientEntity.ReplicateFromServer
+                        ClientEntity.ReplicateFromServer = function(self, action, ...)
+                            if action == "FinisherEffect" then
+                                local args = {...}
+                                local killerName = args[3]            
+                                local decodedKiller = killerName
+                                if type(killerName) == "userdata" and EnumLibrary and EnumLibrary.FromEnum then
+                                    local ok, decoded = pcall(EnumLibrary.FromEnum, EnumLibrary, killerName)
+                                    if ok and decoded then decodedKiller = decoded end
+                                end            
+                                
+                                local isOurKill = tostring(decodedKiller) == player.Name or tostring(decodedKiller):lower() == player.Name:lower()            
+                                if isOurKill and lastUsedWeapon and equipped[lastUsedWeapon] and equipped[lastUsedWeapon].Finisher then
+                                    local finisherData = equipped[lastUsedWeapon].Finisher
+                                    local finisherEnum = finisherData.Enum                
+                                    if not finisherEnum and EnumLibrary then
+                                        local ok, result = pcall(EnumLibrary.ToEnum, EnumLibrary, finisherData.Name)
+                                        if ok and result then finisherEnum = result end
+                                    end                
+                                    if finisherEnum then
+                                        args[1] = finisherEnum
+                                        return originalReplicateFromServer(self, action, unpack(args))
+                                    end
+                                end
+                            end        
+                            return originalReplicateFromServer(self, action, ...)
                         end
                     end
                     
