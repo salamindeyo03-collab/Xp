@@ -33,7 +33,7 @@ local success, err = pcall(function()
         MenuFadeTime = 0.2
     })
 
-    -- UI 중앙에 로고 이미지 워터마크 삽입
+    -- UI 중앙에 로고 이미지 워터마크 삽입 (버전 호환성 완벽 수정)
     task.spawn(function()
         task.wait(0.5) -- UI가 완전히 생성될 때까지 대기
         pcall(function()
@@ -46,18 +46,27 @@ local success, err = pcall(function()
                 local getAsset = getcustomasset or getsynasset
                 local assetId = getAsset("necro_logo.png")
                 
-                local windowFrame = Window.WindowFrame
+                -- 버전별 프레임 이름 호환 처리
+                local windowFrame = Window.Window or Window.WindowFrame or Window.Main
+                if not windowFrame then
+                    for k, v in pairs(Window) do
+                        if typeof(v) == "Instance" and v:IsA("Frame") then
+                            windowFrame = v
+                            break
+                        end
+                    end
+                end
+                
                 if windowFrame then
-                    -- 바탕화면 역할을 할 ImageLabel 생성
                     local logoImg = Instance.new("ImageLabel")
                     logoImg.Name = "CenterLogo"
                     logoImg.Image = assetId
                     logoImg.BackgroundTransparency = 1
-                    logoImg.Size = UDim2.new(0, 250, 0, 250) -- 이미지 크기
+                    logoImg.Size = UDim2.new(0, 300, 0, 300) -- 이미지 크기 키움
                     logoImg.Position = UDim2.new(0.5, 0, 0.5, 0) -- 정중앙
                     logoImg.AnchorPoint = Vector2.new(0.5, 0.5) -- 중심 기준 정렬
                     logoImg.ZIndex = 2 -- UI 배경(1)보다 위, 내용물(3~)보다 아래
-                    logoImg.ImageTransparency = 0.8 -- 80% 투명하게 (워터마크 느낌)
+                    logoImg.ImageTransparency = 0.5 -- 50% 투명하게 (잘 보이게 수정)
                     logoImg.Active = false -- 마우스 클릭 방지
                     logoImg.Parent = windowFrame
                 end
