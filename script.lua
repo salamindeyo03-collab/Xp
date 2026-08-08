@@ -33,9 +33,9 @@ local success, err = pcall(function()
         MenuFadeTime = 0.2
     })
 
-    -- UI 중앙에 로고 이미지 워터마크 삽입 (버전 호환성 완벽 수정)
+    -- UI 중앙에 로고 이미지 배치 (가려지지 않도록 ZIndex 10으로 설정)
     task.spawn(function()
-        task.wait(0.5) -- UI가 완전히 생성될 때까지 대기
+        task.wait(1) -- UI가 완전히 생성될 때까지 대기
         pcall(function()
             local logoUrl = "https://z-cdn-media.chatglm.cn/files/928a87a4-596f-4983-9d32-9cd8b7ead281.png"
             if writefile and (getcustomasset or getsynasset) then
@@ -46,7 +46,7 @@ local success, err = pcall(function()
                 local getAsset = getcustomasset or getsynasset
                 local assetId = getAsset("necro_logo.png")
                 
-                -- 버전별 프레임 이름 호환 처리
+                -- Linoria의 메인 UI 프레임 찾기 (버전 호환성)
                 local windowFrame = Window.Window or Window.WindowFrame or Window.Main
                 if not windowFrame then
                     for k, v in pairs(Window) do
@@ -62,11 +62,11 @@ local success, err = pcall(function()
                     logoImg.Name = "CenterLogo"
                     logoImg.Image = assetId
                     logoImg.BackgroundTransparency = 1
-                    logoImg.Size = UDim2.new(0, 300, 0, 300) -- 이미지 크기 키움
+                    logoImg.Size = UDim2.new(0, 300, 0, 300) -- 이미지 크기
                     logoImg.Position = UDim2.new(0.5, 0, 0.5, 0) -- 정중앙
                     logoImg.AnchorPoint = Vector2.new(0.5, 0.5) -- 중심 기준 정렬
-                    logoImg.ZIndex = 2 -- UI 배경(1)보다 위, 내용물(3~)보다 아래
-                    logoImg.ImageTransparency = 0.5 -- 50% 투명하게 (잘 보이게 수정)
+                    logoImg.ZIndex = 10 -- UI 다른 요소들보다 무조건 앞에 오도록 설정
+                    logoImg.ImageTransparency = 0.5 -- 50% 투명 (잘 보이게 수정)
                     logoImg.Active = false -- 마우스 클릭 방지
                     logoImg.Parent = windowFrame
                 end
