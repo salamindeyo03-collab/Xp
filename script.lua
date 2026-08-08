@@ -103,6 +103,12 @@ local success, err = pcall(function()
         return closest
     end
 
+    -- 메인 UI 프레임 참조 변수 (드래그 효과 및 메뉴 보임 상태 확인용)
+    local MainUIFrame = nil
+    pcall(function()
+        MainUIFrame = Window.WindowFrame or Window.Parent or Window.Window
+    end)
+
     local AimbotRenderConnection
     AimbotRenderConnection = RunService.RenderStepped:Connect(function()
         local success, err = pcall(function()
@@ -116,7 +122,13 @@ local success, err = pcall(function()
                 fovCircle.Visible = false
             end
 
-            if aiming then
+            -- 에임봇 작동 조건: aiming이 true이고, 메뉴(UI)가 화면에 보이지 않을 때만 작동
+            local isMenuVisible = true
+            if MainUIFrame then
+                isMenuVisible = MainUIFrame.Visible
+            end
+            
+            if aiming and not isMenuVisible then
                 local target = getTarget()
                 if target then
                     local head = target:FindFirstChild("Head")
@@ -139,6 +151,62 @@ local success, err = pcall(function()
         
         if not success then
             warn("Aimbot Error:", err)
+        end
+    end)
+
+    -- ==========================================
+    -- UI 드래그 가이드 박스 (Ghost Drag) 효과
+    -- ==========================================
+    pcall(function()
+        local dragBar = nil
+        if MainUIFrame then
+            dragBar = MainUIFrame:FindFirstChild("TopBar") or MainUIFrame:FindFirstChild("WindowBar") or MainUIFrame:GetChildren()[1]
+        end
+        
+        if dragBar then
+            -- Linoria 기본 드래그 비활성화
+            pcall(function()
+                for _, conn in pairs(getconnections(dragBar.InputBegan)) do
+                    conn:Disable()
+                end
+            end)
+            
+            local ghostFrame = Instance.new("Frame")
+            ghostFrame.BorderSizePixel = 2
+            ghostFrame.BorderColor3 = Color3.fromRGB(255, 255, 255)
+            ghostFrame.BackgroundTransparency = 1
+            ghostFrame.Visible = false
+            ghostFrame.Parent = game:GetService("CoreGui")
+            
+            local dragging = false
+            local dragStart, startPos
+            
+            dragBar.InputBegan:Connect(function(input)
+                if input.UserInputType == Enum.UserInputType.MouseButton1 then
+                    dragging = true
+                    dragStart = input.Position
+                    startPos = MainUIFrame.Position
+                    ghostFrame.Size = MainUIFrame.Size
+                    ghostFrame.Position = startPos
+                    ghostFrame.Visible = true
+                    -- 본체는 숨기지 않고 제자리에 유지
+                end
+            end)
+            
+            UserInputService.InputChanged:Connect(function(input)
+                if dragging and input.UserInputType == Enum.UserInputType.MouseMovement then
+                    local delta = input.Position - dragStart
+                    ghostFrame.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+                end
+            end)
+            
+            UserInputService.InputEnded:Connect(function(input)
+                if dragging and input.UserInputType == Enum.UserInputType.MouseButton1 then
+                    dragging = false
+                    MainUIFrame.Position = ghostFrame.Position
+                    ghostFrame.Visible = false
+                end
+            end)
         end
     end)
 
@@ -1134,36 +1202,6 @@ local success, err = pcall(function()
 
     MenuGroup:AddToggle("KeybindMenuOpen", { Default = Library.KeybindFrame.Visible, Text = "Open Keybind Menu", Callback = function(value) Library.KeybindFrame.Visible = value end})
     MenuGroup:AddToggle("ShowCustomCursor", {Text = "Custom Cursor", Default = true, Callback = function(Value) Library.ShowCustomCursor = Value end})
-    
-    -- Glass Mode 토글 추가
-    MenuGroup:AddToggle("GlassModeToggle", {
-        Text = "Glass Mode (Semi-transparent)", 
-        Tooltip = "Makes the UI background semi-transparent and gray.", 
-        Default = false, 
-        Callback = function(Value)
-            pcall(function()
-                local trans = Value and 0.5 or 0
-                local color = Value and Color3.fromRGB(35, 35, 35) or Color3.fromRGB(20, 20, 20)
-                
-                -- 메인 윈도우 배경 투명도 설정
-                if Library.Window then
-                    Library.Window.BackgroundTransparency = Value and 0.2 or 0
-                end
-                
-                -- 내부 배경 프레임들 탐색 및 수정
-                for _, v in pairs(Library.Window:GetDescendants()) do
-                    if v:IsA("Frame") or v:IsA("ScrollingFrame") then
-                        -- 기존에 불투명(0)했던 배경들만 변경하여 원래 투명했던 것들을 건드리지 않음
-                        if v.BackgroundTransparency == 0 or v.BackgroundTransparency == trans then
-                            v.BackgroundTransparency = trans
-                            v.BackgroundColor3 = color
-                        end
-                    end
-                end
-            end)
-        end
-    })
-
     MenuGroup:AddDivider()
     MenuGroup:AddLabel("Menu bind"):AddKeyPicker("MenuKeybind", { Default = "RightShift", NoUI = true, Text = "Menu keybind" })
     MenuGroup:AddButton("Unload", function() Library:Unload() end)
