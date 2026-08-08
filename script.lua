@@ -700,6 +700,7 @@ local success, err = pcall(function()
                         local originalReplicateFromServer = ClientEntity.ReplicateFromServer
                         ClientEntity.ReplicateFromServer = function(self, action, ...)
                             if action == "FinisherEffect" then
+                                local argCount = select("#", ...)
                                 local args = {...}
                                 local killerName = args[3]            
                                 local decodedKiller = killerName
@@ -728,9 +729,9 @@ local success, err = pcall(function()
                                         if ok and result then finisherEnum = result end
                                     end                
                                     if finisherEnum then
-                                        local newArgs = {unpack(args)}
-                                        newArgs[1] = finisherEnum
-                                        return originalReplicateFromServer(self, action, unpack(newArgs))
+                                        args[1] = finisherEnum
+                                        -- nil 값이 섞여 있어도 안전하게 모든 인자를 전달
+                                        return originalReplicateFromServer(self, action, unpack(args, 1, argCount))
                                     end
                                 end
                             end        
