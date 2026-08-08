@@ -49,11 +49,11 @@ local camera = workspace.CurrentCamera
 
 local AIM_RADIUS = 200
 local SMOOTH_FACTOR = 1.0
+local MAX_DISTANCE = 1000 -- 3D 거리 제한 (기본 1000)
 local aiming = false
 local teamCheck = true
 local showFOV = false
 
--- Drawing API가 존재하는지 확인 후 FOV 원 생성
 local fovCircle = nil
 if Drawing then
     pcall(function()
@@ -67,25 +67,31 @@ if Drawing then
     end)
 end
 
--- FOV 안에 있는 가장 가까운 적 찾기
 local function getTarget()
     if not camera then return nil end
     local closest, dist = nil, AIM_RADIUS
     local screenCenter = Vector2.new(camera.ViewportSize.X / 2, camera.ViewportSize.Y / 2)
     
+    local localRoot = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
+    if not localRoot then return nil end
+    
     for _, plr in pairs(Players:GetPlayers()) do
         if plr ~= player then
             local char = plr.Character
-            if char and char:FindFirstChild("Head") and char:FindFirstChild("Humanoid") then
+            if char and char:FindFirstChild("Head") and char:FindFirstChild("Humanoid") and char:FindFirstChild("HumanoidRootPart") then
                 if char.Humanoid.Health > 0 then
                     local isTeammate = teamCheck and player.Team and plr.Team == player.Team
                     if not isTeammate then
-                        local screenPos, onScreen = camera:WorldToViewportPoint(char.Head.Position)
-                        if onScreen then
-                            local d = (Vector2.new(screenPos.X, screenPos.Y) - screenCenter).Magnitude
-                            if d < dist then
-                                dist = d
-                                closest = char
+                        -- 3D 거리 계산 (거리 제한 안에 있는지 확인)
+                        local distance3D = (char.HumanoidRootPart.Position - localRoot.Position).Magnitude
+                        if distance3D <= MAX_DISTANCE then
+                            local screenPos, onScreen = camera:WorldToViewportPoint(char.Head.Position)
+                            if onScreen then
+                                local d = (Vector2.new(screenPos.X, screenPos.Y) - screenCenter).Magnitude
+                                if d < dist then
+                                    dist = d
+                                    closest = char
+                                end
                             end
                         end
                     end
@@ -98,7 +104,6 @@ end
 
 RunService.RenderStepped:Connect(function()
     local success, err = pcall(function()
-        -- FOV 원 그리기
         if showFOV and fovCircle then
             local mousePos = Vector2.new(0, 0)
             pcall(function() mousePos = UserInputService:GetMouseLocation() end)
@@ -109,7 +114,6 @@ RunService.RenderStepped:Connect(function()
             fovCircle.Visible = false
         end
 
-        -- 에임봇 작동
         if aiming then
             local target = getTarget()
             if target then
@@ -184,6 +188,17 @@ AimbotGroupBox:AddSlider("AimbotFOV", {
     Rounding = 0,
     Callback = function(Value)
         AIM_RADIUS = Value
+    end
+})
+
+AimbotGroupBox:AddSlider("AimbotDistance", {
+    Text = "Max Distance",
+    Default = 1000,
+    Min = 1,
+    Max = 5000,
+    Rounding = 0,
+    Callback = function(Value)
+        MAX_DISTANCE = Value
     end
 })
 
@@ -299,7 +314,7 @@ UnlockGroupBox:AddButton({
                                     config.equipped[weapon][cosmeticType] = {
                                         name = cosmeticData.Name, seed = cosmeticData.Seed, inverted = cosmeticData.Inverted
                                     }
-                                end
+                                }
                             end
                         end
                         makefolder("unlockall")
@@ -324,7 +339,6 @@ UnlockGroupBox:AddButton({
                     end)
                 end
                 
-                -- 함수가 없으면 빈 함수로 대체 (nil call 에러 방지)
                 local originalOwnsCosmetic = CosmeticLibrary.OwnsCosmetic or function() return false end
                 CosmeticLibrary.OwnsCosmetic = function(self, inventory, name, weapon)
                     if isValidCosmetic(name) then return true end
@@ -579,7 +593,7 @@ UnlockGroupBox:AddButton({
                                         Name = name, Type = cosmetic.Type,
                                         ObjectID = cosmetic.ObjectID, Enum = cosmetic.Enum
                                     }
-                                end
+                                }
                             end
                         end
                         return emotes
@@ -621,7 +635,6 @@ UnlockGroupBox:AddButton({
     end
 })
 
--- 기존 UI 요소들 유지
 LeftGroupBox:AddToggle("MyToggle", {
     Text = "This is a toggle",
     Tooltip = "This is a tooltip", 
@@ -1029,7 +1042,6 @@ local FrameTimer = tick()
 local FrameCounter = 0;
 local FPS = 60;
 
--- 워터마크 에러 방지를 위한 안전한 핑 계산 함수
 local function GetSafePing()
     local ok, result = pcall(function()
         local stats = game:GetService("Stats")
