@@ -33,42 +33,51 @@ local success, err = pcall(function()
         MenuFadeTime = 0.2
     })
 
-    -- UI 중앙에 로고 이미지 배치 (가려지지 않도록 ZIndex 10으로 설정)
+    -- ==========================================
+    -- 낫 배경 이미지 설정 (UI 배경 적용)
+    -- ==========================================
     task.spawn(function()
-        task.wait(1) -- UI가 완전히 생성될 때까지 대기
+        task.wait(0.5)
         pcall(function()
-            local logoUrl = "https://z-cdn-media.chatglm.cn/files/928a87a4-596f-4983-9d32-9cd8b7ead281.png"
+            -- 제공해주신 낫 사진의 실제 이미지 링크
+            local scytheUrl = "https://z-cdn-media.chatglm.cn/files/d8fca0f0-92ef-11f1-a3e4-d957f05b1f86.png"
             if writefile and (getcustomasset or getsynasset) then
-                if not isfile("necro_logo.png") then
-                    local imgData = game:HttpGet(logoUrl)
-                    writefile("necro_logo.png", imgData)
+                if not isfile("necro_scythe_bg.png") then
+                    local imgData = game:HttpGet(scytheUrl)
+                    writefile("necro_scythe_bg.png", imgData)
                 end
                 local getAsset = getcustomasset or getsynasset
-                local assetId = getAsset("necro_logo.png")
+                local assetId = getAsset("necro_scythe_bg.png")
                 
-                -- Linoria의 메인 UI 프레임 찾기 (버전 호환성)
-                local windowFrame = Window.Window or Window.WindowFrame or Window.Main
-                if not windowFrame then
-                    for k, v in pairs(Window) do
+                -- LinoriaLib의 메인 배경 프레임 안전하게 찾기
+                local targetParent = Window.Main or Window.WindowFrame or Window.Base
+                if not targetParent and Window.Holder then
+                    targetParent = Window.Holder:FindFirstChildOfClass("Frame")
+                end
+                
+                -- 만약 못 찾았을 경우 Window 내부에서 Frame 찾기
+                if not targetParent then
+                    for _, v in pairs(Window) do
                         if typeof(v) == "Instance" and v:IsA("Frame") then
-                            windowFrame = v
+                            targetParent = v
                             break
                         end
                     end
                 end
-                
-                if windowFrame then
-                    local logoImg = Instance.new("ImageLabel")
-                    logoImg.Name = "CenterLogo"
-                    logoImg.Image = assetId
-                    logoImg.BackgroundTransparency = 1
-                    logoImg.Size = UDim2.new(0, 300, 0, 300) -- 이미지 크기
-                    logoImg.Position = UDim2.new(0.5, 0, 0.5, 0) -- 정중앙
-                    logoImg.AnchorPoint = Vector2.new(0.5, 0.5) -- 중심 기준 정렬
-                    logoImg.ZIndex = 10 -- UI 다른 요소들보다 무조건 앞에 오도록 설정
-                    logoImg.ImageTransparency = 0.5 -- 50% 투명 (잘 보이게 수정)
-                    logoImg.Active = false -- 마우스 클릭 방지
-                    logoImg.Parent = windowFrame
+
+                if targetParent then
+                    local scytheBg = Instance.new("ImageLabel")
+                    scytheBg.Name = "ScytheBackground"
+                    scytheBg.Image = assetId
+                    scytheBg.BackgroundTransparency = 1
+                    scytheBg.Size = UDim2.new(1, 0, 1, 0) -- 창 크기에 꽉 차게 조절
+                    scytheBg.Position = UDim2.new(0, 0, 0, 0)
+                    scytheBg.AnchorPoint = Vector2.new(0, 0)
+                    scytheBg.ZIndex = 0 -- 다른 UI 요소들보다 뒤에 오도록 설정
+                    scytheBg.ImageTransparency = 0.4 -- 배경 투명도 (값이 높을수록 연해짐, 0.4는 적당히 잘 보이는 투명도)
+                    scytheBg.ScaleType = Enum.ScaleType.Fit -- 비율 유지하며 창에 맞춤
+                    scytheBg.Active = false
+                    scytheBg.Parent = targetParent
                 end
             end
         end)
@@ -199,7 +208,7 @@ local success, err = pcall(function()
     AimbotGroupBox:AddSlider("AimbotDistance", { Text = "Max Distance", Default = 1000, Min = 1, Max = 5000, Rounding = 0, Callback = function(Value) MAX_DISTANCE = Value end })
 
     -- ==========================================
-    -- SILENT AIM 설정 (속도 최적화 및 헤드 고정)
+    -- SILENT AIM 설정
     -- ==========================================
     local SA_ENABLED = false
     local SA_FOV = 50
@@ -325,7 +334,7 @@ local success, err = pcall(function()
     SilentAimGroupBox:AddSlider("SilentAimFOV", { Text = "Silent FOV Radius", Default = 50, Min = 10, Max = 1000, Rounding = 0, Callback = function(Value) SA_FOV = Value end })
 
     -- ==========================================
-    -- TRIGGERBOT 설정 (자동 사격 전용)
+    -- TRIGGERBOT 설정
     -- ==========================================
     local TB_ENABLED = false
     local TB_FOV = 50
