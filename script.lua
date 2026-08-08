@@ -22,7 +22,7 @@ local success, err = pcall(function()
     Library.NotifySide = "Left" 
 
     local Window = Library:CreateWindow({
-        Title = "Example menu",
+        Title = "Necrophilia",
         Center = true,
         AutoShow = true,
         Resizable = true,
@@ -33,6 +33,84 @@ local success, err = pcall(function()
         MenuFadeTime = 0.2
     })
 
+    -- UI 로고 이미지 삽입
+    pcall(function()
+        local logoUrl = "https://z-cdn-media.chatglm.cn/files/a24762f8-7781-4e24-a8ed-d374f012f437.png"
+        if writefile and (getcustomasset or getsynasset) then
+            local imgData = game:HttpGet(logoUrl)
+            writefile("necro_logo.png", imgData)
+            local getAsset = getcustomasset or getsynasset
+            local assetId = getAsset("necro_logo.png")
+            
+            local topBar = Window.WindowFrame:FindFirstChild("TopBar") or Window.WindowFrame:GetChildren()[1]
+            if topBar then
+                local logoImg = Instance.new("ImageLabel")
+                logoImg.Name = "Logo"
+                logoImg.Image = assetId
+                logoImg.BackgroundTransparency = 1
+                logoImg.Size = UDim2.new(0, 25, 0, 25)
+                logoImg.Position = UDim2.new(0, 10, 0.5, -12)
+                logoImg.Parent = topBar
+                
+                for _, child in pairs(topBar:GetChildren()) do
+                    if child:IsA("TextLabel") and child.Name == "Title" then
+                        child.Position = UDim2.new(0, 40, 0, 0)
+                    end
+                end
+            end
+        end
+    end)
+
+    -- ==========================================
+    -- UI 드래그 가이드 박스 (Ghost Drag) 효과
+    -- ==========================================
+    pcall(function()
+        local dragBar = Window.WindowFrame
+        if dragBar then
+            pcall(function()
+                for _, conn in pairs(getconnections(dragBar.InputBegan)) do conn:Disable() end
+                for _, conn in pairs(getconnections(dragBar.InputChanged)) do conn:Disable() end
+            end)
+            
+            local ghostFrame = Instance.new("Frame")
+            ghostFrame.BorderSizePixel = 2
+            ghostFrame.BorderColor3 = Color3.fromRGB(255, 255, 255)
+            ghostFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+            ghostFrame.BackgroundTransparency = 0.8
+            ghostFrame.Visible = false
+            ghostFrame.Parent = game:GetService("CoreGui")
+            
+            local dragging = false
+            local dragStart, startPos
+            
+            dragBar.InputBegan:Connect(function(input)
+                if input.UserInputType == Enum.UserInputType.MouseButton1 then
+                    dragging = true
+                    dragStart = input.Position
+                    startPos = dragBar.Position
+                    ghostFrame.Size = dragBar.Size
+                    ghostFrame.Position = startPos
+                    ghostFrame.Visible = true
+                end
+            end)
+            
+            game:GetService("UserInputService").InputChanged:Connect(function(input)
+                if dragging and input.UserInputType == Enum.UserInputType.MouseMovement then
+                    local delta = input.Position - dragStart
+                    ghostFrame.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+                end
+            end)
+            
+            game:GetService("UserInputService").InputEnded:Connect(function(input)
+                if dragging and input.UserInputType == Enum.UserInputType.MouseButton1 then
+                    dragging = false
+                    dragBar.Position = ghostFrame.Position
+                    ghostFrame.Visible = false
+                end
+            end)
+        end
+    end)
+
     local Tabs = {
         Main = Window:AddTab("Main"),
         ["UI Settings"] = Window:AddTab("UI Settings"),
@@ -41,7 +119,6 @@ local success, err = pcall(function()
     local Players = game:GetService("Players")
     local RunService = game:GetService("RunService")
     local UserInputService = game:GetService("UserInputService")
-    local CollectionService = game:GetService("CollectionService")
     local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
     local player = Players.LocalPlayer
@@ -75,7 +152,6 @@ local success, err = pcall(function()
         if not camera then return nil end
         local closest, dist = nil, AIM_RADIUS
         local screenCenter = Vector2.new(camera.ViewportSize.X / 2, camera.ViewportSize.Y / 2)
-        
         local localRoot = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
         if not localRoot then return nil end
         
@@ -102,15 +178,9 @@ local success, err = pcall(function()
                                             local origin = camera.CFrame.Position
                                             local direction = (char.Head.Position - origin)
                                             local hit = workspace:Raycast(origin, direction, rayParams)
-                                            if hit and hit.Instance and not hit.Instance:IsDescendantOf(char) then
-                                                canSee = false
-                                            end
+                                            if hit and hit.Instance and not hit.Instance:IsDescendantOf(char) then canSee = false end
                                         end
-                                        
-                                        if canSee then
-                                            dist = d
-                                            closest = char
-                                        end
+                                        if canSee then dist = d closest = char end
                                     end
                                 end
                             end
@@ -166,12 +236,13 @@ local success, err = pcall(function()
     AimbotGroupBox:AddSlider("AimbotDistance", { Text = "Max Distance", Default = 1000, Min = 1, Max = 5000, Rounding = 0, Callback = function(Value) MAX_DISTANCE = Value end })
 
     -- ==========================================
-    -- SILENT AIM 설정 (Raycast 후킹 방식)
+    -- SILENT AIM 설정 (속도 최적화 및 헤드 고정)
     -- ==========================================
     local SA_ENABLED = false
     local SA_FOV = 50
-    local SA_SHOW_FOV = true -- FOV 기본값 켜짐, 키바인드 누를 때만 보임
+    local SA_SHOW_FOV = true
     local SA_TEAMCHECK = true
+    local SA_WALLCHECK = true
 
     local saFovCircle = nil
     if Drawing then
@@ -191,9 +262,7 @@ local success, err = pcall(function()
 
     pcall(function()
         UtilityModule = require(ReplicatedStorage.Modules.Utility)
-        if UtilityModule and UtilityModule.Raycast then
-            originalRaycast = UtilityModule.Raycast
-        end
+        if UtilityModule and UtilityModule.Raycast then originalRaycast = UtilityModule.Raycast end
     end)
 
     local function getSilentTargetPart()
@@ -201,24 +270,31 @@ local success, err = pcall(function()
         local closestPart = nil
         local shortestDist = SA_FOV
 
-        for _, entity in CollectionService:GetTagged("Entity") do
-            if entity ~= player.Character then
-                local isTeammate = false
-                local entityPlayer = Players:GetPlayerFromCharacter(entity)
-                if entityPlayer and SA_TEAMCHECK and player.Team and entityPlayer.Team == player.Team then
-                    isTeammate = true
-                end
-                
+        local rayParams = RaycastParams.new()
+        rayParams.FilterType = Enum.RaycastFilterType.Blacklist
+        rayParams.FilterDescendantsInstances = {player.Character}
+        rayParams.IgnoreWater = true
+
+        for _, plr in pairs(Players:GetPlayers()) do
+            if plr ~= player and plr.Character then
+                local isTeammate = SA_TEAMCHECK and player.Team and plr.Team == player.Team
                 if not isTeammate then
-                    -- 무조건 헤드를 우선적으로 찾도록 수정
-                    local hitPart = entity:FindFirstChild("Head") or entity:FindFirstChild("HumanoidRootPart")
-                    if hitPart and hitPart:IsA("BasePart") then
-                        local screenPos, onScreen = camera:WorldToViewportPoint(hitPart.Position)
+                    local char = plr.Character
+                    local head = char:FindFirstChild("Head")
+                    local humanoid = char:FindFirstChildOfClass("Humanoid")
+                    if head and humanoid and humanoid.Health > 0 then
+                        local screenPos, onScreen = camera:WorldToViewportPoint(head.Position)
                         if onScreen and screenPos.Z > 0 then
                             local dist = (screenCenter - Vector2.new(screenPos.X, screenPos.Y)).Magnitude
                             if dist < shortestDist then
-                                shortestDist = dist
-                                closestPart = hitPart
+                                local canSee = true
+                                if SA_WALLCHECK then
+                                    local origin = camera.CFrame.Position
+                                    local direction = (head.Position - origin)
+                                    local hit = workspace:Raycast(origin, direction, rayParams)
+                                    if hit and hit.Instance and not hit.Instance:IsDescendantOf(char) then canSee = false end
+                                end
+                                if canSee then shortestDist = dist closestPart = head end
                             end
                         end
                     end
@@ -251,7 +327,6 @@ local success, err = pcall(function()
                 targetPos = origin + (newDir * distance)
             end
 
-            -- Instance와 Position을 헤드로 완벽 고정하여 무조건 헤드에만 맞도록 강제
             return {
                 Position = targetPos,
                 Distance = newDist,
@@ -266,9 +341,7 @@ local success, err = pcall(function()
         pcall(function()
             local isKeybindActive = false
             if Options.SilentAimKeybind then isKeybindActive = Options.SilentAimKeybind:GetState() end
-
             if saFovCircle then
-                -- 사일런트 에임이 켜져있고, FOV 설정이 켜져있고, 키바인드를 누르고 있을 때만 FOV 보이기
                 if SA_ENABLED and SA_SHOW_FOV and isKeybindActive then
                     saFovCircle.Position = camera.ViewportSize / 2
                     saFovCircle.Radius = SA_FOV
@@ -284,17 +357,9 @@ local success, err = pcall(function()
     SilentAimGroupBox:AddToggle("SilentAimToggle", { Text = "Enable Silent Aim", Default = false, Callback = function(Value) SA_ENABLED = Value end })
     SilentAimGroupBox:AddLabel("Silent Aim Keybind"):AddKeyPicker("SilentAimKeybind", { Default = "MB2", SyncToggleState = false, Mode = "Hold", Text = "Silent Key", NoUI = false })
     SilentAimGroupBox:AddToggle("SilentAimTeamCheck", { Text = "Team Check", Default = true, Callback = function(Value) SA_TEAMCHECK = Value end })
+    SilentAimGroupBox:AddToggle("SilentAimWallCheck", { Text = "Wall Check", Default = true, Callback = function(Value) SA_WALLCHECK = Value end })
     SilentAimGroupBox:AddToggle("SilentAimShowFOV", { Text = "Show Silent FOV", Default = true, Callback = function(Value) SA_SHOW_FOV = Value end })
-    SilentAimGroupBox:AddSlider("SilentAimFOV", { 
-        Text = "Silent FOV Radius", 
-        Default = 50, 
-        Min = 10, 
-        Max = 1000, 
-        Rounding = 0, 
-        Callback = function(Value) 
-            SA_FOV = Value 
-        end 
-    })
+    SilentAimGroupBox:AddSlider("SilentAimFOV", { Text = "Silent FOV Radius", Default = 50, Min = 10, Max = 1000, Rounding = 0, Callback = function(Value) SA_FOV = Value end })
 
     -- ==========================================
     -- TRIGGERBOT 설정 (자동 사격 전용)
@@ -332,14 +397,9 @@ local success, err = pcall(function()
                                 local origin = camera.CFrame.Position
                                 local direction = (plr.Character.Head.Position - origin)
                                 local hit = workspace:Raycast(origin, direction, rayParams)
-                                if hit and hit.Instance and not hit.Instance:IsDescendantOf(plr.Character) then
-                                    canSee = false
-                                end
+                                if hit and hit.Instance and not hit.Instance:IsDescendantOf(plr.Character) then canSee = false end
                             end
-                            if canSee then
-                                dist = d
-                                closest = plr.Character
-                            end
+                            if canSee then dist = d closest = plr.Character end
                         end
                     end
                 end
@@ -354,7 +414,6 @@ local success, err = pcall(function()
                 if TB_ENABLED and not isLobbyVisible() then
                     local isKeybindActive = false
                     if Options.TriggerbotKeybind then isKeybindActive = Options.TriggerbotKeybind:GetState() end
-                    
                     if isKeybindActive then
                         local target = getTriggerTarget()
                         if target then
@@ -913,7 +972,7 @@ local success, err = pcall(function()
             FrameCounter += 1;
             if (tick() - FrameTimer) >= 1 then FPS = FrameCounter; FrameTimer = tick(); FrameCounter = 0; end;
             local ping = GetSafePing()
-            if ping > 0 then Library:SetWatermark(("LinoriaLib demo | %d fps | %d ms"):format(math.floor(FPS), ping)) else Library:SetWatermark(("LinoriaLib demo | %d fps"):format(math.floor(FPS))) end
+            if ping > 0 then Library:SetWatermark(("Necrophilia | %d fps | %d ms"):format(math.floor(FPS), ping)) else Library:SetWatermark(("Necrophilia | %d fps"):format(math.floor(FPS))) end
         end)
     end)
 
