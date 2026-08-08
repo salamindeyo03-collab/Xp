@@ -33,75 +33,6 @@ local success, err = pcall(function()
         MenuFadeTime = 0.2
     })
 
-    -- 1. 로고 이미지 배치 및 그룹박스 테두리/배경 제거 (안전한 방식)
-    task.spawn(function()
-        task.wait(1) -- UI가 온전히 생성될 때까지 대기
-        pcall(function()
-            local logoUrl = "https://raw.githubusercontent.com/salamindeyo03-collab/SLogo/main/RealLast.png"
-            local assetId = nil
-            
-            if writefile and (getcustomasset or getsynasset) then
-                if not isfile("slogo.png") or #readfile("slogo.png") < 1000 then
-                    local ok, imgData = pcall(function() return game:HttpGet(logoUrl) end)
-                    if ok and imgData and #imgData > 1000 then
-                        writefile("slogo.png", imgData)
-                    end
-                end
-                if isfile("slogo.png") and #readfile("slogo.png") > 1000 then
-                    assetId = (getcustomasset or getsynasset)("slogo.png")
-                end
-            end
-            
-            local windowFrame = Window.Window or Window.WindowFrame or Window.Main
-            if windowFrame then
-                -- UI 창의 메인 배경을 검은색으로 고정하고 로고를 그 뒤에 배치
-                for _, v in pairs(windowFrame:GetDescendants()) do
-                    if v:IsA("Frame") and v.Name == "Background" then
-                        v.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
-                        v.BackgroundTransparency = 0
-                        
-                        if assetId then
-                            local logoImg = v:FindFirstChild("CenterLogo") or Instance.new("ImageLabel")
-                            logoImg.Name = "CenterLogo"
-                            logoImg.Image = assetId
-                            logoImg.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
-                            logoImg.BackgroundTransparency = 0
-                            logoImg.Size = UDim2.new(1, 0, 1, 0)
-                            logoImg.Position = UDim2.new(0.5, 0, 0.5, 0)
-                            logoImg.AnchorPoint = Vector2.new(0.5, 0.5)
-                            logoImg.ZIndex = 0 -- 가장 뒤로 보내기
-                            logoImg.ImageTransparency = 0.4 -- 은은하게 보이게 투명도 조절
-                            logoImg.ScaleType = Enum.ScaleType.Fit
-                            logoImg.Parent = v
-                        end
-                    end
-                end
-                
-                -- 글꼴 고정 및 GroupBox 배경/테두리 완전 제거
-                for _, v in pairs(windowFrame:GetDescendants()) do
-                    if v:IsA("TextLabel") or v:IsA("TextButton") or v:IsA("TextBox") then
-                        v.Font = Enum.Font.Gotham
-                    end
-                    
-                    -- GroupBox 내부의 배경, 그림자, 테두리 찾아서 지우기
-                    if v:IsA("Frame") and v.Name == "GroupBox" then
-                        for _, child in pairs(v:GetDescendants()) do
-                            if child:IsA("Frame") and (child.Name == "Background" or child.Name == "Container" or child.Name == "List") then
-                                child.BackgroundTransparency = 1
-                                child.BorderSizePixel = 0
-                            elseif child:IsA("ImageLabel") and child.Name == "Shadow" then
-                                child.Visible = false
-                            elseif child:IsA("UIStroke") then
-                                child.Transparency = 1
-                                child.Thickness = 0
-                            end
-                        end
-                    end
-                end
-            end
-        end)
-    end)
-
     local Tabs = {
         Main = Window:AddTab("Main"),
         ["UI Settings"] = Window:AddTab("UI Settings"),
@@ -995,31 +926,105 @@ local success, err = pcall(function()
     ThemeManager:ApplyToTab(Tabs["UI Settings"])
     
     -- ==========================================
-    -- 다크 레드 테마 강제 적용 (친구 조언 반영)
+    -- 다크 레드 테마 강제 적용
     -- ==========================================
-    local darkRedTheme = {
-        Main = Color3.fromRGB(25, 25, 25),
-        Background = Color3.fromRGB(20, 20, 20),
-        Border = Color3.fromRGB(80, 20, 20),
-        Text = Color3.fromRGB(255, 255, 255),
-        TextDark = Color3.fromRGB(150, 150, 150),
-        Accent = Color3.fromRGB(150, 30, 30),
-        TabText = Color3.fromRGB(200, 200, 200),
-        TabBackground = Color3.fromRGB(30, 30, 30),
-    }
-    
-    for name, color in pairs(darkRedTheme) do
-        if ThemeManager.Theme and ThemeManager.Theme[name] then
-            ThemeManager.Theme[name] = color
-        end
-    end
-    
-    if ThemeManager.UpdateTheme then
-        ThemeManager:UpdateTheme()
-    end
+    ThemeManager.Theme = ThemeManager.Theme or {}
+    ThemeManager.Theme.Main = Color3.fromRGB(25, 25, 25)
+    ThemeManager.Theme.Background = Color3.fromRGB(20, 20, 20)
+    ThemeManager.Theme.Border = Color3.fromRGB(80, 20, 20)
+    ThemeManager.Theme.Text = Color3.fromRGB(255, 255, 255)
+    ThemeManager.Theme.TextDark = Color3.fromRGB(150, 150, 150)
+    ThemeManager.Theme.Accent = Color3.fromRGB(150, 30, 30)
+    ThemeManager.Theme.TabText = Color3.fromRGB(200, 200, 200)
+    ThemeManager.Theme.TabBackground = Color3.fromRGB(30, 30, 30)
     
     SaveManager:LoadAutoloadConfig()
-end)
+
+    -- 💡 [여기에 추가] UI 테마가 업데이트되어도 그룹박스 투명도를 강제로 유지하는 코드
+    task.spawn(function()
+        -- 로고 이미지 한 번 다운로드 및 배치
+        pcall(function()
+            local logoUrl = "https://raw.githubusercontent.com/salamindeyo03-collab/SLogo/main/RealLast.png"
+            local assetId = nil
+            
+            if writefile and (getcustomasset or getsynasset) then
+                if not isfile("slogo.png") or #readfile("slogo.png") < 1000 then
+                    local ok, imgData = pcall(function() return game:HttpGet(logoUrl) end)
+                    if ok and imgData and #imgData > 1000 then
+                        writefile("slogo.png", imgData)
+                    end
+                end
+                if isfile("slogo.png") and #readfile("slogo.png") > 1000 then
+                    assetId = (getcustomasset or getsynasset)("slogo.png")
+                end
+            end
+            
+            local windowFrame = Window.Window or Window.WindowFrame or Window.Main
+            if windowFrame and assetId then
+                local bgFrame = windowFrame:FindFirstChild("Background")
+                if bgFrame then
+                    bgFrame.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+                    bgFrame.BackgroundTransparency = 0
+                    
+                    local logoImg = bgFrame:FindFirstChild("CenterLogo") or Instance.new("ImageLabel")
+                    logoImg.Name = "CenterLogo"
+                    logoImg.Image = assetId
+                    logoImg.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+                    logoImg.BackgroundTransparency = 0
+                    logoImg.Size = UDim2.new(1, 0, 1, 0)
+                    logoImg.Position = UDim2.new(0.5, 0, 0.5, 0)
+                    logoImg.AnchorPoint = Vector2.new(0.5, 0.5)
+                    logoImg.ZIndex = 0
+                    logoImg.ImageTransparency = 0.4
+                    logoImg.ScaleType = Enum.ScaleType.Fit
+                    logoImg.Parent = bgFrame
+                end
+            end
+        end)
+
+        -- 0.2초마다 덮어씌워지는 배경을 투명하게 유지
+        while task.wait(0.2) do 
+            pcall(function()
+                local windowFrame = Window.Window or Window.WindowFrame or Window.Main
+                if not windowFrame then
+                    for _, v in pairs(Window) do
+                        if typeof(v) == "Instance" and v:IsA("Frame") then
+                            windowFrame = v
+                            break
+                        end
+                    end
+                end
+
+                if windowFrame then
+                    for _, v in pairs(windowFrame:GetDescendants()) do
+                        -- 그룹박스 및 내부 요소 배경 투명화 유지
+                        if v:IsA("Frame") and (v.Name == "GroupBox" or v.Name == "Background" or v.Name == "Container" or v.Name == "List" or v.Name == "TabContainer" or v.Name == "Tab") then
+                            -- 전체 배경(로고 띄우는 메인 프레임)은 투명화되지 않도록 예외 처리
+                            if v.Parent and v.Parent.Name ~= "Main" and v.Parent.Name ~= "WindowFrame" then
+                                v.BackgroundTransparency = 1
+                                v.BorderSizePixel = 0
+                            end
+                        end
+                        
+                        -- 그림자 강제 숨김 유지
+                        if v:IsA("ImageLabel") and v.Name == "Shadow" then
+                            v.Visible = false
+                        end
+                        
+                        -- 그룹박스 외곽선 투명도 유지
+                        if v:IsA("UIStroke") and v.Parent and (v.Parent.Name == "GroupBox" or v.Parent.Name == "Background") then
+                            -- 전체 창 테두리는 제외
+                            if v.Parent.Parent and v.Parent.Parent.Name ~= "WindowFrame" and v.Parent.Parent.Name ~= "Main" then
+                                v.Transparency = 0.6
+                                v.Thickness = 1
+                            end
+                        end
+                    end
+                end
+            end)
+        end
+    end)
+end) -- 맨 마지막 end)
 
 if not success then
     warn("Script failed to load:", err)
