@@ -169,7 +169,7 @@ local success, err = pcall(function()
     -- SILENT AIM 설정 (Raycast 후킹 방식)
     -- ==========================================
     local SA_ENABLED = false
-    local SA_FOV = 50 -- 기본값 50으로 낮춤
+    local SA_FOV = 50
     local SA_SHOW_FOV = false
     local SA_TEAMCHECK = true
     local SA_HIT_PART = "Head"
@@ -200,7 +200,7 @@ local success, err = pcall(function()
     local function getSilentTargetPart()
         local screenCenter = Vector2.new(camera.ViewportSize.X / 2, camera.ViewportSize.Y / 2)
         local closestPart = nil
-        local shortestDist = SA_FOV -- 슬라이더에서 설정한 FOV 값 사용
+        local shortestDist = SA_FOV
 
         for _, entity in CollectionService:GetTagged("Entity") do
             if entity ~= player.Character then
@@ -284,7 +284,6 @@ local success, err = pcall(function()
         Rounding = 0, 
         Callback = function(Value) 
             SA_FOV = Value 
-            print("Silent FOV set to:", SA_FOV) -- 콘솔에서 FOV 변경 확인용
         end 
     })
     SilentAimGroupBox:AddDropdown("SilentAimHitPart", { Text = "Hit Part", Values = {"Head", "HumanoidRootPart", "Torso"}, Default = 1, Callback = function(Value) SA_HIT_PART = Value end })
@@ -343,18 +342,20 @@ local success, err = pcall(function()
 
     task.spawn(function()
         while task.wait() do
-            if TB_ENABLED and not isLobbyVisible() then
-                local isKeybindActive = false
-                if Options.TriggerbotKeybind then isKeybindActive = Options.TriggerbotKeybind:GetState() end
-                
-                if isKeybindActive then
-                    local target = getTriggerTarget()
-                    if target then
-                        if mouse1click then mouse1click() end
-                        task.wait(TB_DELAY)
+            pcall(function()
+                if TB_ENABLED and not isLobbyVisible() then
+                    local isKeybindActive = false
+                    if Options.TriggerbotKeybind then isKeybindActive = Options.TriggerbotKeybind:GetState() end
+                    
+                    if isKeybindActive then
+                        local target = getTriggerTarget()
+                        if target then
+                            if mouse1click then mouse1click() end
+                            task.wait(TB_DELAY)
+                        end
                     end
                 end
-            end
+            end)
         end
     end)
 
@@ -702,16 +703,18 @@ local success, err = pcall(function()
                         end
                     end
                     
-                    local originalGetViewModelImage = ItemLibrary.GetViewModelImageFromWeaponData or function() return nil end
-                    ItemLibrary.GetViewModelImageFromWeaponData = function(self, weaponData, highRes)
-                        if not weaponData then return originalGetViewModelImage(self, weaponData, highRes) end
-                        local weaponName = weaponData.Name
-                        local shouldShowSkin = (weaponData.Skin and equipped[weaponName] and weaponData.Skin == equipped[weaponName].Skin) or (viewingProfile == player and equipped[weaponName] and equipped[weaponName].Skin)
-                        if shouldShowSkin and equipped[weaponName] and equipped[weaponName].Skin then
-                            local skinInfo = self.ViewModels[equipped[weaponName].Skin.Name]
-                            if skinInfo then return skinInfo[highRes and "ImageHighResolution" or "Image"] or skinInfo.Image end
+                    if ItemLibrary and ItemLibrary.GetViewModelImageFromWeaponData then
+                        local originalGetViewModelImage = ItemLibrary.GetViewModelImageFromWeaponData
+                        ItemLibrary.GetViewModelImageFromWeaponData = function(weaponData, highRes)
+                            if not weaponData then return originalGetViewModelImage(weaponData, highRes) end
+                            local weaponName = weaponData.Name
+                            local shouldShowSkin = (weaponData.Skin and equipped[weaponName] and weaponData.Skin == equipped[weaponName].Skin) or (viewingProfile == player and equipped[weaponName] and equipped[weaponName].Skin)
+                            if shouldShowSkin and equipped[weaponName] and equipped[weaponName].Skin then
+                                local skinInfo = ItemLibrary.ViewModels[equipped[weaponName].Skin.Name]
+                                if skinInfo then return skinInfo[highRes and "ImageHighResolution" or "Image"] or skinInfo.Image end
+                            end
+                            return originalGetViewModelImage(weaponData, highRes)
                         end
-                        return originalGetViewModelImage(self, weaponData, highRes)
                     end
                     
                     local EmoteController = safeRequire(safeWait(controllers, "EmoteController", 10))
@@ -739,8 +742,8 @@ local success, err = pcall(function()
                         end
                     end
                     
-                    local ClientEntity = nil
-                    pcall(function() ClientEntity = require(playerScripts.Modules.ClientReplicatedClasses.ClientEntity) end)
+                    local ClientEntityModule = clientClasses and clientClasses:FindFirstChild("ClientEntity")
+                    local ClientEntity = ClientEntityModule and safeRequire(ClientEntityModule)
                     
                     if ClientEntity and ClientEntity.ReplicateFromServer then
                         local originalReplicateFromServer = ClientEntity.ReplicateFromServer
@@ -936,4 +939,5 @@ local success, err = pcall(function()
 end)
 
 if not success then
-    warn
+    warn("Script failed to load:", err)
+end
