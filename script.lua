@@ -38,7 +38,7 @@ local Tabs = {
 }
 
 -- ==========================================
--- AIMBOT 설정 및 초기화 (수정됨)
+-- AIMBOT 설정 및 초기화 (안전성 강화)
 -- ==========================================
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
@@ -53,16 +53,21 @@ local aiming = false
 local teamCheck = true
 local showFOV = false
 
--- Drawing API를 사용한 FOV 원 (1인칭/3인칭 모두 작동)
-local fovCircle = Drawing.new("Circle")
-fovCircle.Color = Color3.fromRGB(255, 255, 255)
-fovCircle.Thickness = 2
-fovCircle.Transparency = 1
-fovCircle.Filled = false
-fovCircle.Visible = false
-fovCircle.Radius = AIM_RADIUS
+-- Drawing API가 존재하는지 확인 후 FOV 원 생성
+local fovCircle = nil
+if Drawing then
+    pcall(function()
+        fovCircle = Drawing.new("Circle")
+        fovCircle.Color = Color3.fromRGB(255, 255, 255)
+        fovCircle.Thickness = 2
+        fovCircle.Transparency = 1
+        fovCircle.Filled = false
+        fovCircle.Visible = false
+        fovCircle.Radius = AIM_RADIUS
+    end)
+end
 
--- FOV 안에 있는 가장 가까운 적 찾기 (플레이어만, 2D 거리 계산)
+-- FOV 안에 있는 가장 가까운 적 찾기
 local function getTarget()
     local closest, dist = nil, AIM_RADIUS
     local screenCenter = Vector2.new(camera.ViewportSize.X / 2, camera.ViewportSize.Y / 2)
@@ -72,18 +77,17 @@ local function getTarget()
             local char = plr.Character
             if char and char:FindFirstChild("Head") and char:FindFirstChild("Humanoid") then
                 if char.Humanoid.Health > 0 then -- 살아있는 플레이어만
-                    -- 팀 체크가 켜져 있고, 같은 팀일 경우 스킵
-                    if teamCheck and player.Team and plr.Team == player.Team then
-                        continue
-                    end
-                    
-                    -- 화면상에 있는지 2D 좌표로 확인
-                    local screenPos, onScreen = camera:WorldToViewportPoint(char.Head.Position)
-                    if onScreen then
-                        local d = (Vector2.new(screenPos.X, screenPos.Y) - screenCenter).Magnitude
-                        if d < dist then
-                            dist = d
-                            closest = char
+                    -- 팀 체크 (continue 대신 if not 사용)
+                    local isTeammate = teamCheck and player.Team and plr.Team == player.Team
+                    if not isTeammate then
+                        -- 화면상에 있는지 2D 좌표로 확인
+                        local screenPos, onScreen = camera:WorldToViewportPoint(char.Head.Position)
+                        if onScreen then
+                            local d = (Vector2.new(screenPos.X, screenPos.Y) - screenCenter).Magnitude
+                            if d < dist then
+                                dist = d
+                                closest = char
+                            end
                         end
                     end
                 end
@@ -94,34 +98,43 @@ local function getTarget()
 end
 
 RunService.RenderStepped:Connect(function()
-    -- FOV 원 그리기 (마우스 위치 기준)
-    if showFOV then
-        local mousePos = UserInputService:GetMouseLocation()
-        fovCircle.Position = Vector2.new(mousePos.X, mousePos.Y)
-        fovCircle.Radius = AIM_RADIUS
-        fovCircle.Visible = true
-    else
-        fovCircle.Visible = false
-    end
-
-    -- 에임봇 작동
-    if not aiming then return end
-    
-    local target = getTarget()
-    if target then
-        local head = target:FindFirstChild("Head")
-        if head then
-            local screenPos = camera:WorldToViewportPoint(head.Position)
-            local targetVec = Vector2.new(screenPos.X, screenPos.Y)
-            local screenCenter = Vector2.new(camera.ViewportSize.X / 2, camera.ViewportSize.Y / 2)
-            
-            local move = targetVec - screenCenter
-            local smooth = math.max(1, SMOOTH_FACTOR)
-            local moveStep = move / smooth
-            
-            -- mousemoverel을 사용해 실제 마우스를 이동시킴 (총이 정확히 맞음)
-            mousemoverel(moveStep.X, moveStep.Y)
+    -- pcall로 감싸서 에러 발생 시 스크립트가 멈추지 않도록 방지
+    local success, err = pcall(function()
+        -- FOV 원 그리기 (마우스 위치 기준)
+        if showFOV and fovCircle then
+            local mousePos = UserInputService:GetMouseLocation()
+            fovCircle.Position = Vector2.new(mousePos.X, mousePos.Y)
+            fovCircle.Radius = AIM_RADIUS
+            fovCircle.Visible = true
+        elseif fovCircle then
+            fovCircle.Visible = false
         end
+
+        -- 에임봇 작동
+        if aiming then
+            local target = getTarget()
+            if target then
+                local head = target:FindFirstChild("Head")
+                if head then
+                    local screenPos = camera:WorldToViewportPoint(head.Position)
+                    local targetVec = Vector2.new(screenPos.X, screenPos.Y)
+                    local screenCenter = Vector2.new(camera.ViewportSize.X / 2, camera.ViewportSize.Y / 2)
+                    
+                    local move = targetVec - screenCenter
+                    local smooth = math.max(1, SMOOTH_FACTOR)
+                    local moveStep = move / smooth
+                    
+                    -- mousemoverel 함수가 존재할 때만 실행
+                    if mousemoverel then
+                        mousemoverel(moveStep.X, moveStep.Y)
+                    end
+                end
+            end
+        end
+    end)
+    
+    if not success then
+        warn("Aimbot RenderStepped Error:", err)
     end
 end)
 
@@ -569,7 +582,7 @@ UnlockGroupBox:AddButton({
                                         Name = name, Type = cosmetic.Type,
                                         ObjectID = cosmetic.ObjectID, Enum = cosmetic.Enum
                                     }
-                                }
+                                end
                             end
                         end
                         return emotes
