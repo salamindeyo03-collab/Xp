@@ -22,7 +22,7 @@ local success, err = pcall(function()
     Library.NotifySide = "Left" 
 
     local Window = Library:CreateWindow({
-        Title = "Necrophilia", -- 이름 확정
+        Title = "Necrophilia",
         Center = true,
         AutoShow = true,
         Resizable = true,
@@ -33,46 +33,36 @@ local success, err = pcall(function()
         MenuFadeTime = 0.2
     })
 
-    -- UI 로고 이미지 삽입 (완벽하게 찾도록 수정)
-    pcall(function()
-        local logoUrl = "https://z-cdn-media.chatglm.cn/files/928a87a4-596f-4983-9d32-9cd8b7ead281.png"
-        if writefile and (getcustomasset or getsynasset) then
-            if not isfile("necro_logo.png") then
-                local imgData = game:HttpGet(logoUrl)
-                writefile("necro_logo.png", imgData)
-            end
-            local getAsset = getcustomasset or getsynasset
-            local assetId = getAsset("necro_logo.png")
-            
-            local windowFrame = Window.WindowFrame
-            if windowFrame then
-                local dragBar = windowFrame:FindFirstChild("WindowBar") or windowFrame:FindFirstChild("TopBar")
-                if not dragBar then
-                    for _, child in pairs(windowFrame:GetChildren()) do
-                        if child:IsA("GuiObject") and child:FindFirstChild("Title") then
-                            dragBar = child
-                            break
-                        end
-                    end
+    -- UI 중앙에 로고 이미지 워터마크 삽입
+    task.spawn(function()
+        task.wait(0.5) -- UI가 완전히 생성될 때까지 대기
+        pcall(function()
+            local logoUrl = "https://z-cdn-media.chatglm.cn/files/928a87a4-596f-4983-9d32-9cd8b7ead281.png"
+            if writefile and (getcustomasset or getsynasset) then
+                if not isfile("necro_logo.png") then
+                    local imgData = game:HttpGet(logoUrl)
+                    writefile("necro_logo.png", imgData)
                 end
-                if not dragBar then dragBar = windowFrame end
+                local getAsset = getcustomasset or getsynasset
+                local assetId = getAsset("necro_logo.png")
                 
-                local logoImg = Instance.new("ImageLabel")
-                logoImg.Name = "NecroLogo"
-                logoImg.Image = assetId
-                logoImg.BackgroundTransparency = 1
-                logoImg.Size = UDim2.new(0, 20, 0, 20)
-                logoImg.Position = UDim2.new(0, 10, 0.5, -10)
-                logoImg.ZIndex = 10
-                logoImg.Parent = dragBar
-                
-                for _, child in pairs(dragBar:GetChildren()) do
-                    if child:IsA("TextLabel") then
-                        child.Position = UDim2.new(0, 35, 0, 0)
-                    end
+                local windowFrame = Window.WindowFrame
+                if windowFrame then
+                    -- 바탕화면 역할을 할 ImageLabel 생성
+                    local logoImg = Instance.new("ImageLabel")
+                    logoImg.Name = "CenterLogo"
+                    logoImg.Image = assetId
+                    logoImg.BackgroundTransparency = 1
+                    logoImg.Size = UDim2.new(0, 250, 0, 250) -- 이미지 크기
+                    logoImg.Position = UDim2.new(0.5, 0, 0.5, 0) -- 정중앙
+                    logoImg.AnchorPoint = Vector2.new(0.5, 0.5) -- 중심 기준 정렬
+                    logoImg.ZIndex = 2 -- UI 배경(1)보다 위, 내용물(3~)보다 아래
+                    logoImg.ImageTransparency = 0.8 -- 80% 투명하게 (워터마크 느낌)
+                    logoImg.Active = false -- 마우스 클릭 방지
+                    logoImg.Parent = windowFrame
                 end
             end
-        end
+        end)
     end)
 
     local Tabs = {
