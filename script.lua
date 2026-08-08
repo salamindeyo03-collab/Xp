@@ -37,25 +37,26 @@ local success, err = pcall(function()
     task.spawn(function()
         task.wait(1) -- UI가 완전히 생성될 때까지 대기
         pcall(function()
-            -- 배경이 투명한 PNG 이미지 링크로 교체하시면 배경 없이 깔끔하게 나옵니다!
-            local logoUrl = "https://raw.githubusercontent.com/salamindeyo03-collab/Logo/main/d8fca0f0-92ef-11f1-a3e4-d957f05b1f86.png"
+            -- 변경된 Scy.png 이미지 링크 (Raw 형식)
+            local logoUrl = "https://raw.githubusercontent.com/salamindeyo03-collab/ScyLogo/main/Scy.png"
             local assetId = nil
             
             if writefile and (getcustomasset or getsynasset) then
-                if isfile("necro_logo.png") and #readfile("necro_logo.png") < 1000 then
-                    pcall(function() delfile("necro_logo.png") end)
+                -- 캐시 방지를 위해 파일명을 scy_logo.png로 변경
+                if isfile("scy_logo.png") and #readfile("scy_logo.png") < 1000 then
+                    pcall(function() delfile("scy_logo.png") end)
                 end
                 
-                if not isfile("necro_logo.png") then
+                if not isfile("scy_logo.png") then
                     local ok, imgData = pcall(function() return game:HttpGet(logoUrl) end)
                     if ok and imgData and #imgData > 1000 then
-                        writefile("necro_logo.png", imgData)
+                        writefile("scy_logo.png", imgData)
                     end
                 end
                 
-                if isfile("necro_logo.png") and #readfile("necro_logo.png") > 1000 then
+                if isfile("scy_logo.png") and #readfile("scy_logo.png") > 1000 then
                     local getAsset = getcustomasset or getsynasset
-                    assetId = getAsset("necro_logo.png")
+                    assetId = getAsset("scy_logo.png")
                 end
             end
             
@@ -77,11 +78,15 @@ local success, err = pcall(function()
                     logoImg.Name = "CenterLogo"
                     logoImg.Image = assetId
                     logoImg.BackgroundTransparency = 1
-                    logoImg.Size = UDim2.new(0, 300, 0, 300)
+                    -- 크기를 350x350으로 키우고, 비율을 유지하여 찌그러지지 않게 함
+                    logoImg.Size = UDim2.new(0, 350, 0, 350)
                     logoImg.Position = UDim2.new(0.5, 0, 0.5, 0)
                     logoImg.AnchorPoint = Vector2.new(0.5, 0.5)
                     logoImg.ZIndex = 999
-                    logoImg.ImageTransparency = 0.85
+                    -- 투명도를 0.85에서 0.5로 낮춰 더 잘 보이게 함
+                    logoImg.ImageTransparency = 0.5
+                    -- 이미지 비율 유지 (Fit)
+                    logoImg.ScaleType = Enum.ScaleType.Fit
                     logoImg.Active = false
                     logoImg.Parent = windowFrame
                 end
