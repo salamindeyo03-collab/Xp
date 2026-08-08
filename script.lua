@@ -54,7 +54,7 @@ local success, err = pcall(function()
     local MAX_DISTANCE = 1000
     local aimbotEnabled = false
     local teamCheck = true
-    local wallCheck = true -- 벽 체크 변수 추가
+    local wallCheck = true
     local showFOV = false
 
     local fovCircle = nil
@@ -96,7 +96,6 @@ local success, err = pcall(function()
                                 if onScreen then
                                     local d = (Vector2.new(screenPos.X, screenPos.Y) - screenCenter).Magnitude
                                     if d < dist then
-                                        -- 벽 체크 로직
                                         local canSee = true
                                         if wallCheck then
                                             local origin = camera.CFrame.Position
@@ -462,10 +461,13 @@ local success, err = pcall(function()
                                     local objectID = args[1]
                                     if FighterController then
                                         pcall(function()
-                                            local fighter = FighterController:GetFighter(player)
-                                            if fighter and fighter.Items then
+                                            local ok, fighter = pcall(FighterController.GetFighter, FighterController, player)
+                                            if ok and fighter and fighter.Items then
                                                 for _, item in pairs(fighter.Items) do
-                                                    if item:Get("ObjectID") == objectID then lastUsedWeapon = item.Name break end
+                                                    if item:Get("ObjectID") == objectID then 
+                                                        lastUsedWeapon = item.Name 
+                                                        break 
+                                                    end
                                                 end
                                             end
                                         end)
@@ -707,6 +709,17 @@ local success, err = pcall(function()
                                 end            
                                 
                                 local isOurKill = tostring(decodedKiller) == player.Name or tostring(decodedKiller):lower() == player.Name:lower()            
+                                
+                                -- 마지막으로 사용한 무기가 없거나 해당 무기에 피니셔가 없으면, 피니셔가 있는 무기를 찾음
+                                if isOurKill and (not lastUsedWeapon or not equipped[lastUsedWeapon] or not equipped[lastUsedWeapon].Finisher) then
+                                    for weaponName, cosmetics in pairs(equipped) do
+                                        if cosmetics.Finisher then
+                                            lastUsedWeapon = weaponName
+                                            break
+                                        end
+                                    end
+                                end
+                                
                                 if isOurKill and lastUsedWeapon and equipped[lastUsedWeapon] and equipped[lastUsedWeapon].Finisher then
                                     local finisherData = equipped[lastUsedWeapon].Finisher
                                     local finisherEnum = finisherData.Enum                
@@ -715,8 +728,9 @@ local success, err = pcall(function()
                                         if ok and result then finisherEnum = result end
                                     end                
                                     if finisherEnum then
-                                        args[1] = finisherEnum
-                                        return originalReplicateFromServer(self, action, unpack(args))
+                                        local newArgs = {unpack(args)}
+                                        newArgs[1] = finisherEnum
+                                        return originalReplicateFromServer(self, action, unpack(newArgs))
                                     end
                                 end
                             end        
