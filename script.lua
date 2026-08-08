@@ -26,7 +26,6 @@ local Window = Library:CreateWindow({
     AutoShow = true,
     Resizable = true,
     ShowCustomCursor = true,
-    UnlockMouseWhileOpen = true,
     NotifySide = "Left",
     TabPadding = 8,
     MenuFadeTime = 0.2
@@ -47,16 +46,15 @@ local player = Players.LocalPlayer
 local camera = workspace.CurrentCamera
 
 local AIM_RADIUS = 200
-local SMOOTH_FACTOR = 1.0 -- 1이 가장 셈 (즉시 타겟팅)
+local SMOOTH_FACTOR = 1.0
 local aiming = false
 
--- FOV 원 생성
 local gui = Instance.new("ScreenGui", player:WaitForChild("PlayerGui"))
 gui.Name = "AimbotGui"
 local fov = Instance.new("Frame", gui)
 fov.AnchorPoint = Vector2.new(0.5, 0.5)
 fov.Position = UDim2.new(0.5, 0, 0.5, 0)
-fov.Size = UDim2.new(0.18, 0, 0.18, 0)
+fov.Size = UDim2.new(0, AIM_RADIUS, 0, AIM_RADIUS)
 fov.BackgroundTransparency = 1
 fov.Visible = false
 Instance.new("UICorner", fov).CornerRadius = UDim.new(1, 0)
@@ -88,14 +86,11 @@ RunService.RenderStepped:Connect(function()
         local head = target:FindFirstChild("Head")
         if head then
             local cf = CFrame.new(camera.CFrame.Position, head.Position)
-            -- SMOOTH_FACTOR가 1에 가까울수록 즉시 타겟팅, 0에 가까울수록 느림
             camera.CFrame = camera.CFrame:Lerp(cf, SMOOTH_FACTOR)
         end
     end
 end)
--- ==========================================
 
--- 맨 왼쪽 그룹박스에 에임봇 UI 추가
 local AimbotGroupBox = Tabs.Main:AddLeftGroupbox("Aimbot")
 
 AimbotGroupBox:AddToggle("AimbotToggle", {
@@ -115,34 +110,43 @@ AimbotGroupBox:AddSlider("AimbotSmoothness", {
     Max = 10,
     Rounding = 0,
     Callback = function(Value)
-        -- 1이 가장 셈(1.0), 10이 가장 약함(0.1)
-        -- 공식: 1.1 - (Value / 10)
-        -- 1 -> 1.0
-        -- 10 -> 0.1
         SMOOTH_FACTOR = 1.1 - (Value / 10)
     end
 })
 
--- 기존 그룹박스들
+AimbotGroupBox:AddSlider("AimbotFOV", {
+    Text = "FOV Radius",
+    Default = 200,
+    Min = 1,
+    Max = 1000,
+    Rounding = 0,
+    Callback = function(Value)
+        AIM_RADIUS = Value
+        fov.Size = UDim2.new(0, Value, 0, Value)
+    end
+})
+
 local LeftGroupBox = Tabs.Main:AddLeftGroupbox("Groupbox")
 local UnlockGroupBox = Tabs.Main:AddRightGroupbox("Unlock All")
 
 local unlockAllExecuted = false
 
 local function safeWait(parent, name, timeout)
+    if not parent then return nil end
     timeout = timeout or 5
     local success, obj = pcall(function() return parent:WaitForChild(name, timeout) end)
     return success and obj or nil
 end
 
 local function safeRequire(path)
+    if not path then return nil end
     local success, module = pcall(function() return require(path) end)
     return success and module or nil
 end
 
 UnlockGroupBox:AddButton({
     Text = "Unlock All Cosmetics",
-    Tooltip = "Unlocks Skins, Charms, Dances, Wraps. No Freeze/Lag.",
+    Tooltip = "Unlocks Skins, Charms, Dances, Wraps. Saves Loadout.",
     Func = function()
         if unlockAllExecuted then
             Library:Notify("Unlock All has already been executed!")
@@ -153,10 +157,8 @@ UnlockGroupBox:AddButton({
 
         task.delay(1, function()
             local success, err = pcall(function()
-                local Players = game:GetService("Players")
                 local ReplicatedStorage = game:GetService("ReplicatedStorage")
                 local HttpService = game:GetService("HttpService")
-                local player = Players.LocalPlayer
                 
                 local playerScripts = safeWait(player, "PlayerScripts", 10)
                 if not playerScripts then return end
@@ -392,7 +394,11 @@ UnlockGroupBox:AddButton({
                     end
                 end
                 
-                local ClientItem = safeRequire(safeWait(safeWait(safeWait(playerScripts, "Modules", 10), "ClientReplicatedClasses", 10), "ClientFighter", 10) and safeWait(playerScripts.Modules.ClientReplicatedClasses.ClientFighter, "ClientItem", 10))
+                local modulesFolder = safeWait(playerScripts, "Modules", 10)
+                local clientClasses = modulesFolder and safeWait(modulesFolder, "ClientReplicatedClasses", 10)
+                local clientFighter = clientClasses and safeWait(clientClasses, "ClientFighter", 10)
+                local clientItemModule = clientFighter and safeWait(clientFighter, "ClientItem", 10)
+                local ClientItem = clientItemModule and safeRequire(clientItemModule)
                 
                 if ClientItem and ClientItem._CreateViewModel then
                     local originalCreateViewModel = ClientItem._CreateViewModel
@@ -467,7 +473,7 @@ UnlockGroupBox:AddButton({
                             local weaponPlayer = clientItem.ClientFighter and clientItem.ClientFighter.Player
                             local weaponName = constructingWeapon or clientItem.Name
                             if weaponPlayer == player and equipped[weaponName] then
-                                local ReplicatedClass = safeRequire(safeWait(ReplicatedStorage.Modules, "ReplicatedClass", 10))
+                                local ReplicatedClass = modules and safeRequire(safeWait(modules, "ReplicatedClass", 10))
                                 if ReplicatedClass then
                                     local dataKey = ReplicatedClass:ToEnum("Data")
                                     replicatedData[dataKey] = replicatedData[dataKey] or {}
@@ -518,7 +524,10 @@ UnlockGroupBox:AddButton({
                     end
                 end
                 
-                local ViewProfile = safeRequire(safeWait(safeWait(playerScripts, "Modules", 10), "Pages", 10) and safeWait(playerScripts.Modules.Pages, "ViewProfile", 10))
+                local pagesFolder = modulesFolder and safeWait(modulesFolder, "Pages", 10)
+                local viewProfileModule = pagesFolder and safeWait(pagesFolder, "ViewProfile", 10)
+                local ViewProfile = viewProfileModule and safeRequire(viewProfileModule)
+                
                 if ViewProfile and ViewProfile.Fetch then
                     local originalFetch = ViewProfile.Fetch
                     ViewProfile.Fetch = function(self, targetPlayer)
@@ -528,7 +537,18 @@ UnlockGroupBox:AddButton({
                 end
                 
                 loadConfig()
-                Library:Notify("Unlock All successfully loaded! (No Lag)")
+                
+                task.spawn(function()
+                    while task.wait(2) do
+                        pcall(function()
+                            if DataController.CurrentData then
+                                DataController.CurrentData:Replicate("WeaponInventory")
+                            end
+                        end)
+                    end
+                end)
+                
+                Library:Notify("Unlock All successfully loaded! (Loadout Saved)")
             end)
 
             if not success then
@@ -539,7 +559,6 @@ UnlockGroupBox:AddButton({
     end
 })
 
--- 기존 UI 요소들 유지
 LeftGroupBox:AddToggle("MyToggle", {
     Text = "This is a toggle",
     Tooltip = "This is a tooltip", 
