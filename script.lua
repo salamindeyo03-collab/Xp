@@ -94,9 +94,11 @@ local success, err = pcall(function()
                         v.Font = Enum.Font.Gotham
                     end
                     
-                    -- 그룹박스(Groupbox) 테두리만 안 보이게 투명도 조절 (버튼 등 다른 테두리는 건드리지 않음)
+                    -- 그룹박스(Groupbox) 테두리만 투명도를 올려서 거의 안 보이게 만듭니다.
+                    -- (버튼, 토글 등 다른 UIStroke는 건드리지 않음)
                     if v:IsA("UIStroke") and v.Parent and v.Parent.Name == "GroupBox" then
-                        v.Transparency = 1 -- 완전히 투명하게 처리하여 안 보이게 만듭니다.
+                        v.Transparency = 1 -- 투명도 100%로 숨김
+                        v.Thickness = 0
                     end
                 end
             end
