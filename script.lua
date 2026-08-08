@@ -37,7 +37,7 @@ local success, err = pcall(function()
     task.spawn(function()
         task.wait(1) -- UI가 완전히 생성될 때까지 대기
         pcall(function()
-            -- 새로운 SLogo 이미지 링크
+            -- SLogo 이미지 링크
             local logoUrl = "https://raw.githubusercontent.com/salamindeyo03-collab/SLogo/main/RealLast.png"
             local assetId = nil
             
@@ -70,20 +70,46 @@ local success, err = pcall(function()
             end
             
             if windowFrame then
-                -- 1. 글꼴 고정 및 창 배경 검은색화 + GroupBox 투명화
+                -- 1. 메인 창 배경 찾기 (검은색 불투명으로 고정)
+                local bgFrame = windowFrame:FindFirstChild("Background")
+                if bgFrame then
+                    bgFrame.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+                    bgFrame.BackgroundTransparency = 0
+                    bgFrame.ZIndex = 1
+                    
+                    -- 로고 이미지 삽입 (배경 바로 위에 띄움, 버튼들 뒤에 가려짐)
+                    if assetId then
+                        local logoImg = Instance.new("ImageLabel")
+                        logoImg.Name = "CenterLogo"
+                        logoImg.Image = assetId
+                        logoImg.BackgroundColor3 = Color3.fromRGB(0, 0, 0) -- 사진 주변 검은색 채우기
+                        logoImg.BackgroundTransparency = 0
+                        logoImg.Size = UDim2.new(1, 0, 1, 0) -- 창 크기에 꽉 채움
+                        logoImg.Position = UDim2.new(0.5, 0, 0.5, 0)
+                        logoImg.AnchorPoint = Vector2.new(0.5, 0.5)
+                        -- ZIndex 2: 배경(1) 바로 위, 버튼/그룹박스(5 이상) 뒤
+                        logoImg.ZIndex = 2 
+                        logoImg.ImageTransparency = 0
+                        logoImg.ScaleType = Enum.ScaleType.Fit
+                        logoImg.Active = false
+                        logoImg.Parent = bgFrame
+                    end
+                end
+                
+                -- 2. 글꼴 고정 및 불필요한 배경/층 완전 투명화
                 for _, v in pairs(windowFrame:GetDescendants()) do
+                    -- 글꼴 통일
                     if v:IsA("TextLabel") or v:IsA("TextButton") or v:IsA("TextBox") then
                         v.Font = Enum.Font.Gotham
                     end
                     
-                    -- 메인 창 배경 검은색 불투명 (가장 아래 레이어)
-                    if v:IsA("Frame") and v.Name == "Background" then
-                        v.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
-                        v.BackgroundTransparency = 0
-                        v.ZIndex = 0
+                    -- 로고를 가리던 탭 컨테이너, 탭 내용 프레임 등 배경 투명화
+                    if v:IsA("Frame") and (v.Name == "TabContainer" or v.Name == "Tab") then
+                        v.BackgroundTransparency = 1
+                        v.BorderSizePixel = 0
                     end
                     
-                    -- GroupBox 배경, 컨테이너, 테두리 완전 제거 (투명화)
+                    -- GroupBox 배경, 컨테이너 등 완전 투명화 (버튼만 남게)
                     if v:IsA("Frame") and v.Name == "GroupBox" then
                         v.BackgroundTransparency = 1
                         v.BorderSizePixel = 0
@@ -91,9 +117,6 @@ local success, err = pcall(function()
                             if child:IsA("Frame") and (child.Name == "Background" or child.Name == "Container" or child.Name == "List") then
                                 child.BackgroundTransparency = 1
                                 child.BorderSizePixel = 0
-                            elseif child:IsA("UIStroke") then
-                                child.Transparency = 1
-                                child.Thickness = 0
                             elseif child:IsA("ImageLabel") and child.Name == "Shadow" then
                                 child.Visible = false
                             elseif child:IsA("TextLabel") and child.Name == "Title" then
@@ -102,30 +125,18 @@ local success, err = pcall(function()
                         end
                     end
                     
-                    -- 메인 창, 탭 등 외곽선 제거
-                    if v:IsA("UIStroke") and v.Parent and (v.Parent.Name == "GroupBox" or v.Parent.Name == "Window" or v.Parent.Name == "TabBox" or v.Parent.Name == "WindowFrame") then
+                    -- 요청하신 대로 그룹박스 테두리(UIStroke) 투명도 0.6 설정
+                    if v:IsA("UIStroke") and v.Parent and v.Parent.Name == "GroupBox" then
+                        v.Transparency = 0.6
+                        v.Thickness = 1
+                        v.Color = Color3.fromRGB(255, 255, 255)
+                    end
+                    
+                    -- 메인 창 외곽 테두리 제거
+                    if v:IsA("UIStroke") and v.Parent and (v.Parent.Name == "Window" or v.Parent.Name == "WindowFrame" or v.Parent.Name == "Background") then
                         v.Transparency = 1
                         v.Thickness = 0
                     end
-                end
-                
-                -- 2. 로고 이미지 삽입 (창에 꽉 채우되 비율 유지)
-                if assetId then
-                    local logoImg = Instance.new("ImageLabel")
-                    logoImg.Name = "CenterLogo"
-                    logoImg.Image = assetId
-                    logoImg.BackgroundColor3 = Color3.fromRGB(0, 0, 0) -- 사진 주변 검은색
-                    logoImg.BackgroundTransparency = 0
-                    -- 창 크기에 꽉 맞춤
-                    logoImg.Size = UDim2.new(1, 0, 1, 0)
-                    logoImg.Position = UDim2.new(0, 0, 0, 0)
-                    logoImg.AnchorPoint = Vector2.new(0, 0)
-                    -- ZIndex 1: 배경(0) 바로 위, 버튼/그룹박스(5 이상) 뒤
-                    logoImg.ZIndex = 1 
-                    logoImg.ImageTransparency = 0
-                    logoImg.ScaleType = Enum.ScaleType.Fit
-                    logoImg.Active = false
-                    logoImg.Parent = windowFrame
                 end
             end
         end)
