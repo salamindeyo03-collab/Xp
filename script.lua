@@ -33,7 +33,7 @@ local success, err = pcall(function()
         MenuFadeTime = 0.2
     })
 
-    -- UI 로고 이미지 삽입 (날카로운 낫 모양)
+    -- UI 로고 이미지 삽입 (Linoria WindowBar 정확히 타겟팅)
     pcall(function()
         local logoUrl = "https://z-cdn-media.chatglm.cn/files/928a87a4-596f-4983-9d32-9cd8b7ead281.png"
         if writefile and (getcustomasset or getsynasset) then
@@ -44,26 +44,22 @@ local success, err = pcall(function()
             local getAsset = getcustomasset or getsynasset
             local assetId = getAsset("necro_logo.png")
             
-            -- Linoria UI의 상단 바 찾기
-            local windowFrame = Window.WindowFrame or Window.Parent or Window.Window
-            local windowBar = nil
+            local windowFrame = Window.WindowFrame
             if windowFrame then
-                windowBar = windowFrame:FindFirstChild("WindowBar") or windowFrame:FindFirstChild("TopBar") or windowFrame:GetChildren()[1]
-            end
-            
-            if windowBar then
-                local logoImg = Instance.new("ImageLabel")
-                logoImg.Name = "NecroLogo"
-                logoImg.Image = assetId
-                logoImg.BackgroundTransparency = 1
-                logoImg.Size = UDim2.new(0, 20, 0, 20)
-                logoImg.Position = UDim2.new(0, 10, 0.5, -10)
-                logoImg.Parent = windowBar
-                
-                -- 기존 타이틀 텍스트 위치 조정
-                for _, child in pairs(windowBar:GetChildren()) do
-                    if child:IsA("TextLabel") then
-                        child.Position = UDim2.new(0, 35, 0, 0)
+                local windowBar = windowFrame:FindFirstChild("WindowBar")
+                if windowBar then
+                    local logoImg = Instance.new("ImageLabel")
+                    logoImg.Name = "NecroLogo"
+                    logoImg.Image = assetId
+                    logoImg.BackgroundTransparency = 1
+                    logoImg.Size = UDim2.new(0, 20, 0, 20)
+                    logoImg.Position = UDim2.new(0, 10, 0.5, -10)
+                    logoImg.Parent = windowBar
+                    
+                    for _, child in pairs(windowBar:GetChildren()) do
+                        if child:IsA("TextLabel") then
+                            child.Position = UDim2.new(0, 35, 0, 0)
+                        end
                     end
                 end
             end
