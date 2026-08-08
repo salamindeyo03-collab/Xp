@@ -71,47 +71,49 @@ local success, err = pcall(function()
             end
             
             if windowFrame then
-                -- 1. 중앙 로고 이미지 삽입 (배경 검은색으로 꽉 채움)
-                if assetId then
-                    local logoImg = Instance.new("ImageLabel")
-                    logoImg.Name = "CenterLogo"
-                    logoImg.Image = assetId
-                    logoImg.BackgroundColor3 = Color3.fromRGB(0, 0, 0) -- 검은색 배경
-                    logoImg.BackgroundTransparency = 0 -- 불투명하게
+                -- 1. 메인 창 배경(Window.Background) 찾기 및 검은색 불투명으로 고정
+                local bgFrame = windowFrame:FindFirstChild("Background")
+                if bgFrame then
+                    bgFrame.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+                    bgFrame.BackgroundTransparency = 0
+                    bgFrame.ZIndex = 1
                     
-                    logoImg.Size = UDim2.new(0, 500, 0, 500)
-                    logoImg.Position = UDim2.new(0.5, 0, 0.5, 0)
-                    logoImg.AnchorPoint = Vector2.new(0.5, 0.5)
-                    -- ZIndex를 2로 설정: 창 배경(1) 위, 버튼들(5 이상) 아래
-                    logoImg.ZIndex = 2 
-                    logoImg.ImageTransparency = 0 -- 사진이 또렷하게 보이도록 투명도 0
-                    logoImg.ScaleType = Enum.ScaleType.Fit
-                    logoImg.Active = false
-                    logoImg.Parent = windowFrame
+                    -- 로고를 배경(Window.Background)의 자식으로 넣어서 확실히 보이게 만듦
+                    if assetId then
+                        local logoImg = Instance.new("ImageLabel")
+                        logoImg.Name = "CenterLogo"
+                        logoImg.Image = assetId
+                        logoImg.BackgroundColor3 = Color3.fromRGB(0, 0, 0) -- 사진 주변 검은색 채우기
+                        logoImg.BackgroundTransparency = 0
+                        
+                        logoImg.Size = UDim2.new(1, 0, 1, 0) -- 배경에 꽉 채우되 Fit으로 비율 유지
+                        logoImg.Position = UDim2.new(0.5, 0, 0.5, 0)
+                        logoImg.AnchorPoint = Vector2.new(0.5, 0.5)
+                        -- ZIndex 2: 배경(1) 위, 버튼/그룹박스(5 이상) 아래
+                        logoImg.ZIndex = 2 
+                        logoImg.ImageTransparency = 0 -- 완전 불투명
+                        logoImg.ScaleType = Enum.ScaleType.Fit
+                        logoImg.Active = false
+                        logoImg.Parent = bgFrame
+                    end
                 end
                 
-                -- 2. 글꼴 고정 및 창 배경 검은색화 + GroupBox의 모든 테두리/배경/층 완전 제거
+                -- 2. 글꼴 고정 및 GroupBox의 모든 테두리/배경/층 완전 제거
                 for _, v in pairs(windowFrame:GetDescendants()) do
                     -- 글꼴 통일
                     if v:IsA("TextLabel") or v:IsA("TextButton") or v:IsA("TextBox") then
                         v.Font = Enum.Font.Gotham
                     end
                     
-                    -- 메인 창 배경을 검은색으로 변경 (ZIndex 1)
-                    if v:IsA("Frame") and v.Name == "Background" and v.Parent == windowFrame then
-                        v.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
-                        v.BackgroundTransparency = 0
-                        v.ZIndex = 1
-                    end
-                    
-                    -- GroupBox의 배경, 컨테이너, 리스트 등 '층'을 모두 투명화하여 완전히 제거
+                    -- GroupBox의 배경, 컨테이너, 테두리, 그림자, 제목 등 모든 층을 투명화하여 제거
                     if v:IsA("Frame") and v.Name == "GroupBox" then
-                        v.BackgroundTransparency = 1
-                        v.BorderSizePixel = 0
                         for _, child in pairs(v:GetDescendants()) do
-                            if child:IsA("Frame") and (child.Name == "Background" or child.Name == "Container" or child.Name == "Border" or child.Name == "List") then
+                            if child:IsA("Frame") then
                                 child.BackgroundTransparency = 1
                                 child.BorderSizePixel = 0
+                            elseif child:IsA("UIStroke") then
+                                child.Transparency = 1
+                                child.Thickness = 0
                             elseif child:IsA("ImageLabel") and child.Name == "Shadow" then
                                 child.Visible = false
                             elseif child:IsA("TextLabel") and child.Name == "Title" then
@@ -120,7 +122,7 @@ local success, err = pcall(function()
                         end
                     end
                     
-                    -- 메인 창(Window), GroupBox, 탭 등의 테두리(UIStroke)만 완전 제거 (버튼은 건드리지 않음)
+                    -- 메인 창, 탭 박스 등의 외곽 테두리도 제거
                     if v:IsA("UIStroke") and v.Parent then
                         local parentName = v.Parent.Name
                         if parentName == "GroupBox" or parentName == "Window" or parentName == "TabBox" or parentName == "Background" or parentName == "WindowFrame" then
