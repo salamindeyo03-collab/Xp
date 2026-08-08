@@ -22,7 +22,7 @@ local success, err = pcall(function()
     Library.NotifySide = "Left" 
 
     local Window = Library:CreateWindow({
-        Title = "Necrophilia",
+        Title = "Necrophilia", -- 이름 확정
         Center = true,
         AutoShow = true,
         Resizable = true,
@@ -33,7 +33,7 @@ local success, err = pcall(function()
         MenuFadeTime = 0.2
     })
 
-    -- UI 로고 이미지 삽입 (Linoria WindowBar 정확히 타겟팅)
+    -- UI 로고 이미지 삽입 (완벽하게 찾도록 수정)
     pcall(function()
         local logoUrl = "https://z-cdn-media.chatglm.cn/files/928a87a4-596f-4983-9d32-9cd8b7ead281.png"
         if writefile and (getcustomasset or getsynasset) then
@@ -46,20 +46,29 @@ local success, err = pcall(function()
             
             local windowFrame = Window.WindowFrame
             if windowFrame then
-                local windowBar = windowFrame:FindFirstChild("WindowBar")
-                if windowBar then
-                    local logoImg = Instance.new("ImageLabel")
-                    logoImg.Name = "NecroLogo"
-                    logoImg.Image = assetId
-                    logoImg.BackgroundTransparency = 1
-                    logoImg.Size = UDim2.new(0, 20, 0, 20)
-                    logoImg.Position = UDim2.new(0, 10, 0.5, -10)
-                    logoImg.Parent = windowBar
-                    
-                    for _, child in pairs(windowBar:GetChildren()) do
-                        if child:IsA("TextLabel") then
-                            child.Position = UDim2.new(0, 35, 0, 0)
+                local dragBar = windowFrame:FindFirstChild("WindowBar") or windowFrame:FindFirstChild("TopBar")
+                if not dragBar then
+                    for _, child in pairs(windowFrame:GetChildren()) do
+                        if child:IsA("GuiObject") and child:FindFirstChild("Title") then
+                            dragBar = child
+                            break
                         end
+                    end
+                end
+                if not dragBar then dragBar = windowFrame end
+                
+                local logoImg = Instance.new("ImageLabel")
+                logoImg.Name = "NecroLogo"
+                logoImg.Image = assetId
+                logoImg.BackgroundTransparency = 1
+                logoImg.Size = UDim2.new(0, 20, 0, 20)
+                logoImg.Position = UDim2.new(0, 10, 0.5, -10)
+                logoImg.ZIndex = 10
+                logoImg.Parent = dragBar
+                
+                for _, child in pairs(dragBar:GetChildren()) do
+                    if child:IsA("TextLabel") then
+                        child.Position = UDim2.new(0, 35, 0, 0)
                     end
                 end
             end
