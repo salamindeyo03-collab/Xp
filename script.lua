@@ -49,7 +49,8 @@ local camera = workspace.CurrentCamera
 local AIM_RADIUS = 200
 local SMOOTH_FACTOR = 1.0
 local aiming = false
-local teamCheck = true -- 팀 체크 기본값
+local teamCheck = true
+local showFOV = false
 
 local gui = Instance.new("ScreenGui", player:WaitForChild("PlayerGui"))
 gui.Name = "AimbotGui"
@@ -65,14 +66,13 @@ stroke.Thickness = 3
 stroke.Transparency = 0.7
 stroke.Color = Color3.new(1, 1, 1)
 
--- 최적화된 타겟 찾기 함수 (플레이어만 검사, 팀체크 및 자기 자신/죽은 사람 제외)
+-- 최적화된 타겟 찾기 함수 (플레이어만 검사, 2D FOV 체크)
 local function getTarget()
-    local root = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
-    if not root then return end
-    
     local closest, dist = nil, AIM_RADIUS
+    local screenCenter = Vector2.new(camera.ViewportSize.X / 2, camera.ViewportSize.Y / 2)
+    
     for _, plr in pairs(Players:GetPlayers()) do
-        if plr ~= player then -- 자기 자신 제외
+        if plr:IsA("Player") and plr ~= player then -- 플레이어만, 자기 자신 제외
             local char = plr.Character
             if char and char:FindFirstChild("Head") and char:FindFirstChild("Humanoid") then
                 local humanoid = char.Humanoid
@@ -82,10 +82,14 @@ local function getTarget()
                         continue
                     end
                     
-                    local d = (char.Head.Position - root.Position).Magnitude
-                    if d < dist then
-                        dist = d
-                        closest = char
+                    -- 화면상에 있는지 2D 좌표로 확인
+                    local screenPos, onScreen = camera:WorldToViewportPoint(char.Head.Position)
+                    if onScreen then
+                        local d = (Vector2.new(screenPos.X, screenPos.Y) - screenCenter).Magnitude
+                        if d < dist then
+                            dist = d
+                            closest = char
+                        end
                     end
                 end
             end
@@ -115,7 +119,17 @@ AimbotGroupBox:AddToggle("AimbotToggle", {
     Default = false,
     Callback = function(Value)
         aiming = Value
-        fov.Visible = Value
+        fov.Visible = Value and showFOV
+    end
+})
+
+AimbotGroupBox:AddToggle("AimbotShowFOV", {
+    Text = "Show FOV Circle",
+    Tooltip = "Toggles the visual FOV circle",
+    Default = false,
+    Callback = function(Value)
+        showFOV = Value
+        fov.Visible = aiming and Value
     end
 })
 
@@ -411,7 +425,7 @@ UnlockGroupBox:AddButton({
                                     favorites[args[1]][args[2]] = args[3] or nil
                                     saveConfig()
                                     task.spawn(function() pcall(function() DataController.CurrentData:Replicate("FavoritedCosmetics") end) end)
-                                }
+                                end
                                 return
                             end
                             
