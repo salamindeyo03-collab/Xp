@@ -49,7 +49,7 @@ local camera = workspace.CurrentCamera
 
 local AIM_RADIUS = 200
 local SMOOTH_FACTOR = 1.0
-local MAX_DISTANCE = 1000 -- 3D 거리 제한 (기본 1000)
+local MAX_DISTANCE = 1000
 local aiming = false
 local teamCheck = true
 local showFOV = false
@@ -82,7 +82,6 @@ local function getTarget()
                 if char.Humanoid.Health > 0 then
                     local isTeammate = teamCheck and player.Team and plr.Team == player.Team
                     if not isTeammate then
-                        -- 3D 거리 계산 (거리 제한 안에 있는지 확인)
                         local distance3D = (char.HumanoidRootPart.Position - localRoot.Position).Magnitude
                         if distance3D <= MAX_DISTANCE then
                             local screenPos, onScreen = camera:WorldToViewportPoint(char.Head.Position)
@@ -102,7 +101,8 @@ local function getTarget()
     return closest
 end
 
-RunService.RenderStepped:Connect(function()
+local AimbotRenderConnection
+AimbotRenderConnection = RunService.RenderStepped:Connect(function()
     local success, err = pcall(function()
         if showFOV and fovCircle then
             local mousePos = Vector2.new(0, 0)
@@ -314,7 +314,7 @@ UnlockGroupBox:AddButton({
                                     config.equipped[weapon][cosmeticType] = {
                                         name = cosmeticData.Name, seed = cosmeticData.Seed, inverted = cosmeticData.Inverted
                                     }
-                                }
+                                end
                             end
                         end
                         makefolder("unlockall")
@@ -419,6 +419,7 @@ UnlockGroupBox:AddButton({
                             
                             if self == equipRemote then
                                 local weaponName, cosmeticType, cosmeticName, options = args[1], args[2], args[3], args[4] or {}
+                                
                                 if cosmeticType == "Dance" or cosmeticType == "Emote" then
                                     equipped.Dances = equipped.Dances or {}
                                     if not cosmeticName or cosmeticName == "None" or cosmeticName == "" then
@@ -434,6 +435,14 @@ UnlockGroupBox:AddButton({
                                     end)
                                     return
                                 else
+                                    -- 게임이 매치 시작 등에서 스킨을 강제로 "None"으로 해제하려 할 때 방어
+                                    if (not cosmeticName or cosmeticName == "None" or cosmeticName == "") and equipped[weaponName] and equipped[weaponName][cosmeticType] then
+                                        task.defer(function()
+                                            pcall(function() DataController.CurrentData:Replicate("WeaponInventory") end)
+                                        end)
+                                        return -- 명령 무시
+                                    end
+                                    
                                     if cosmeticName and cosmeticName ~= "None" and cosmeticName ~= "" then
                                         local inventory = DataController:Get("CosmeticInventory")
                                         if inventory and rawget(inventory, cosmeticName) then return oldNamecall(self, ...) end
@@ -593,7 +602,7 @@ UnlockGroupBox:AddButton({
                                         Name = name, Type = cosmetic.Type,
                                         ObjectID = cosmetic.ObjectID, Enum = cosmetic.Enum
                                     }
-                                }
+                                end
                             end
                         end
                         return emotes
@@ -1075,8 +1084,18 @@ local WatermarkConnection = game:GetService("RunService").RenderStepped:Connect(
     end)
 end)
 
+-- 언로드 시 에임봇과 FOV 원 완벽 제거
 Library:OnUnload(function()
     WatermarkConnection:Disconnect()
+    if AimbotRenderConnection then
+        AimbotRenderConnection:Disconnect()
+    end
+    pcall(function()
+        if fovCircle then
+            fovCircle.Visible = false
+            fovCircle:Remove()
+        end
+    end)
 
     print("Unloaded!")
     Library.Unloaded = true
