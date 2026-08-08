@@ -34,10 +34,10 @@ local success, err = pcall(function()
     })
 
     -- ==========================================
-    -- 낫 배경 이미지 설정 (강제 렌더링 수정 버전)
+    -- 낫 배경 이미지 설정 (최상위 ScreenGui 배경 강제 삽입 버전)
     -- ==========================================
     task.spawn(function()
-        task.wait(0.6)
+        task.wait(0.8)
         pcall(function()
             local scytheUrl = "https://z-cdn-media.chatglm.cn/files/d8fca0f0-92ef-11f1-a3e4-d957f05b1f86.png"
             if writefile and (getcustomasset or getsynasset) then
@@ -48,46 +48,50 @@ local success, err = pcall(function()
                 local getAsset = getcustomasset or getsynasset
                 local assetId = getAsset("necro_scythe_bg.png")
                 
-                -- LinoriaLib의 실제 메인 GUI 컨테이너 및 배경 프레임 찾기
-                local guiRoot = Window.Holder and Window.Holder.Parent
-                if not guiRoot then
-                    guiRoot = game:GetService("CoreGui"):FindFirstChild("ScreenGui") or player.PlayerGui:FindFirstChild("ScreenGui")
-                end
-
-                local targetFrame = nil
-                if Window.Main then
-                    targetFrame = Window.Main
-                elseif Window.WindowFrame then
-                    targetFrame = Window.WindowFrame
-                else
-                    -- 화면 내에서 'Necrophilia' 타이틀을 가진 창 찾기
-                    for _, gui in pairs(game:GetService("CoreGui"):GetChildren()) do
-                        if gui:IsA("ScreenGui") then
-                            local found = gui:FindFirstChild("Main", true)
-                            if found and found:IsA("Frame") then
-                                targetFrame = found
+                -- LinoriaLib 창이 속한 실제 ScreenGui 탐색
+                local targetScreenGui = nil
+                local coreGui = game:GetService("CoreGui")
+                
+                for _, child in pairs(coreGui:GetChildren()) do
+                    if child:IsA("ScreenGui") then
+                        -- 'Necrophilia' 타이틀이 포함된 창을 품고 있는 ScreenGui 찾기
+                        if child:FindFirstChild("Main", true) or child:FindFirstChild("Background", true) then
+                            -- 창의 메인 프레임 탐색
+                            local mainFrame = child:FindFirstChild("Main", true) or child:FindFirstChild("ResizeFrame", true)
+                            if mainFrame then
+                                targetScreenGui = mainFrame.Parent
                                 break
                             end
                         end
                     end
                 end
 
-                if targetFrame then
-                    -- 이미지가 이미 생성되어 있다면 중복 생성 방지
-                    if targetFrame:FindFirstChild("ScytheBackground") then
-                        targetFrame.ScytheBackground:Destroy()
+                if targetScreenGui then
+                    if targetScreenGui:FindFirstChild("ScytheBackgroundGui") then
+                        targetScreenGui.ScytheBackgroundGui:Destroy()
                     end
 
+                    -- 창 내부에 종속되면서 배경 역할을 하는 프레임 생성
+                    local bgHolder = Instance.new("Frame")
+                    bgHolder.Name = "ScytheBackgroundGui"
+                    bgHolder.BackgroundTransparency = 1
+                    bgHolder.Size = UDim2.new(1, 0, 1, 0)
+                    bgHolder.Position = UDim2.new(0, 0, 0, 0)
+                    bgHolder.ZIndex = 0
+                    bgHolder.ClipsDescendants = true
+                    bgHolder.Parent = targetScreenGui:FindFirstChild("Main", true) or targetScreenGui
+
                     local scytheBg = Instance.new("ImageLabel")
-                    scytheBg.Name = "ScytheBackground"
+                    scytheBg.Name = "ScytheImage"
                     scytheBg.Image = assetId
                     scytheBg.BackgroundTransparency = 1
+                    -- 창 전체를 은은하게 채우도록 설정
                     scytheBg.Size = UDim2.new(1, 0, 1, 0)
                     scytheBg.Position = UDim2.new(0, 0, 0, 0)
-                    scytheBg.ZIndex = -999 -- 가장 밑단 레이어로 설정하여 UI 조작을 방해하지 않음
-                    scytheBg.ImageTransparency = 0.5 -- 투명도 조절 (0에 가까울수록 진해짐)
+                    scytheBg.ZIndex = 1
+                    scytheBg.ImageTransparency = 0.45 -- 투명도 (값이 낮을수록 진해짐)
                     scytheBg.ScaleType = Enum.ScaleType.Fit
-                    scytheBg.Parent = targetFrame
+                    scytheBg.Parent = bgHolder
                 end
             end
         end)
