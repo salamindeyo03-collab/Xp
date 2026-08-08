@@ -33,81 +33,40 @@ local success, err = pcall(function()
         MenuFadeTime = 0.2
     })
 
-    -- UI 로고 이미지 삽입
+    -- UI 로고 이미지 삽입 (날카로운 낫 모양)
     pcall(function()
-        local logoUrl = "https://z-cdn-media.chatglm.cn/files/a24762f8-7781-4e24-a8ed-d374f012f437.png"
+        local logoUrl = "https://z-cdn-media.chatglm.cn/files/928a87a4-596f-4983-9d32-9cd8b7ead281.png"
         if writefile and (getcustomasset or getsynasset) then
-            local imgData = game:HttpGet(logoUrl)
-            writefile("necro_logo.png", imgData)
+            if not isfile("necro_logo.png") then
+                local imgData = game:HttpGet(logoUrl)
+                writefile("necro_logo.png", imgData)
+            end
             local getAsset = getcustomasset or getsynasset
             local assetId = getAsset("necro_logo.png")
             
-            local topBar = Window.WindowFrame:FindFirstChild("TopBar") or Window.WindowFrame:GetChildren()[1]
-            if topBar then
+            -- Linoria UI의 상단 바 찾기
+            local windowFrame = Window.WindowFrame or Window.Parent or Window.Window
+            local windowBar = nil
+            if windowFrame then
+                windowBar = windowFrame:FindFirstChild("WindowBar") or windowFrame:FindFirstChild("TopBar") or windowFrame:GetChildren()[1]
+            end
+            
+            if windowBar then
                 local logoImg = Instance.new("ImageLabel")
-                logoImg.Name = "Logo"
+                logoImg.Name = "NecroLogo"
                 logoImg.Image = assetId
                 logoImg.BackgroundTransparency = 1
-                logoImg.Size = UDim2.new(0, 25, 0, 25)
-                logoImg.Position = UDim2.new(0, 10, 0.5, -12)
-                logoImg.Parent = topBar
+                logoImg.Size = UDim2.new(0, 20, 0, 20)
+                logoImg.Position = UDim2.new(0, 10, 0.5, -10)
+                logoImg.Parent = windowBar
                 
-                for _, child in pairs(topBar:GetChildren()) do
-                    if child:IsA("TextLabel") and child.Name == "Title" then
-                        child.Position = UDim2.new(0, 40, 0, 0)
+                -- 기존 타이틀 텍스트 위치 조정
+                for _, child in pairs(windowBar:GetChildren()) do
+                    if child:IsA("TextLabel") then
+                        child.Position = UDim2.new(0, 35, 0, 0)
                     end
                 end
             end
-        end
-    end)
-
-    -- ==========================================
-    -- UI 드래그 가이드 박스 (Ghost Drag) 효과
-    -- ==========================================
-    pcall(function()
-        local dragBar = Window.WindowFrame
-        if dragBar then
-            pcall(function()
-                for _, conn in pairs(getconnections(dragBar.InputBegan)) do conn:Disable() end
-                for _, conn in pairs(getconnections(dragBar.InputChanged)) do conn:Disable() end
-            end)
-            
-            local ghostFrame = Instance.new("Frame")
-            ghostFrame.BorderSizePixel = 2
-            ghostFrame.BorderColor3 = Color3.fromRGB(255, 255, 255)
-            ghostFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
-            ghostFrame.BackgroundTransparency = 0.8
-            ghostFrame.Visible = false
-            ghostFrame.Parent = game:GetService("CoreGui")
-            
-            local dragging = false
-            local dragStart, startPos
-            
-            dragBar.InputBegan:Connect(function(input)
-                if input.UserInputType == Enum.UserInputType.MouseButton1 then
-                    dragging = true
-                    dragStart = input.Position
-                    startPos = dragBar.Position
-                    ghostFrame.Size = dragBar.Size
-                    ghostFrame.Position = startPos
-                    ghostFrame.Visible = true
-                end
-            end)
-            
-            game:GetService("UserInputService").InputChanged:Connect(function(input)
-                if dragging and input.UserInputType == Enum.UserInputType.MouseMovement then
-                    local delta = input.Position - dragStart
-                    ghostFrame.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
-                end
-            end)
-            
-            game:GetService("UserInputService").InputEnded:Connect(function(input)
-                if dragging and input.UserInputType == Enum.UserInputType.MouseButton1 then
-                    dragging = false
-                    dragBar.Position = ghostFrame.Position
-                    ghostFrame.Visible = false
-                end
-            end)
         end
     end)
 
