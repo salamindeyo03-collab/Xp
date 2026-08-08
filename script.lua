@@ -37,19 +37,104 @@ local Tabs = {
     ["UI Settings"] = Window:AddTab("UI Settings"),
 }
 
+-- ==========================================
+-- AIMBOT 설정 및 초기화
+-- ==========================================
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+
+local player = Players.LocalPlayer
+local camera = workspace.CurrentCamera
+
+local AIM_RADIUS = 200
+local SMOOTH_FACTOR = 1.0 -- 1이 가장 셈 (즉시 타겟팅)
+local aiming = false
+
+-- FOV 원 생성
+local gui = Instance.new("ScreenGui", player:WaitForChild("PlayerGui"))
+gui.Name = "AimbotGui"
+local fov = Instance.new("Frame", gui)
+fov.AnchorPoint = Vector2.new(0.5, 0.5)
+fov.Position = UDim2.new(0.5, 0, 0.5, 0)
+fov.Size = UDim2.new(0.18, 0, 0.18, 0)
+fov.BackgroundTransparency = 1
+fov.Visible = false
+Instance.new("UICorner", fov).CornerRadius = UDim.new(1, 0)
+local stroke = Instance.new("UIStroke", fov)
+stroke.Thickness = 3
+stroke.Transparency = 0.7
+stroke.Color = Color3.new(1, 1, 1)
+
+local function getTarget()
+    local root = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
+    if not root then return end
+    local closest, dist = nil, AIM_RADIUS
+    for _, m in pairs(workspace:GetDescendants()) do
+        if m:IsA("Model") and m:FindFirstChild("Humanoid") and m:FindFirstChild("Head") and m ~= player.Character then
+            local d = (m.Head.Position - root.Position).Magnitude
+            if d < dist then
+                dist = d
+                closest = m
+            end
+        end
+    end
+    return closest
+end
+
+RunService.RenderStepped:Connect(function()
+    if not aiming then return end
+    local target = getTarget()
+    if target then
+        local head = target:FindFirstChild("Head")
+        if head then
+            local cf = CFrame.new(camera.CFrame.Position, head.Position)
+            -- SMOOTH_FACTOR가 1에 가까울수록 즉시 타겟팅, 0에 가까울수록 느림
+            camera.CFrame = camera.CFrame:Lerp(cf, SMOOTH_FACTOR)
+        end
+    end
+end)
+-- ==========================================
+
+-- 맨 왼쪽 그룹박스에 에임봇 UI 추가
+local AimbotGroupBox = Tabs.Main:AddLeftGroupbox("Aimbot")
+
+AimbotGroupBox:AddToggle("AimbotToggle", {
+    Text = "Enable Aimbot",
+    Tooltip = "Toggles the aimbot on and off",
+    Default = false,
+    Callback = function(Value)
+        aiming = Value
+        fov.Visible = Value
+    end
+})
+
+AimbotGroupBox:AddSlider("AimbotSmoothness", {
+    Text = "Smoothness (1 = Strong)",
+    Default = 1,
+    Min = 1,
+    Max = 10,
+    Rounding = 0,
+    Callback = function(Value)
+        -- 1이 가장 셈(1.0), 10이 가장 약함(0.1)
+        -- 공식: 1.1 - (Value / 10)
+        -- 1 -> 1.0
+        -- 10 -> 0.1
+        SMOOTH_FACTOR = 1.1 - (Value / 10)
+    end
+})
+
+-- 기존 그룹박스들
 local LeftGroupBox = Tabs.Main:AddLeftGroupbox("Groupbox")
 local UnlockGroupBox = Tabs.Main:AddRightGroupbox("Unlock All")
 
 local unlockAllExecuted = false
 
--- 안전하게 객체를 불러오는 함수 (무한 대기 방지)
 local function safeWait(parent, name, timeout)
     timeout = timeout or 5
     local success, obj = pcall(function() return parent:WaitForChild(name, timeout) end)
     return success and obj or nil
 end
 
--- 안전하게 모듈을 불러오는 함수
 local function safeRequire(path)
     local success, module = pcall(function() return require(path) end)
     return success and module or nil
@@ -66,7 +151,6 @@ UnlockGroupBox:AddButton({
         unlockAllExecuted = true
         Library:Notify("Starting Unlock All... Please wait 1 second.")
 
-        -- UI 멈춤 방지를 위해 1초 딜레이 후 실행
         task.delay(1, function()
             local success, err = pcall(function()
                 local Players = game:GetService("Players")
@@ -101,7 +185,7 @@ UnlockGroupBox:AddButton({
                 local lastUsedWeapon = nil
                 
                 local ValidTypes = { Skin = true, Charm = true, Dance = true, Emote = true, Wrap = true, Wrapping = true }
-                local validCache = {} -- 성능 최적화를 위한 캐싱
+                local validCache = {}
                 
                 local function isValidCosmetic(name)
                     if not name then return false end
