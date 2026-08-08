@@ -2,7 +2,7 @@
                                                _                                 
                      __      ____ _ _ __ _ __ (_)_ __   __ _                     
                      \ \ /\ / / _` | '__| '_ \| | '_ \ / _` |                    
-                      \ V  V / (_{ | |  | | | | | | | | (_{ |                    
+                      \ V  V / (_{ | |  | | | | | | | | | (_{ |                    
                        \_/\_/ \__,_|_|  |_| |_|_|_| |_|\__, |                    
                                                        |___/                     
  --]]
@@ -33,105 +33,69 @@ local success, err = pcall(function()
         MenuFadeTime = 0.2
     })
 
-    -- UI 중앙에 로고 이미지 배치 및 그룹박스 배경 제거
+    -- 1. 로고 이미지 배치 및 그룹박스 테두리/배경 제거 (안전한 방식)
     task.spawn(function()
-        task.wait(1)
+        task.wait(1) -- UI가 온전히 생성될 때까지 대기
         pcall(function()
             local logoUrl = "https://raw.githubusercontent.com/salamindeyo03-collab/SLogo/main/RealLast.png"
             local assetId = nil
             
             if writefile and (getcustomasset or getsynasset) then
-                if isfile("slogo.png") and #readfile("slogo.png") < 1000 then
-                    pcall(function() delfile("slogo.png") end)
-                end
-                
-                if not isfile("slogo.png") then
+                if not isfile("slogo.png") or #readfile("slogo.png") < 1000 then
                     local ok, imgData = pcall(function() return game:HttpGet(logoUrl) end)
                     if ok and imgData and #imgData > 1000 then
                         writefile("slogo.png", imgData)
                     end
                 end
-                
                 if isfile("slogo.png") and #readfile("slogo.png") > 1000 then
-                    local getAsset = getcustomasset or getsynasset
-                    assetId = getAsset("slogo.png")
+                    assetId = (getcustomasset or getsynasset)("slogo.png")
                 end
             end
             
             local windowFrame = Window.Window or Window.WindowFrame or Window.Main
-            if not windowFrame then
-                for k, v in pairs(Window) do
-                    if typeof(v) == "Instance" and v:IsA("Frame") then
-                        windowFrame = v
-                        break
-                    end
-                end
-            end
-            
             if windowFrame then
-                -- 1. 메인 창 배경 검은색 불투명 설정
-                local bgFrame = windowFrame:FindFirstChild("Background")
-                if bgFrame then
-                    bgFrame.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
-                    bgFrame.BackgroundTransparency = 0
-                    bgFrame.ZIndex = 1
-                    
-                    -- 2. 로고 이미지 배치 (창 크기에 꽉 채움)
-                    if assetId then
-                        local logoImg = Instance.new("ImageLabel")
-                        logoImg.Name = "CenterLogo"
-                        logoImg.Image = assetId
-                        logoImg.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
-                        logoImg.BackgroundTransparency = 0
-                        logoImg.Size = UDim2.new(1, 0, 1, 0) 
-                        logoImg.Position = UDim2.new(0.5, 0, 0.5, 0)
-                        logoImg.AnchorPoint = Vector2.new(0.5, 0.5)
-                        logoImg.ZIndex = 0
-                        logoImg.ImageTransparency = 0.6 -- 배경처럼 은은하게
-                        logoImg.ScaleType = Enum.ScaleType.Fit
-                        logoImg.Active = false
-                        logoImg.Parent = bgFrame
+                -- UI 창의 메인 배경을 검은색으로 고정하고 로고를 그 뒤에 배치
+                for _, v in pairs(windowFrame:GetDescendants()) do
+                    if v:IsA("Frame") and v.Name == "Background" then
+                        v.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+                        v.BackgroundTransparency = 0
+                        
+                        if assetId then
+                            local logoImg = v:FindFirstChild("CenterLogo") or Instance.new("ImageLabel")
+                            logoImg.Name = "CenterLogo"
+                            logoImg.Image = assetId
+                            logoImg.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+                            logoImg.BackgroundTransparency = 0
+                            logoImg.Size = UDim2.new(1, 0, 1, 0)
+                            logoImg.Position = UDim2.new(0.5, 0, 0.5, 0)
+                            logoImg.AnchorPoint = Vector2.new(0.5, 0.5)
+                            logoImg.ZIndex = 0 -- 가장 뒤로 보내기
+                            logoImg.ImageTransparency = 0.4 -- 은은하게 보이게 투명도 조절
+                            logoImg.ScaleType = Enum.ScaleType.Fit
+                            logoImg.Parent = v
+                        end
                     end
                 end
                 
-                -- 3. UI 요소 수정: 글꼴 통일, GroupBox 배경 제거, 테두리 투명도 0.6
+                -- 글꼴 고정 및 GroupBox 배경/테두리 완전 제거
                 for _, v in pairs(windowFrame:GetDescendants()) do
-                    -- 글꼴 고정
                     if v:IsA("TextLabel") or v:IsA("TextButton") or v:IsA("TextBox") then
                         v.Font = Enum.Font.Gotham
                     end
                     
-                    -- 로고를 가리는 상위 탭 컨테이너 배경 투명화
-                    if v:IsA("Frame") and (v.Name == "TabContainer" or v.Name == "Tab") then
-                        v.BackgroundTransparency = 1
-                        v.BorderSizePixel = 0
-                    end
-                    
-                    -- GroupBox 설정: 배경/그림자 제거, 이름/버튼만 남기기, 테두리 투명도 0.6
+                    -- GroupBox 내부의 배경, 그림자, 테두리 찾아서 지우기
                     if v:IsA("Frame") and v.Name == "GroupBox" then
-                        v.BackgroundTransparency = 1
-                        v.BorderSizePixel = 0
                         for _, child in pairs(v:GetDescendants()) do
-                            -- 배경, 컨테이너 투명화
                             if child:IsA("Frame") and (child.Name == "Background" or child.Name == "Container" or child.Name == "List") then
                                 child.BackgroundTransparency = 1
                                 child.BorderSizePixel = 0
-                            -- 그림자 제거
                             elseif child:IsA("ImageLabel") and child.Name == "Shadow" then
                                 child.Visible = false
-                            -- 테두리 투명도 0.6 설정 (요청사항 반영)
                             elseif child:IsA("UIStroke") then
-                                child.Transparency = 0.6
-                                child.Thickness = 1
-                                child.Color = Color3.fromRGB(255, 255, 255)
+                                child.Transparency = 1
+                                child.Thickness = 0
                             end
                         end
-                    end
-                    
-                    -- 메인 창 외곽 테두리 제거
-                    if v:IsA("UIStroke") and v.Parent and (v.Parent.Name == "Window" or v.Parent.Name == "WindowFrame" or v.Parent.Name == "Background") then
-                        v.Transparency = 1
-                        v.Thickness = 0
                     end
                 end
             end
@@ -1031,17 +995,28 @@ local success, err = pcall(function()
     ThemeManager:ApplyToTab(Tabs["UI Settings"])
     
     -- ==========================================
-    -- 다크 레드 테마 강제 적용
+    -- 다크 레드 테마 강제 적용 (친구 조언 반영)
     -- ==========================================
-    ThemeManager.Theme = ThemeManager.Theme or {}
-    ThemeManager.Theme.Main = Color3.fromRGB(25, 25, 25)
-    ThemeManager.Theme.Background = Color3.fromRGB(20, 20, 20)
-    ThemeManager.Theme.Border = Color3.fromRGB(80, 20, 20)
-    ThemeManager.Theme.Text = Color3.fromRGB(255, 255, 255)
-    ThemeManager.Theme.TextDark = Color3.fromRGB(150, 150, 150)
-    ThemeManager.Theme.Accent = Color3.fromRGB(150, 30, 30)
-    ThemeManager.Theme.TabText = Color3.fromRGB(200, 200, 200)
-    ThemeManager.Theme.TabBackground = Color3.fromRGB(30, 30, 30)
+    local darkRedTheme = {
+        Main = Color3.fromRGB(25, 25, 25),
+        Background = Color3.fromRGB(20, 20, 20),
+        Border = Color3.fromRGB(80, 20, 20),
+        Text = Color3.fromRGB(255, 255, 255),
+        TextDark = Color3.fromRGB(150, 150, 150),
+        Accent = Color3.fromRGB(150, 30, 30),
+        TabText = Color3.fromRGB(200, 200, 200),
+        TabBackground = Color3.fromRGB(30, 30, 30),
+    }
+    
+    for name, color in pairs(darkRedTheme) do
+        if ThemeManager.Theme and ThemeManager.Theme[name] then
+            ThemeManager.Theme[name] = color
+        end
+    end
+    
+    if ThemeManager.UpdateTheme then
+        ThemeManager:UpdateTheme()
+    end
     
     SaveManager:LoadAutoloadConfig()
 end)
