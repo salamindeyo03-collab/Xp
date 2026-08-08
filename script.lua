@@ -33,16 +33,15 @@ local success, err = pcall(function()
         MenuFadeTime = 0.2
     })
 
-    -- UI 중앙에 로고 이미지 배치 (GitHub Raw 링크 적용)
+    -- UI 중앙에 로고 이미지 배치 및 유리(Glass) 테두리 효과 적용
     task.spawn(function()
         task.wait(1) -- UI가 완전히 생성될 때까지 대기
         pcall(function()
-            -- 보내주신 링크를 Raw 형식으로 변환 (영구 링크)
+            -- 배경이 투명한 PNG 이미지 링크로 교체하시면 배경 없이 깔끔하게 나옵니다!
             local logoUrl = "https://raw.githubusercontent.com/salamindeyo03-collab/Logo/main/d8fca0f0-92ef-11f1-a3e4-d957f05b1f86.png"
             local assetId = nil
             
             if writefile and (getcustomasset or getsynasset) then
-                -- 기존에 다운로드된 깨진 파일 삭제 (1KB 이하)
                 if isfile("necro_logo.png") and #readfile("necro_logo.png") < 1000 then
                     pcall(function() delfile("necro_logo.png") end)
                 end
@@ -60,30 +59,40 @@ local success, err = pcall(function()
                 end
             end
             
-            -- 이미지를 정상적으로 불러왔을 때만 로고를 띄움 (이상한 원 방지)
-            if assetId then
-                local windowFrame = Window.Window or Window.WindowFrame or Window.Main
-                if not windowFrame then
-                    for k, v in pairs(Window) do
-                        if typeof(v) == "Instance" and v:IsA("Frame") then
-                            windowFrame = v
-                            break
-                        end
+            -- UI 프레임 찾기
+            local windowFrame = Window.Window or Window.WindowFrame or Window.Main
+            if not windowFrame then
+                for k, v in pairs(Window) do
+                    if typeof(v) == "Instance" and v:IsA("Frame") then
+                        windowFrame = v
+                        break
                     end
                 end
-                
-                if windowFrame then
+            end
+            
+            if windowFrame then
+                -- 1. 중앙 로고 이미지 삽입
+                if assetId then
                     local logoImg = Instance.new("ImageLabel")
                     logoImg.Name = "CenterLogo"
                     logoImg.Image = assetId
                     logoImg.BackgroundTransparency = 1
-                    logoImg.Size = UDim2.new(0, 300, 0, 300) -- 이미지 크기
-                    logoImg.Position = UDim2.new(0.5, 0, 0.5, 0) -- 정중앙
-                    logoImg.AnchorPoint = Vector2.new(0.5, 0.5) -- 중심 기준 정렬
-                    logoImg.ZIndex = 999 -- UI 모든 요소 위에 오도록 설정
-                    logoImg.ImageTransparency = 0.85 -- 투명도 85% (버튼 안가리게 워터마크 처리)
-                    logoImg.Active = false -- 마우스 클릭 방지 (클릭이 뚫음)
+                    logoImg.Size = UDim2.new(0, 300, 0, 300)
+                    logoImg.Position = UDim2.new(0.5, 0, 0.5, 0)
+                    logoImg.AnchorPoint = Vector2.new(0.5, 0.5)
+                    logoImg.ZIndex = 999
+                    logoImg.ImageTransparency = 0.85
+                    logoImg.Active = false
                     logoImg.Parent = windowFrame
+                end
+                
+                -- 2. 유리(Glass) 효과: UI 내부의 모든 테두리(UIStroke)를 투명하게 만들기
+                for _, v in pairs(windowFrame:GetDescendants()) do
+                    if v:IsA("UIStroke") then
+                        v.Transparency = 0.6 -- 테두리 투명도 60%
+                        v.Color = Color3.fromRGB(255, 255, 255) -- 유리 느낌의 흰색 테두리
+                        v.Thickness = 1
+                    end
                 end
             end
         end)
