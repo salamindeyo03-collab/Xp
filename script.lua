@@ -2,7 +2,7 @@
                                                _                                 
                      __      ____ _ _ __ _ __ (_)_ __   __ _                     
                      \ \ /\ / / _` | '__| '_ \| | '_ \ / _` |                    
-                      \ V  V / (_| | |  | | | | | | | | (_| |                    
+                      \ V  V / (_{ | |  | | | | | | | | (_{ |                    
                        \_/\_/ \__,_|_|  |_| |_|_|_| |_|\__, |                    
                                                        |___/                     
  --]]
@@ -33,12 +33,13 @@ local success, err = pcall(function()
         MenuFadeTime = 0.2
     })
 
-    -- UI 중앙에 로고 이미지 배치 (임시 링크 만료 대비 및 투명도 조절)
+    -- UI 중앙에 로고 이미지 배치 (GitHub Raw 링크 적용)
     task.spawn(function()
         task.wait(1) -- UI가 완전히 생성될 때까지 대기
         pcall(function()
-            local logoUrl = "https://z-cdn-media.chatglm.cn/files/928a87a4-596f-4983-9d32-9cd8b7ead281.png" -- 여기에 영구 링크를 넣으세요
-            local assetId = "rbxassetid://177778303" -- 대체 이미지 (해골)
+            -- 보내주신 링크를 Raw 형식으로 변환 (영구 링크)
+            local logoUrl = "https://raw.githubusercontent.com/salamindeyo03-collab/Logo/main/d8fca0f0-92ef-11f1-a3e4-d957f05b1f86.png"
+            local assetId = nil
             
             if writefile and (getcustomasset or getsynasset) then
                 -- 기존에 다운로드된 깨진 파일 삭제 (1KB 이하)
@@ -59,29 +60,31 @@ local success, err = pcall(function()
                 end
             end
             
-            -- Linoria의 메인 UI 프레임 찾기 (버전 호환성)
-            local windowFrame = Window.Window or Window.WindowFrame or Window.Main
-            if not windowFrame then
-                for k, v in pairs(Window) do
-                    if typeof(v) == "Instance" and v:IsA("Frame") then
-                        windowFrame = v
-                        break
+            -- 이미지를 정상적으로 불러왔을 때만 로고를 띄움 (이상한 원 방지)
+            if assetId then
+                local windowFrame = Window.Window or Window.WindowFrame or Window.Main
+                if not windowFrame then
+                    for k, v in pairs(Window) do
+                        if typeof(v) == "Instance" and v:IsA("Frame") then
+                            windowFrame = v
+                            break
+                        end
                     end
                 end
-            end
-            
-            if windowFrame then
-                local logoImg = Instance.new("ImageLabel")
-                logoImg.Name = "CenterLogo"
-                logoImg.Image = assetId
-                logoImg.BackgroundTransparency = 1
-                logoImg.Size = UDim2.new(0, 300, 0, 300) -- 이미지 크기
-                logoImg.Position = UDim2.new(0.5, 0, 0.5, 0) -- 정중앙
-                logoImg.AnchorPoint = Vector2.new(0.5, 0.5) -- 중심 기준 정렬
-                logoImg.ZIndex = 10 -- UI 다른 요소들보다 무조건 앞에 오도록 설정
-                logoImg.ImageTransparency = 0.85 -- 투명도 85% (버튼 안가리게 워터마크 처리)
-                logoImg.Active = false -- 마우스 클릭 방지
-                logoImg.Parent = windowFrame
+                
+                if windowFrame then
+                    local logoImg = Instance.new("ImageLabel")
+                    logoImg.Name = "CenterLogo"
+                    logoImg.Image = assetId
+                    logoImg.BackgroundTransparency = 1
+                    logoImg.Size = UDim2.new(0, 300, 0, 300) -- 이미지 크기
+                    logoImg.Position = UDim2.new(0.5, 0, 0.5, 0) -- 정중앙
+                    logoImg.AnchorPoint = Vector2.new(0.5, 0.5) -- 중심 기준 정렬
+                    logoImg.ZIndex = 999 -- UI 모든 요소 위에 오도록 설정
+                    logoImg.ImageTransparency = 0.85 -- 투명도 85% (버튼 안가리게 워터마크 처리)
+                    logoImg.Active = false -- 마우스 클릭 방지 (클릭이 뚫음)
+                    logoImg.Parent = windowFrame
+                end
             end
         end)
     end)
