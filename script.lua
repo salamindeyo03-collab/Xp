@@ -544,14 +544,13 @@ local success, err = pcall(function()
                                         task.defer(function() pcall(function() if DataController.CurrentData and DataController.CurrentData.Replicate then DataController.CurrentData:Replicate("CosmeticInventory") end end) task.wait(0.2) saveConfig() end)
                                         return
                                     else
-                                        -- 스킨 해제(없음) 누를 때 기본 스킨으로 돌아가도록 수정
                                         if (not cosmeticName or cosmeticName == "None" or cosmeticName == "") then
                                             if equipped[weaponName] then
                                                 equipped[weaponName][cosmeticType] = nil
                                                 if not next(equipped[weaponName]) then equipped[weaponName] = nil end
                                             end
                                             task.defer(function() pcall(function() if DataController.CurrentData and DataController.CurrentData.Replicate then DataController.CurrentData:Replicate("WeaponInventory") end end) task.wait(0.2) saveConfig() end)
-                                            return oldNamecall(self, ...) -- 게임 서버에 해제 명령 전달
+                                            return oldNamecall(self, ...)
                                         end
                                         
                                         if cosmeticName and cosmeticName ~= "None" and cosmeticName ~= "" then
@@ -598,6 +597,11 @@ local success, err = pcall(function()
                             local weaponName = self.Name
                             local weaponPlayer = self.ClientFighter and self.ClientFighter.Player
                             constructingWeapon = (weaponPlayer == player) and weaponName or nil
+                            
+                            -- 무기를 들었을 때 마지막으로 사용한 무기 확실하게 기록 (피니셔 발동용)
+                            if weaponPlayer == player then
+                                lastUsedWeapon = weaponName
+                            end
                             
                             if weaponPlayer == player and equipped[weaponName] and viewmodelRef then
                                 local dataKey = self:ToEnum("Data")
@@ -703,8 +707,10 @@ local success, err = pcall(function()
                         end
                     end
                     
-                    local ClientEntityModule = clientClasses and clientClasses:FindFirstChild("ClientEntity")
-                    local ClientEntity = ClientEntityModule and safeRequire(ClientEntityModule)
+                    -- ClientEntity 모듈을 직접 참조하여 로드
+                    local ClientEntity = nil
+                    pcall(function() ClientEntity = require(playerScripts.Modules.ClientReplicatedClasses.ClientEntity) end)
+                    
                     if ClientEntity and ClientEntity.ReplicateFromServer then
                         local originalReplicateFromServer = ClientEntity.ReplicateFromServer
                         ClientEntity.ReplicateFromServer = function(self, action, ...)
@@ -719,14 +725,33 @@ local success, err = pcall(function()
                                 end            
                                 local isOurKill = tostring(decodedKiller) == player.Name or tostring(decodedKiller):lower() == player.Name:lower()            
                                 
-                                -- 피니셔 무기별 독립 적용: 다른 무기의 피니셔를 가져오지 않도록 for문 제거
-                                if isOurKill and lastUsedWeapon and equipped[lastUsedWeapon] and equipped[lastUsedWeapon].Finisher then
-                                    local finisherData = equipped[lastUsedWeapon].Finisher
-                                    local finisherEnum = finisherData.Enum                
-                                    if not finisherEnum and EnumLibrary then
-                                        local ok, result = pcall(EnumLibrary.ToEnum, EnumLibrary, finisherData.Name)
-                                        if ok and result then finisherEnum = result end
-                                    end                
+                                if isOurKill then
+                                    local finisherEnum = nil
+                                    
+                                    -- 1. 마지막으로 사용한 무기에 피니셔가 있는지 확인
+                                    if lastUsedWeapon and equipped[lastUsedWeapon] and equipped[lastUsedWeapon].Finisher then
+                                        finisherEnum = equipped[lastUsedWeapon].Finisher.Enum
+                                        if not finisherEnum and EnumLibrary then
+                                            local ok, result = pcall(EnumLibrary.ToEnum, EnumLibrary, equipped[lastUsedWeapon].Finisher.Name)
+                                            if ok and result then finisherEnum = result end
+                                        end
+                                    end
+                                    
+                                    -- 2. 없으면 장착된 무기 중 피니셔가 있는 것을 찾음 (폴백)
+                                    if not finisherEnum then
+                                        for weaponName, cosmetics in pairs(equipped) do
+                                            if cosmetics.Finisher then
+                                                finisherEnum = cosmetics.Finisher.Enum
+                                                if not finisherEnum and EnumLibrary then
+                                                    local ok, result = pcall(EnumLibrary.ToEnum, EnumLibrary, cosmetics.Finisher.Name)
+                                                    if ok and result then finisherEnum = result end
+                                                end
+                                                if finisherEnum then break end
+                                            end
+                                        end
+                                    end
+                                    
+                                    -- 3. 피니셔를 찾았다면 적용
                                     if finisherEnum then
                                         args[1] = finisherEnum
                                         return originalReplicateFromServer(self, action, unpack(args, 1, argCount))
