@@ -170,9 +170,8 @@ local success, err = pcall(function()
     -- ==========================================
     local SA_ENABLED = false
     local SA_FOV = 50
-    local SA_SHOW_FOV = false
+    local SA_SHOW_FOV = true -- FOV 기본값 켜짐, 키바인드 누를 때만 보임
     local SA_TEAMCHECK = true
-    local SA_HIT_PART = "Head"
 
     local saFovCircle = nil
     if Drawing then
@@ -211,7 +210,8 @@ local success, err = pcall(function()
                 end
                 
                 if not isTeammate then
-                    local hitPart = entity:FindFirstChild(SA_HIT_PART, true)
+                    -- 무조건 헤드를 우선적으로 찾도록 수정
+                    local hitPart = entity:FindFirstChild("Head") or entity:FindFirstChild("HumanoidRootPart")
                     if hitPart and hitPart:IsA("BasePart") then
                         local screenPos, onScreen = camera:WorldToViewportPoint(hitPart.Position)
                         if onScreen and screenPos.Z > 0 then
@@ -230,7 +230,10 @@ local success, err = pcall(function()
 
     if originalRaycast then
         UtilityModule.Raycast = function(self, origin, direction, distance, params, ignoreWater, debug)
-            if not SA_ENABLED or type(distance) ~= "number" or distance < 100 then
+            local isKeybindActive = false
+            if Options.SilentAimKeybind then isKeybindActive = Options.SilentAimKeybind:GetState() end
+
+            if not SA_ENABLED or not isKeybindActive or type(distance) ~= "number" or distance < 100 then
                 return originalRaycast(self, origin, direction, distance, params, ignoreWater, debug)
             end
 
@@ -248,6 +251,7 @@ local success, err = pcall(function()
                 targetPos = origin + (newDir * distance)
             end
 
+            -- Instance와 Position을 헤드로 완벽 고정하여 무조건 헤드에만 맞도록 강제
             return {
                 Position = targetPos,
                 Distance = newDist,
@@ -260,8 +264,12 @@ local success, err = pcall(function()
 
     RunService.RenderStepped:Connect(function()
         pcall(function()
+            local isKeybindActive = false
+            if Options.SilentAimKeybind then isKeybindActive = Options.SilentAimKeybind:GetState() end
+
             if saFovCircle then
-                if SA_SHOW_FOV then
+                -- 사일런트 에임이 켜져있고, FOV 설정이 켜져있고, 키바인드를 누르고 있을 때만 FOV 보이기
+                if SA_ENABLED and SA_SHOW_FOV and isKeybindActive then
                     saFovCircle.Position = camera.ViewportSize / 2
                     saFovCircle.Radius = SA_FOV
                     saFovCircle.Visible = true
@@ -274,8 +282,9 @@ local success, err = pcall(function()
 
     local SilentAimGroupBox = Tabs.Main:AddLeftGroupbox("Silent Aim")
     SilentAimGroupBox:AddToggle("SilentAimToggle", { Text = "Enable Silent Aim", Default = false, Callback = function(Value) SA_ENABLED = Value end })
+    SilentAimGroupBox:AddLabel("Silent Aim Keybind"):AddKeyPicker("SilentAimKeybind", { Default = "MB2", SyncToggleState = false, Mode = "Hold", Text = "Silent Key", NoUI = false })
     SilentAimGroupBox:AddToggle("SilentAimTeamCheck", { Text = "Team Check", Default = true, Callback = function(Value) SA_TEAMCHECK = Value end })
-    SilentAimGroupBox:AddToggle("SilentAimShowFOV", { Text = "Show Silent FOV", Default = false, Callback = function(Value) SA_SHOW_FOV = Value end })
+    SilentAimGroupBox:AddToggle("SilentAimShowFOV", { Text = "Show Silent FOV", Default = true, Callback = function(Value) SA_SHOW_FOV = Value end })
     SilentAimGroupBox:AddSlider("SilentAimFOV", { 
         Text = "Silent FOV Radius", 
         Default = 50, 
@@ -286,7 +295,6 @@ local success, err = pcall(function()
             SA_FOV = Value 
         end 
     })
-    SilentAimGroupBox:AddDropdown("SilentAimHitPart", { Text = "Hit Part", Values = {"Head", "HumanoidRootPart", "Torso"}, Default = 1, Callback = function(Value) SA_HIT_PART = Value end })
 
     -- ==========================================
     -- TRIGGERBOT 설정 (자동 사격 전용)
