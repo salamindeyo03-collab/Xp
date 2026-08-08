@@ -37,12 +37,11 @@ local success, err = pcall(function()
     task.spawn(function()
         task.wait(1) -- UI가 완전히 생성될 때까지 대기
         pcall(function()
-            -- 변경된 Scy.png 이미지 링크 (Raw 형식)
+            -- Scy.png 이미지 링크
             local logoUrl = "https://raw.githubusercontent.com/salamindeyo03-collab/ScyLogo/main/Scy.png"
             local assetId = nil
             
             if writefile and (getcustomasset or getsynasset) then
-                -- 캐시 방지를 위해 파일명을 scy_logo.png로 변경
                 if isfile("scy_logo.png") and #readfile("scy_logo.png") < 1000 then
                     pcall(function() delfile("scy_logo.png") end)
                 end
@@ -78,25 +77,29 @@ local success, err = pcall(function()
                     logoImg.Name = "CenterLogo"
                     logoImg.Image = assetId
                     logoImg.BackgroundTransparency = 1
-                    -- 크기를 350x350으로 키우고, 비율을 유지하여 찌그러지지 않게 함
                     logoImg.Size = UDim2.new(0, 350, 0, 350)
                     logoImg.Position = UDim2.new(0.5, 0, 0.5, 0)
                     logoImg.AnchorPoint = Vector2.new(0.5, 0.5)
                     logoImg.ZIndex = 999
-                    -- 투명도를 0.85에서 0.5로 낮춰 더 잘 보이게 함
                     logoImg.ImageTransparency = 0.5
-                    -- 이미지 비율 유지 (Fit)
                     logoImg.ScaleType = Enum.ScaleType.Fit
                     logoImg.Active = false
                     logoImg.Parent = windowFrame
                 end
                 
-                -- 2. 유리(Glass) 효과: UI 내부의 모든 테두리(UIStroke)를 투명하게 만들기
+                -- 2. 글꼴을 일반 폰트로 고정 및 유리(Glass) 효과 적용
                 for _, v in pairs(windowFrame:GetDescendants()) do
+                    -- 글꼴이 깨지는 현상 방지: 모든 텍스트를 일반 Gotham 폰트로 강제 통일
+                    if v:IsA("TextLabel") or v:IsA("TextButton") or v:IsA("TextBox") then
+                        v.Font = Enum.Font.Gotham
+                    end
+                    
+                    -- 유리(Glass) 테두리 효과: 두께를 살짝 두껍게 하고 투명도를 조절해 유리 느낌 부여
                     if v:IsA("UIStroke") then
-                        v.Transparency = 0.6 -- 테두리 투명도 60%
+                        v.Transparency = 0.3 -- 투명도를 줄여 테두리가 더 또렷하게 보이게 함
                         v.Color = Color3.fromRGB(255, 255, 255) -- 유리 느낌의 흰색 테두리
-                        v.Thickness = 1
+                        v.Thickness = 1.5 -- 두께를 1.5로 증가시켜 유리창 테두리처럼 보이게 함
+                        v.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
                     end
                 end
             end
