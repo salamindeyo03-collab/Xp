@@ -42,48 +42,83 @@ local UnlockGroupBox = Tabs.Main:AddRightGroupbox("Unlock All")
 
 local unlockAllExecuted = false
 
+-- 안전하게 객체를 불러오는 함수 (무한 대기 방지)
+local function safeWait(parent, name, timeout)
+    timeout = timeout or 5
+    local success, obj = pcall(function() return parent:WaitForChild(name, timeout) end)
+    return success and obj or nil
+end
+
+-- 안전하게 모듈을 불러오는 함수
+local function safeRequire(path)
+    local success, module = pcall(function() return require(path) end)
+    return success and module or nil
+end
+
 UnlockGroupBox:AddButton({
     Text = "Unlock All Cosmetics",
-    Tooltip = "Unlocks Skins, Charms, Dances, Wraps (No Finishers).",
+    Tooltip = "Unlocks Skins, Charms, Dances, Wraps. No Freeze/Lag.",
     Func = function()
         if unlockAllExecuted then
             Library:Notify("Unlock All has already been executed!")
             return
         end
         unlockAllExecuted = true
-        Library:Notify("Running Optimized Unlock All... Please wait.")
+        Library:Notify("Starting Unlock All... Please wait 1 second.")
 
-        task.spawn(function()
+        -- UI 멈춤 방지를 위해 1초 딜레이 후 실행
+        task.delay(1, function()
             local success, err = pcall(function()
                 local Players = game:GetService("Players")
                 local ReplicatedStorage = game:GetService("ReplicatedStorage")
                 local HttpService = game:GetService("HttpService")
                 local player = Players.LocalPlayer
-                local playerScripts = player:WaitForChild("PlayerScripts", 10)
-                local controllers = playerScripts:WaitForChild("Controllers", 10)
                 
-                local EnumLibrary = require(ReplicatedStorage:WaitForChild("Modules", 10):WaitForChild("EnumLibrary", 10))
-                if EnumLibrary then EnumLibrary:WaitForEnumBuilder() end
-                local CosmeticLibrary = require(ReplicatedStorage.Modules:WaitForChild("CosmeticLibrary", 10))
-                local ItemLibrary = require(ReplicatedStorage.Modules:WaitForChild("ItemLibrary", 10))
-                local DataController = require(controllers:WaitForChild("PlayerDataController", 10))
+                local playerScripts = safeWait(player, "PlayerScripts", 10)
+                if not playerScripts then return end
+                local controllers = safeWait(playerScripts, "Controllers", 10)
+                if not controllers then return end
+                
+                local modules = safeWait(ReplicatedStorage, "Modules", 10)
+                if not modules then return end
+                
+                local EnumLibrary = safeRequire(safeWait(modules, "EnumLibrary", 10))
+                if EnumLibrary and EnumLibrary.WaitForEnumBuilder then
+                    pcall(function() EnumLibrary:WaitForEnumBuilder() end)
+                end
+                
+                local CosmeticLibrary = safeRequire(safeWait(modules, "CosmeticLibrary", 10))
+                local ItemLibrary = safeRequire(safeWait(modules, "ItemLibrary", 10))
+                local DataController = safeRequire(safeWait(controllers, "PlayerDataController", 10))
+                
+                if not CosmeticLibrary or not ItemLibrary or not DataController then
+                    Library:Notify("Failed to load game modules!")
+                    return
+                end
                 
                 local equipped, favorites = {}, {}
                 local constructingWeapon, viewingProfile = nil, nil
                 local lastUsedWeapon = nil
                 
                 local ValidTypes = { Skin = true, Charm = true, Dance = true, Emote = true, Wrap = true, Wrapping = true }
+                local validCache = {} -- 성능 최적화를 위한 캐싱
                 
                 local function isValidCosmetic(name)
-                    if not name or name:find("MISSING_") then return false end
+                    if not name then return false end
+                    if validCache[name] ~= nil then return validCache[name] end
+                    if name:find("MISSING_") then validCache[name] = false return false end
+                    
                     local cosmetic = CosmeticLibrary.Cosmetics[name]
-                    if not cosmetic then return false end
-                    if ValidTypes[cosmetic.Type] then return true end
-                    local lowerName = name:lower()
-                    if cosmetic.Type == "Charm" or lowerName:find("charm") then return true end
-                    if cosmetic.Type == "Dance" or cosmetic.Type == "Emote" or lowerName:find("dance") or lowerName:find("emote") then return true end
-                    if cosmetic.Type == "Wrap" or cosmetic.Type == "Wrapping" or lowerName:find("wrap") then return true end
-                    return false
+                    local result = false
+                    if cosmetic then
+                        if ValidTypes[cosmetic.Type] then result = true end
+                        local lowerName = name:lower()
+                        if cosmetic.Type == "Charm" or lowerName:find("charm") then result = true end
+                        if cosmetic.Type == "Dance" or cosmetic.Type == "Emote" or lowerName:find("dance") or lowerName:find("emote") then result = true end
+                        if cosmetic.Type == "Wrap" or cosmetic.Type == "Wrapping" or lowerName:find("wrap") then result = true end
+                    end
+                    validCache[name] = result
+                    return result
                 end
                 
                 local function cloneCosmetic(name, cosmeticType, options)
@@ -142,14 +177,12 @@ UnlockGroupBox:AddButton({
                     end)
                 end
                 
-                -- 1. CosmeticLibrary.OwnsCosmetic (단일 후킹)
                 local originalOwnsCosmetic = CosmeticLibrary.OwnsCosmetic
                 CosmeticLibrary.OwnsCosmetic = function(self, inventory, name, weapon)
                     if isValidCosmetic(name) then return true end
                     return originalOwnsCosmetic(self, inventory, name, weapon)
                 end
                 
-                -- 2. DataController.Get (단일 후킹)
                 local originalGet = DataController.Get
                 DataController.Get = function(self, key)
                     local data = originalGet(self, key)
@@ -176,7 +209,6 @@ UnlockGroupBox:AddButton({
                     return data
                 end
                 
-                -- 3. DataController.GetWeaponData (단일 후킹)
                 local originalGetWeaponData = DataController.GetWeaponData
                 DataController.GetWeaponData = function(self, weaponName)
                     local data = originalGetWeaponData(self, weaponName)
@@ -192,9 +224,7 @@ UnlockGroupBox:AddButton({
                     return merged
                 end
                 
-                -- 4. hookmetamethod __namecall (단일 후킹)
-                local FighterController
-                pcall(function() FighterController = require(controllers:WaitForChild("FighterController", 10)) end)
+                local FighterController = safeRequire(safeWait(controllers, "FighterController", 10))
                 
                 if hookmetamethod then
                     local remotes = ReplicatedStorage:FindFirstChild("Remotes")
@@ -278,13 +308,12 @@ UnlockGroupBox:AddButton({
                     end
                 end
                 
-                -- 5. ClientItem._CreateViewModel (단일 후킹)
-                local ClientItem
-                pcall(function() ClientItem = require(playerScripts.Modules.ClientReplicatedClasses.ClientFighter.ClientItem) end)
+                local ClientItem = safeRequire(safeWait(safeWait(safeWait(playerScripts, "Modules", 10), "ClientReplicatedClasses", 10), "ClientFighter", 10) and safeWait(playerScripts.Modules.ClientReplicatedClasses.ClientFighter, "ClientItem", 10))
                 
                 if ClientItem and ClientItem._CreateViewModel then
                     local originalCreateViewModel = ClientItem._CreateViewModel
                     ClientItem._CreateViewModel = function(self, viewmodelRef)
+                        if not self or not viewmodelRef then return originalCreateViewModel(self, viewmodelRef) end
                         local weaponName = self.Name
                         local weaponPlayer = self.ClientFighter and self.ClientFighter.Player
                         constructingWeapon = (weaponPlayer == player) and weaponName or nil
@@ -320,58 +349,60 @@ UnlockGroupBox:AddButton({
                     end
                 end
                 
-                -- 6. ClientViewModel (단일 후킹)
-                local viewModelModule = playerScripts.Modules.ClientReplicatedClasses.ClientFighter.ClientItem:FindFirstChild("ClientViewModel")
+                local viewModelModule = ClientItem and ClientItem:FindFirstChild("ClientViewModel")
                 if viewModelModule then
-                    local ClientViewModel = require(viewModelModule)
-                    
-                    if ClientViewModel.GetWrap then
-                        local originalGetWrapFunc = ClientViewModel.GetWrap
-                        ClientViewModel.GetWrap = function(self)
-                            local weaponName = self.ClientItem and self.ClientItem.Name
-                            local weaponPlayer = self.ClientItem and self.ClientItem.ClientFighter and self.ClientItem.ClientFighter.Player
-                            if weaponName and weaponPlayer == player and equipped[weaponName] and equipped[weaponName].Wrap then
-                                return equipped[weaponName].Wrap
+                    local ClientViewModel = safeRequire(viewModelModule)
+                    if ClientViewModel then
+                        if ClientViewModel.GetWrap then
+                            local originalGetWrapFunc = ClientViewModel.GetWrap
+                            ClientViewModel.GetWrap = function(self)
+                                local weaponName = self.ClientItem and self.ClientItem.Name
+                                local weaponPlayer = self.ClientItem and self.ClientItem.ClientFighter and self.ClientItem.ClientFighter.Player
+                                if weaponName and weaponPlayer == player and equipped[weaponName] and equipped[weaponName].Wrap then
+                                    return equipped[weaponName].Wrap
+                                end
+                                return originalGetWrapFunc(self)
                             end
-                            return originalGetWrapFunc(self)
                         end
-                    end
-                    
-                    if ClientViewModel.GetCharm then
-                        local originalGetCharmFunc = ClientViewModel.GetCharm
-                        ClientViewModel.GetCharm = function(self)
-                            local weaponName = self.ClientItem and self.ClientItem.Name
-                            local weaponPlayer = self.ClientItem and self.ClientItem.ClientFighter and self.ClientItem.ClientFighter.Player
-                            if weaponName and weaponPlayer == player and equipped[weaponName] and equipped[weaponName].Charm then
-                                return equipped[weaponName].Charm
+                        
+                        if ClientViewModel.GetCharm then
+                            local originalGetCharmFunc = ClientViewModel.GetCharm
+                            ClientViewModel.GetCharm = function(self)
+                                local weaponName = self.ClientItem and self.ClientItem.Name
+                                local weaponPlayer = self.ClientItem and self.ClientItem.ClientFighter and self.ClientItem.ClientFighter.Player
+                                if weaponName and weaponPlayer == player and equipped[weaponName] and equipped[weaponName].Charm then
+                                    return equipped[weaponName].Charm
+                                end
+                                return originalGetCharmFunc(self)
                             end
-                            return originalGetCharmFunc(self)
                         end
-                    end
-                    
-                    local originalNew = ClientViewModel.new
-                    ClientViewModel.new = function(replicatedData, clientItem)
-                        local weaponPlayer = clientItem.ClientFighter and clientItem.ClientFighter.Player
-                        local weaponName = constructingWeapon or clientItem.Name
-                        if weaponPlayer == player and equipped[weaponName] then
-                            local ReplicatedClass = require(ReplicatedStorage.Modules.ReplicatedClass)
-                            local dataKey = ReplicatedClass:ToEnum("Data")
-                            replicatedData[dataKey] = replicatedData[dataKey] or {}
-                            local cosmetics = equipped[weaponName]
-                            if cosmetics.Skin then replicatedData[dataKey][ReplicatedClass:ToEnum("Skin")] = cosmetics.Skin end
-                            if cosmetics.Charm then replicatedData[dataKey][ReplicatedClass:ToEnum("Charm")] = cosmetics.Charm end
-                            if cosmetics.Wrap then replicatedData[dataKey][ReplicatedClass:ToEnum("Wrap")] = cosmetics.Wrap end
+                        
+                        local originalNew = ClientViewModel.new
+                        ClientViewModel.new = function(replicatedData, clientItem)
+                            if not clientItem then return originalNew(replicatedData, clientItem) end
+                            local weaponPlayer = clientItem.ClientFighter and clientItem.ClientFighter.Player
+                            local weaponName = constructingWeapon or clientItem.Name
+                            if weaponPlayer == player and equipped[weaponName] then
+                                local ReplicatedClass = safeRequire(safeWait(ReplicatedStorage.Modules, "ReplicatedClass", 10))
+                                if ReplicatedClass then
+                                    local dataKey = ReplicatedClass:ToEnum("Data")
+                                    replicatedData[dataKey] = replicatedData[dataKey] or {}
+                                    local cosmetics = equipped[weaponName]
+                                    if cosmetics.Skin then replicatedData[dataKey][ReplicatedClass:ToEnum("Skin")] = cosmetics.Skin end
+                                    if cosmetics.Charm then replicatedData[dataKey][ReplicatedClass:ToEnum("Charm")] = cosmetics.Charm end
+                                    if cosmetics.Wrap then replicatedData[dataKey][ReplicatedClass:ToEnum("Wrap")] = cosmetics.Wrap end
+                                end
+                            end
+                            local result = originalNew(replicatedData, clientItem)
+                            if weaponPlayer == player and equipped[weaponName] and equipped[weaponName].Wrap and result and result._UpdateWrap then
+                                result:_UpdateWrap()
+                                task.delay(0.1, function() if not result._destroyed then result:_UpdateWrap() end end)
+                            end
+                            return result
                         end
-                        local result = originalNew(replicatedData, clientItem)
-                        if weaponPlayer == player and equipped[weaponName] and equipped[weaponName].Wrap and result._UpdateWrap then
-                            result:_UpdateWrap()
-                            task.delay(0.1, function() if not result._destroyed then result:_UpdateWrap() end end)
-                        end
-                        return result
                     end
                 end
                 
-                -- 7. ItemLibrary.GetViewModelImageFromWeaponData (단일 후킹)
                 local originalGetViewModelImage = ItemLibrary.GetViewModelImageFromWeaponData
                 ItemLibrary.GetViewModelImageFromWeaponData = function(self, weaponData, highRes)
                     if not weaponData then return originalGetViewModelImage(self, weaponData, highRes) end
@@ -384,46 +415,39 @@ UnlockGroupBox:AddButton({
                     return originalGetViewModelImage(self, weaponData, highRes)
                 end
                 
-                -- 8. EmoteController (단일 후킹)
-                pcall(function() 
-                    local EmoteController = require(controllers:WaitForChild("EmoteController", 10))
-                    if EmoteController and EmoteController.GetEmotes then
-                        local originalGetEmotes = EmoteController.GetEmotes
-                        EmoteController.GetEmotes = function(self)
-                            local emotes = originalGetEmotes(self)
-                            for name, cosmetic in pairs(CosmeticLibrary.Cosmetics) do
-                                if isValidCosmetic(name) and (cosmetic.Type == "Dance" or cosmetic.Type == "Emote") then
-                                    if not emotes[name] then
-                                        emotes[name] = {
-                                            Name = name, Type = cosmetic.Type,
-                                            ObjectID = cosmetic.ObjectID, Enum = cosmetic.Enum
-                                        }
-                                    end
+                local EmoteController = safeRequire(safeWait(controllers, "EmoteController", 10))
+                if EmoteController and EmoteController.GetEmotes then
+                    local originalGetEmotes = EmoteController.GetEmotes
+                    EmoteController.GetEmotes = function(self)
+                        local emotes = originalGetEmotes(self)
+                        for name, cosmetic in pairs(CosmeticLibrary.Cosmetics) do
+                            if isValidCosmetic(name) and (cosmetic.Type == "Dance" or cosmetic.Type == "Emote") then
+                                if not emotes[name] then
+                                    emotes[name] = {
+                                        Name = name, Type = cosmetic.Type,
+                                        ObjectID = cosmetic.ObjectID, Enum = cosmetic.Enum
+                                    }
                                 end
                             end
-                            return emotes
                         end
+                        return emotes
                     end
-                end)
+                end
                 
-                -- 9. ViewProfile (단일 후킹)
-                pcall(function()
-                    local ViewProfile = require(playerScripts.Modules.Pages.ViewProfile)
-                    if ViewProfile and ViewProfile.Fetch then
-                        local originalFetch = ViewProfile.Fetch
-                        ViewProfile.Fetch = function(self, targetPlayer)
-                            viewingProfile = targetPlayer
-                            return originalFetch(self, targetPlayer)
-                        end
+                local ViewProfile = safeRequire(safeWait(safeWait(playerScripts, "Modules", 10), "Pages", 10) and safeWait(playerScripts.Modules.Pages, "ViewProfile", 10))
+                if ViewProfile and ViewProfile.Fetch then
+                    local originalFetch = ViewProfile.Fetch
+                    ViewProfile.Fetch = function(self, targetPlayer)
+                        viewingProfile = targetPlayer
+                        return originalFetch(self, targetPlayer)
                     end
-                end)
+                end
                 
                 loadConfig()
+                Library:Notify("Unlock All successfully loaded! (No Lag)")
             end)
 
-            if success then
-                Library:Notify("Unlock All successfully loaded! (Optimized)")
-            else
+            if not success then
                 Library:Notify("Error loading Unlock All: " .. tostring(err))
                 warn("UnlockAll Error:", err)
             end
