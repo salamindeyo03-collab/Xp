@@ -41,6 +41,8 @@ local success, err = pcall(function()
     local Players = game:GetService("Players")
     local RunService = game:GetService("RunService")
     local UserInputService = game:GetService("UserInputService")
+    local CollectionService = game:GetService("CollectionService")
+    local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
     local player = Players.LocalPlayer
     local camera = workspace.CurrentCamera
@@ -164,19 +166,19 @@ local success, err = pcall(function()
     AimbotGroupBox:AddSlider("AimbotDistance", { Text = "Max Distance", Default = 1000, Min = 1, Max = 5000, Rounding = 0, Callback = function(Value) MAX_DISTANCE = Value end })
 
     -- ==========================================
-    -- SILENT AIM 설정 (카메라 잠금 전용)
+    -- SILENT AIM 설정 (Raycast 후킹 방식)
     -- ==========================================
     local SA_ENABLED = false
-    local SA_FOV = 100
-    local SA_WALLCHECK = true
+    local SA_FOV = 300
     local SA_SHOW_FOV = false
+    local SA_HIT_PART = "Head"
 
     local saFovCircle = nil
     if Drawing then
         pcall(function()
             saFovCircle = Drawing.new("Circle")
             saFovCircle.Color = Color3.fromRGB(255, 0, 0)
-            saFovCircle.Thickness = 2
+            saFovCircle.Thickness = 1
             saFovCircle.Transparency = 1
             saFovCircle.Filled = false
             saFovCircle.Visible = false
@@ -184,70 +186,78 @@ local success, err = pcall(function()
         end)
     end
 
-    local function isLobbyVisible()
-        local ok, res = pcall(function() return player.PlayerGui.MainGui.MainFrame.Lobby.Currency.Visible == true end)
-        return ok and res or false
-    end
+    local UtilityModule = nil
+    local originalRaycast = nil
 
-    local function getSilentTarget()
-        local closest, dist = nil, SA_FOV
-        local mousePos = UserInputService:GetMouseLocation()
-        local localRoot = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
-        if not localRoot then return nil end
-        
-        local rayParams = RaycastParams.new()
-        rayParams.FilterType = Enum.RaycastFilterType.Blacklist
-        rayParams.FilterDescendantsInstances = {player.Character}
-        rayParams.IgnoreWater = true
-        
-        for _, plr in pairs(Players:GetPlayers()) do
-            if plr ~= player and plr.Character and plr.Character:FindFirstChild("Head") and plr.Character:FindFirstChild("Humanoid") then
-                if plr.Character.Humanoid.Health > 0 then
-                    local pos, onScreen = camera:WorldToViewportPoint(plr.Character.Head.Position)
+    pcall(function()
+        UtilityModule = require(ReplicatedStorage.Modules.Utility)
+        if UtilityModule and UtilityModule.Raycast then
+            originalRaycast = UtilityModule.Raycast
+        end
+    end)
+
+    local function getSilentTargetPart()
+        local screenCenter = Vector2.new(camera.ViewportSize.X / 2, camera.ViewportSize.Y / 2)
+        local closestPart = nil
+        local shortestDist = SA_FOV
+
+        for _, entity in CollectionService:GetTagged("Entity") do
+            if entity ~= player.Character then
+                local hitPart = entity:FindFirstChild(SA_HIT_PART, true)
+                if hitPart and hitPart:IsA("BasePart") then
+                    local screenPos, onScreen = camera:WorldToViewportPoint(hitPart.Position)
                     if onScreen then
-                        local d = (Vector2.new(pos.X, pos.Y) - mousePos).Magnitude
-                        if d < dist then
-                            local canSee = true
-                            if SA_WALLCHECK then
-                                local origin = camera.CFrame.Position
-                                local direction = (plr.Character.Head.Position - origin)
-                                local hit = workspace:Raycast(origin, direction, rayParams)
-                                if hit and hit.Instance and not hit.Instance:IsDescendantOf(plr.Character) then
-                                    canSee = false
-                                end
-                            end
-                            if canSee then
-                                dist = d
-                                closest = plr.Character
-                            end
+                        local dist = (screenCenter - Vector2.new(screenPos.X, screenPos.Y)).Magnitude
+                        if dist < shortestDist then
+                            shortestDist = dist
+                            closestPart = hitPart
                         end
                     end
                 end
             end
         end
-        return closest
+        return closestPart
     end
 
-    local SilentAimRenderConnection
-    SilentAimRenderConnection = RunService.RenderStepped:Connect(function()
-        pcall(function()
-            if SA_SHOW_FOV and saFovCircle then
-                local mousePos = UserInputService:GetMouseLocation()
-                saFovCircle.Position = Vector2.new(mousePos.X, mousePos.Y)
-                saFovCircle.Radius = SA_FOV
-                saFovCircle.Visible = true
-            elseif saFovCircle then
-                saFovCircle.Visible = false
+    if originalRaycast then
+        UtilityModule.Raycast = function(self, origin, direction, distance, params, ignoreWater, debug)
+            if not SA_ENABLED or type(distance) ~= "number" or distance < 100 then
+                return originalRaycast(self, origin, direction, distance, params, ignoreWater, debug)
             end
 
-            local isKeybindActive = false
-            if Options.SilentAimKeybind then isKeybindActive = Options.SilentAimKeybind:GetState() end
+            local targetPart = getSilentTargetPart()
+            if not targetPart then
+                return originalRaycast(self, origin, direction, distance, params, ignoreWater, debug)
+            end
 
-            if SA_ENABLED and isKeybindActive and not isLobbyVisible() then
-                local target = getSilentTarget()
-                if target and target.Head then
-                    local cameraPosition = camera.CFrame.Position
-                    camera.CFrame = CFrame.new(cameraPosition, target.Head.Position)
+            local targetPos = targetPart.Position
+            local newDir = (targetPos - origin).Unit
+            local newDist = (targetPos - origin).Magnitude
+
+            if newDist > distance then
+                newDist = distance
+                targetPos = origin + (newDir * distance)
+            end
+
+            return {
+                Position = targetPos,
+                Distance = newDist,
+                Instance = targetPart,
+                Material = targetPart.Material,
+                Normal = -newDir
+            }
+        end
+    end
+
+    RunService.RenderStepped:Connect(function()
+        pcall(function()
+            if saFovCircle then
+                if SA_SHOW_FOV then
+                    saFovCircle.Position = camera.ViewportSize / 2
+                    saFovCircle.Radius = SA_FOV
+                    saFovCircle.Visible = true
+                else
+                    saFovCircle.Visible = false
                 end
             end
         end)
@@ -255,10 +265,9 @@ local success, err = pcall(function()
 
     local SilentAimGroupBox = Tabs.Main:AddLeftGroupbox("Silent Aim")
     SilentAimGroupBox:AddToggle("SilentAimToggle", { Text = "Enable Silent Aim", Default = false, Callback = function(Value) SA_ENABLED = Value end })
-    SilentAimGroupBox:AddLabel("Silent Aim Keybind"):AddKeyPicker("SilentAimKeybind", { Default = "MB2", SyncToggleState = false, Mode = "Hold", Text = "Silent Key", NoUI = false })
     SilentAimGroupBox:AddToggle("SilentAimShowFOV", { Text = "Show Silent FOV", Default = false, Callback = function(Value) SA_SHOW_FOV = Value end })
-    SilentAimGroupBox:AddToggle("SilentAimWallCheck", { Text = "Wall Check", Default = true, Callback = function(Value) SA_WALLCHECK = Value end })
-    SilentAimGroupBox:AddSlider("SilentAimFOV", { Text = "Silent FOV Radius", Default = 100, Min = 1, Max = 1000, Rounding = 0, Callback = function(Value) SA_FOV = Value end })
+    SilentAimGroupBox:AddSlider("SilentAimFOV", { Text = "Silent FOV Radius", Default = 300, Min = 1, Max = 1000, Rounding = 0, Callback = function(Value) SA_FOV = Value end })
+    SilentAimGroupBox:AddDropdown("SilentAimHitPart", { Text = "Hit Part", Values = {"Head", "HumanoidRootPart", "Torso"}, Default = 1, Callback = function(Value) SA_HIT_PART = Value end })
 
     -- ==========================================
     -- TRIGGERBOT 설정 (자동 사격 전용)
@@ -267,6 +276,11 @@ local success, err = pcall(function()
     local TB_FOV = 50
     local TB_WALLCHECK = true
     local TB_DELAY = 0.05
+
+    local function isLobbyVisible()
+        local ok, res = pcall(function() return player.PlayerGui.MainGui.MainFrame.Lobby.Currency.Visible == true end)
+        return ok and res or false
+    end
 
     local function getTriggerTarget()
         local closest, dist = nil, TB_FOV
@@ -367,7 +381,6 @@ local success, err = pcall(function()
 
             task.delay(1, function()
                 local success, err = pcall(function()
-                    local ReplicatedStorage = game:GetService("ReplicatedStorage")
                     local HttpService = game:GetService("HttpService")
                     local playerScripts = safeWait(player, "PlayerScripts", 10)
                     if not playerScripts then return end
@@ -533,6 +546,9 @@ local success, err = pcall(function()
                                 
                                 if self == equipRemote then
                                     local weaponName, cosmeticType, cosmeticName, options = args[1], args[2], args[3], args[4] or {}
+                                    -- 장착 이벤트 발생 시 현재 무기 확실히 기록 (피니셔 독립성 확보)
+                                    if weaponName then lastUsedWeapon = weaponName end
+
                                     if cosmeticType == "Dance" or cosmeticType == "Emote" then
                                         equipped.Dances = equipped.Dances or {}
                                         if not cosmeticName or cosmeticName == "None" or cosmeticName == "" then
@@ -598,7 +614,7 @@ local success, err = pcall(function()
                             local weaponPlayer = self.ClientFighter and self.ClientFighter.Player
                             constructingWeapon = (weaponPlayer == player) and weaponName or nil
                             
-                            -- 무기를 들었을 때 마지막으로 사용한 무기 확실하게 기록 (피니셔 발동용)
+                            -- 무기를 들었을 때 마지막으로 사용한 무기 확실하게 기록
                             if weaponPlayer == player then
                                 lastUsedWeapon = weaponName
                             end
@@ -862,7 +878,6 @@ local success, err = pcall(function()
     Library:OnUnload(function()
         WatermarkConnection:Disconnect()
         if AimbotRenderConnection then AimbotRenderConnection:Disconnect() end
-        if SilentAimRenderConnection then SilentAimRenderConnection:Disconnect() end
         pcall(function() if fovCircle then fovCircle.Visible = false fovCircle:Remove() end end)
         pcall(function() if saFovCircle then saFovCircle.Visible = false saFovCircle:Remove() end end)
         print("Unloaded!")
