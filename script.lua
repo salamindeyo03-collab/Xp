@@ -38,7 +38,7 @@ local Tabs = {
 }
 
 -- ==========================================
--- AIMBOT 설정 및 초기화 (안전성 강화)
+-- AIMBOT 설정 및 초기화
 -- ==========================================
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
@@ -69,18 +69,17 @@ end
 
 -- FOV 안에 있는 가장 가까운 적 찾기
 local function getTarget()
+    if not camera then return nil end
     local closest, dist = nil, AIM_RADIUS
     local screenCenter = Vector2.new(camera.ViewportSize.X / 2, camera.ViewportSize.Y / 2)
     
     for _, plr in pairs(Players:GetPlayers()) do
-        if plr ~= player then -- 자기 자신 제외
+        if plr ~= player then
             local char = plr.Character
             if char and char:FindFirstChild("Head") and char:FindFirstChild("Humanoid") then
-                if char.Humanoid.Health > 0 then -- 살아있는 플레이어만
-                    -- 팀 체크 (continue 대신 if not 사용)
+                if char.Humanoid.Health > 0 then
                     local isTeammate = teamCheck and player.Team and plr.Team == player.Team
                     if not isTeammate then
-                        -- 화면상에 있는지 2D 좌표로 확인
                         local screenPos, onScreen = camera:WorldToViewportPoint(char.Head.Position)
                         if onScreen then
                             local d = (Vector2.new(screenPos.X, screenPos.Y) - screenCenter).Magnitude
@@ -98,11 +97,11 @@ local function getTarget()
 end
 
 RunService.RenderStepped:Connect(function()
-    -- pcall로 감싸서 에러 발생 시 스크립트가 멈추지 않도록 방지
     local success, err = pcall(function()
-        -- FOV 원 그리기 (마우스 위치 기준)
+        -- FOV 원 그리기
         if showFOV and fovCircle then
-            local mousePos = UserInputService:GetMouseLocation()
+            local mousePos = Vector2.new(0, 0)
+            pcall(function() mousePos = UserInputService:GetMouseLocation() end)
             fovCircle.Position = Vector2.new(mousePos.X, mousePos.Y)
             fovCircle.Radius = AIM_RADIUS
             fovCircle.Visible = true
@@ -115,7 +114,7 @@ RunService.RenderStepped:Connect(function()
             local target = getTarget()
             if target then
                 local head = target:FindFirstChild("Head")
-                if head then
+                if head and camera then
                     local screenPos = camera:WorldToViewportPoint(head.Position)
                     local targetVec = Vector2.new(screenPos.X, screenPos.Y)
                     local screenCenter = Vector2.new(camera.ViewportSize.X / 2, camera.ViewportSize.Y / 2)
@@ -124,7 +123,6 @@ RunService.RenderStepped:Connect(function()
                     local smooth = math.max(1, SMOOTH_FACTOR)
                     local moveStep = move / smooth
                     
-                    -- mousemoverel 함수가 존재할 때만 실행
                     if mousemoverel then
                         mousemoverel(moveStep.X, moveStep.Y)
                     end
@@ -134,11 +132,10 @@ RunService.RenderStepped:Connect(function()
     end)
     
     if not success then
-        warn("Aimbot RenderStepped Error:", err)
+        warn("Aimbot Error:", err)
     end
 end)
 
--- 맨 왼쪽 그룹박스에 에임봇 UI 추가
 local AimbotGroupBox = Tabs.Main:AddLeftGroupbox("Aimbot")
 
 AimbotGroupBox:AddToggle("AimbotToggle", {
@@ -190,7 +187,6 @@ AimbotGroupBox:AddSlider("AimbotFOV", {
     end
 })
 
--- 기존 그룹박스들
 local LeftGroupBox = Tabs.Main:AddLeftGroupbox("Groupbox")
 local UnlockGroupBox = Tabs.Main:AddRightGroupbox("Unlock All")
 
@@ -259,7 +255,7 @@ UnlockGroupBox:AddButton({
                     if validCache[name] ~= nil then return validCache[name] end
                     if name:find("MISSING_") then validCache[name] = false return false end
                     
-                    local cosmetic = CosmeticLibrary.Cosmetics[name]
+                    local cosmetic = CosmeticLibrary.Cosmetics and CosmeticLibrary.Cosmetics[name]
                     local result = false
                     if cosmetic then
                         if ValidTypes[cosmetic.Type] then result = true end
@@ -273,7 +269,7 @@ UnlockGroupBox:AddButton({
                 end
                 
                 local function cloneCosmetic(name, cosmeticType, options)
-                    local base = CosmeticLibrary.Cosmetics[name]
+                    local base = CosmeticLibrary.Cosmetics and CosmeticLibrary.Cosmetics[name]
                     if not base then return nil end
                     local data = {}
                     for key, value in pairs(base) do data[key] = value end
@@ -328,13 +324,14 @@ UnlockGroupBox:AddButton({
                     end)
                 end
                 
-                local originalOwnsCosmetic = CosmeticLibrary.OwnsCosmetic
+                -- 함수가 없으면 빈 함수로 대체 (nil call 에러 방지)
+                local originalOwnsCosmetic = CosmeticLibrary.OwnsCosmetic or function() return false end
                 CosmeticLibrary.OwnsCosmetic = function(self, inventory, name, weapon)
                     if isValidCosmetic(name) then return true end
                     return originalOwnsCosmetic(self, inventory, name, weapon)
                 end
                 
-                local originalGet = DataController.Get
+                local originalGet = DataController.Get or function() return nil end
                 DataController.Get = function(self, key)
                     local data = originalGet(self, key)
                     if key == "CosmeticInventory" then
@@ -360,7 +357,7 @@ UnlockGroupBox:AddButton({
                     return data
                 end
                 
-                local originalGetWeaponData = DataController.GetWeaponData
+                local originalGetWeaponData = DataController.GetWeaponData or function() return nil end
                 DataController.GetWeaponData = function(self, weaponName)
                     local data = originalGetWeaponData(self, weaponName)
                     if not data then return nil end
@@ -558,7 +555,7 @@ UnlockGroupBox:AddButton({
                     end
                 end
                 
-                local originalGetViewModelImage = ItemLibrary.GetViewModelImageFromWeaponData
+                local originalGetViewModelImage = ItemLibrary.GetViewModelImageFromWeaponData or function() return nil end
                 ItemLibrary.GetViewModelImageFromWeaponData = function(self, weaponData, highRes)
                     if not weaponData then return originalGetViewModelImage(self, weaponData, highRes) end
                     local weaponName = weaponData.Name
@@ -1031,29 +1028,40 @@ Library:SetWatermarkVisibility(true)
 local FrameTimer = tick()
 local FrameCounter = 0;
 local FPS = 60;
-local GetPing = (function() return math.floor(game:GetService("Stats").Network.ServerStatsItem["Data Ping"]:GetValue()) end)
-local CanDoPing = pcall(function() return GetPing(); end)
+
+-- 워터마크 에러 방지를 위한 안전한 핑 계산 함수
+local function GetSafePing()
+    local ok, result = pcall(function()
+        local stats = game:GetService("Stats")
+        local network = stats:FindFirstChild("Network")
+        if not network then return 0 end
+        local serverStats = network:FindFirstChild("ServerStatsItem")
+        if not serverStats then return 0 end
+        local dataPing = serverStats:FindFirstChild("Data Ping")
+        if not dataPing then return 0 end
+        return math.floor(dataPing:GetValue())
+    end)
+    return ok and result or 0
+end
 
 local WatermarkConnection = game:GetService("RunService").RenderStepped:Connect(function()
-    FrameCounter += 1;
+    pcall(function()
+        FrameCounter += 1;
 
-    if (tick() - FrameTimer) >= 1 then
-        FPS = FrameCounter;
-        FrameTimer = tick();
-        FrameCounter = 0;
-    end;
+        if (tick() - FrameTimer) >= 1 then
+            FPS = FrameCounter;
+            FrameTimer = tick();
+            FrameCounter = 0;
+        end;
 
-    if CanDoPing then
-        Library:SetWatermark(("LinoriaLib demo | %d fps | %d ms"):format(
-            math.floor(FPS),
-            GetPing()
-        ));
-    else
-        Library:SetWatermark(("LinoriaLib demo | %d fps"):format(
-            math.floor(FPS)
-        ));
-    end
-end);
+        local ping = GetSafePing()
+        if ping > 0 then
+            Library:SetWatermark(("LinoriaLib demo | %d fps | %d ms"):format(math.floor(FPS), ping))
+        else
+            Library:SetWatermark(("LinoriaLib demo | %d fps"):format(math.floor(FPS)))
+        end
+    end)
+end)
 
 Library:OnUnload(function()
     WatermarkConnection:Disconnect()
