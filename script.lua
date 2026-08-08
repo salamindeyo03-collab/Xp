@@ -37,29 +37,28 @@ local success, err = pcall(function()
     task.spawn(function()
         task.wait(1) -- UI가 완전히 생성될 때까지 대기
         pcall(function()
-            -- 새로운 CLogo 이미지 링크
-            local logoUrl = "https://raw.githubusercontent.com/salamindeyo03-collab/CLogo/main/d3650a90-9305-11f1-8d9b-7b07d89febc0.webp"
+            -- 새로운 SLogo 이미지 링크
+            local logoUrl = "https://raw.githubusercontent.com/salamindeyo03-collab/SLogo/main/RealLast.png"
             local assetId = nil
             
             if writefile and (getcustomasset or getsynasset) then
-                if isfile("clogo.webp") and #readfile("clogo.webp") < 1000 then
-                    pcall(function() delfile("clogo.webp") end)
+                if isfile("slogo.png") and #readfile("slogo.png") < 1000 then
+                    pcall(function() delfile("slogo.png") end)
                 end
                 
-                if not isfile("clogo.webp") then
+                if not isfile("slogo.png") then
                     local ok, imgData = pcall(function() return game:HttpGet(logoUrl) end)
                     if ok and imgData and #imgData > 1000 then
-                        writefile("clogo.webp", imgData)
+                        writefile("slogo.png", imgData)
                     end
                 end
                 
-                if isfile("clogo.webp") and #readfile("clogo.webp") > 1000 then
+                if isfile("slogo.png") and #readfile("slogo.png") > 1000 then
                     local getAsset = getcustomasset or getsynasset
-                    assetId = getAsset("clogo.webp")
+                    assetId = getAsset("slogo.png")
                 end
             end
             
-            -- UI 프레임 찾기
             local windowFrame = Window.Window or Window.WindowFrame or Window.Main
             if not windowFrame then
                 for k, v in pairs(Window) do
@@ -71,44 +70,25 @@ local success, err = pcall(function()
             end
             
             if windowFrame then
-                -- 1. 메인 창 배경(Window.Background) 찾기 및 검은색 불투명으로 고정
-                local bgFrame = windowFrame:FindFirstChild("Background")
-                if bgFrame then
-                    bgFrame.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
-                    bgFrame.BackgroundTransparency = 0
-                    bgFrame.ZIndex = 1
-                    
-                    -- 로고를 배경(Window.Background)의 자식으로 넣어서 확실히 보이게 만듦
-                    if assetId then
-                        local logoImg = Instance.new("ImageLabel")
-                        logoImg.Name = "CenterLogo"
-                        logoImg.Image = assetId
-                        logoImg.BackgroundColor3 = Color3.fromRGB(0, 0, 0) -- 사진 주변 검은색 채우기
-                        logoImg.BackgroundTransparency = 0
-                        
-                        logoImg.Size = UDim2.new(1, 0, 1, 0) -- 배경에 꽉 채우되 Fit으로 비율 유지
-                        logoImg.Position = UDim2.new(0.5, 0, 0.5, 0)
-                        logoImg.AnchorPoint = Vector2.new(0.5, 0.5)
-                        -- ZIndex 2: 배경(1) 위, 버튼/그룹박스(5 이상) 아래
-                        logoImg.ZIndex = 2 
-                        logoImg.ImageTransparency = 0 -- 완전 불투명
-                        logoImg.ScaleType = Enum.ScaleType.Fit
-                        logoImg.Active = false
-                        logoImg.Parent = bgFrame
-                    end
-                end
-                
-                -- 2. 글꼴 고정 및 GroupBox의 모든 테두리/배경/층 완전 제거
+                -- 1. 글꼴 고정 및 창 배경 검은색화 + GroupBox 투명화
                 for _, v in pairs(windowFrame:GetDescendants()) do
-                    -- 글꼴 통일
                     if v:IsA("TextLabel") or v:IsA("TextButton") or v:IsA("TextBox") then
                         v.Font = Enum.Font.Gotham
                     end
                     
-                    -- GroupBox의 배경, 컨테이너, 테두리, 그림자, 제목 등 모든 층을 투명화하여 제거
+                    -- 메인 창 배경 검은색 불투명 (가장 아래 레이어)
+                    if v:IsA("Frame") and v.Name == "Background" then
+                        v.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+                        v.BackgroundTransparency = 0
+                        v.ZIndex = 0
+                    end
+                    
+                    -- GroupBox 배경, 컨테이너, 테두리 완전 제거 (투명화)
                     if v:IsA("Frame") and v.Name == "GroupBox" then
+                        v.BackgroundTransparency = 1
+                        v.BorderSizePixel = 0
                         for _, child in pairs(v:GetDescendants()) do
-                            if child:IsA("Frame") then
+                            if child:IsA("Frame") and (child.Name == "Background" or child.Name == "Container" or child.Name == "List") then
                                 child.BackgroundTransparency = 1
                                 child.BorderSizePixel = 0
                             elseif child:IsA("UIStroke") then
@@ -122,14 +102,30 @@ local success, err = pcall(function()
                         end
                     end
                     
-                    -- 메인 창, 탭 박스 등의 외곽 테두리도 제거
-                    if v:IsA("UIStroke") and v.Parent then
-                        local parentName = v.Parent.Name
-                        if parentName == "GroupBox" or parentName == "Window" or parentName == "TabBox" or parentName == "Background" or parentName == "WindowFrame" then
-                            v.Transparency = 1
-                            v.Thickness = 0
-                        end
+                    -- 메인 창, 탭 등 외곽선 제거
+                    if v:IsA("UIStroke") and v.Parent and (v.Parent.Name == "GroupBox" or v.Parent.Name == "Window" or v.Parent.Name == "TabBox" or v.Parent.Name == "WindowFrame") then
+                        v.Transparency = 1
+                        v.Thickness = 0
                     end
+                end
+                
+                -- 2. 로고 이미지 삽입 (창에 꽉 채우되 비율 유지)
+                if assetId then
+                    local logoImg = Instance.new("ImageLabel")
+                    logoImg.Name = "CenterLogo"
+                    logoImg.Image = assetId
+                    logoImg.BackgroundColor3 = Color3.fromRGB(0, 0, 0) -- 사진 주변 검은색
+                    logoImg.BackgroundTransparency = 0
+                    -- 창 크기에 꽉 맞춤
+                    logoImg.Size = UDim2.new(1, 0, 1, 0)
+                    logoImg.Position = UDim2.new(0, 0, 0, 0)
+                    logoImg.AnchorPoint = Vector2.new(0, 0)
+                    -- ZIndex 1: 배경(0) 바로 위, 버튼/그룹박스(5 이상) 뒤
+                    logoImg.ZIndex = 1 
+                    logoImg.ImageTransparency = 0
+                    logoImg.ScaleType = Enum.ScaleType.Fit
+                    logoImg.Active = false
+                    logoImg.Parent = windowFrame
                 end
             end
         end)
