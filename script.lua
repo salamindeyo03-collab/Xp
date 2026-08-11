@@ -200,56 +200,71 @@ local success, err = pcall(function()
         end)
     end
 
-    local UtilityModule = require(ReplicatedStorage:WaitForChild("Modules"):WaitForChild("Utility"))
-    local originalRaycast = UtilityModule.Raycast
+    local function safeWait(parent, name, timeout)
+        if not parent then return nil end
+        local success, obj = pcall(function() return parent:WaitForChild(name, timeout or 5) end)
+        return success and obj or nil
+    end
+    local function safeRequire(path)
+        if not path then return nil end
+        local success, module = pcall(function() return require(path) end)
+        return success and module or nil
+    end
 
-    local function getSilentTargetPart()
-        local screenCenter = Vector2.new(camera.ViewportSize.X / 2, camera.ViewportSize.Y / 2)
-        local closestPart = nil
-        local shortestDist = SA_FOV
-        local rayParams = RaycastParams.new()
-        rayParams.FilterType = Enum.RaycastFilterType.Blacklist
-        rayParams.FilterDescendantsInstances = {player.Character}
-        rayParams.IgnoreWater = true
+    -- UtilityModule 무한 대기 방지
+    local modulesFolder = safeWait(ReplicatedStorage, "Modules", 10)
+    local UtilityModule = modulesFolder and safeRequire(safeWait(modulesFolder, "Utility", 10))
+    local originalRaycast = UtilityModule and UtilityModule.Raycast or nil
 
-        for _, plr in pairs(Players:GetPlayers()) do
-            if plr ~= player and plr.Character then
-                local isTeammate = SA_TEAMCHECK and player.Team and plr.Team == player.Team
-                if not isTeammate then
-                    local humanoid = plr.Character:FindFirstChildOfClass("Humanoid")
-                    local targetPart = getHitboxPart(plr.Character, saHitbox)
-                    if targetPart and humanoid and humanoid.Health > 0 then
-                        local screenPos, onScreen = camera:WorldToViewportPoint(targetPart.Position)
-                        if onScreen and screenPos.Z > 0 then
-                            local dist = (screenCenter - Vector2.new(screenPos.X, screenPos.Y)).Magnitude
-                            if dist < shortestDist then
-                                local canSee = true
-                                if SA_WALLCHECK then
-                                    local hit = workspace:Raycast(camera.CFrame.Position, (targetPart.Position - camera.CFrame.Position), rayParams)
-                                    if hit and hit.Instance and not hit.Instance:IsDescendantOf(plr.Character) then canSee = false end
+    if UtilityModule and originalRaycast then
+        local function getSilentTargetPart()
+            local screenCenter = Vector2.new(camera.ViewportSize.X / 2, camera.ViewportSize.Y / 2)
+            local closestPart = nil
+            local shortestDist = SA_FOV
+            local rayParams = RaycastParams.new()
+            rayParams.FilterType = Enum.RaycastFilterType.Blacklist
+            rayParams.FilterDescendantsInstances = {player.Character}
+            rayParams.IgnoreWater = true
+
+            for _, plr in pairs(Players:GetPlayers()) do
+                if plr ~= player and plr.Character then
+                    local isTeammate = SA_TEAMCHECK and player.Team and plr.Team == player.Team
+                    if not isTeammate then
+                        local humanoid = plr.Character:FindFirstChildOfClass("Humanoid")
+                        local targetPart = getHitboxPart(plr.Character, saHitbox)
+                        if targetPart and humanoid and humanoid.Health > 0 then
+                            local screenPos, onScreen = camera:WorldToViewportPoint(targetPart.Position)
+                            if onScreen and screenPos.Z > 0 then
+                                local dist = (screenCenter - Vector2.new(screenPos.X, screenPos.Y)).Magnitude
+                                if dist < shortestDist then
+                                    local canSee = true
+                                    if SA_WALLCHECK then
+                                        local hit = workspace:Raycast(camera.CFrame.Position, (targetPart.Position - camera.CFrame.Position), rayParams)
+                                        if hit and hit.Instance and not hit.Instance:IsDescendantOf(plr.Character) then canSee = false end
+                                    end
+                                    if canSee then shortestDist = dist closestPart = targetPart end
                                 end
-                                if canSee then shortestDist = dist closestPart = targetPart end
                             end
                         end
                     end
                 end
             end
+            return closestPart
         end
-        return closestPart
-    end
 
-    UtilityModule.Raycast = function(self, origin, direction, distance, params, ignoreWater, debug)
-        local isKeybindActive = Options.SilentAimKeybind and Options.SilentAimKeybind:GetState() or false
-        if not SA_ENABLED or not isKeybindActive or type(distance) ~= "number" or distance < 100 then
-            return originalRaycast(self, origin, direction, distance, params, ignoreWater, debug)
+        UtilityModule.Raycast = function(self, origin, direction, distance, params, ignoreWater, debug)
+            local isKeybindActive = Options.SilentAimKeybind and Options.SilentAimKeybind:GetState() or false
+            if not SA_ENABLED or not isKeybindActive or type(distance) ~= "number" or distance < 100 then
+                return originalRaycast(self, origin, direction, distance, params, ignoreWater, debug)
+            end
+            local targetPart = getSilentTargetPart()
+            if not targetPart then return originalRaycast(self, origin, direction, distance, params, ignoreWater, debug) end
+            local targetPos = targetPart.Position
+            local newDir = (targetPos - origin).Unit
+            local newDist = (targetPos - origin).Magnitude
+            if newDist > distance then newDist = distance targetPos = origin + (newDir * distance) end
+            return { Position = targetPos, Distance = newDist, Instance = targetPart, Material = targetPart.Material, Normal = -newDir }
         end
-        local targetPart = getSilentTargetPart()
-        if not targetPart then return originalRaycast(self, origin, direction, distance, params, ignoreWater, debug) end
-        local targetPos = targetPart.Position
-        local newDir = (targetPos - origin).Unit
-        local newDist = (targetPos - origin).Magnitude
-        if newDist > distance then newDist = distance targetPos = origin + (newDir * distance) end
-        return { Position = targetPos, Distance = newDist, Instance = targetPart, Material = targetPart.Material, Normal = -newDir }
     end
 
     RunService.RenderStepped:Connect(function()
@@ -347,20 +362,10 @@ local success, err = pcall(function()
     TriggerbotGroupBox:AddSlider("TriggerbotDelay", { Text = "Fire Delay (sec)", Default = 0.05, Min = 0.01, Max = 1, Rounding = 2, Callback = function(Value) TB_DELAY = Value end })
 
     -- ==========================================
-    -- UNLOCK ALL 설정 (캐릭터 프리징/이동 버그 완벽 방지)
+    -- UNLOCK ALL 설정 (에러로 인한 프리징 완벽 방지)
     -- ==========================================
     local UnlockGroupBox = Tabs.Main:AddRightGroupbox("Unlock All")
     local unlockAllExecuted = false
-    local function safeWait(parent, name, timeout)
-        if not parent then return nil end
-        local success, obj = pcall(function() return parent:WaitForChild(name, timeout or 5) end)
-        return success and obj or nil
-    end
-    local function safeRequire(path)
-        if not path then return nil end
-        local success, module = pcall(function() return require(path) end)
-        return success and module or nil
-    end
 
     UnlockGroupBox:AddButton({
         Text = "Unlock All Cosmetics",
@@ -391,7 +396,8 @@ local success, err = pcall(function()
                     local validCache = {}
                     
                     local function isValidCosmetic(name)
-                        if not name then return false end
+                        -- 타입 검사 추가 (문자열이 아닐 경우 에러 방지)
+                        if type(name) ~= "string" then return false end
                         if validCache[name] ~= nil then return validCache[name] end
                         if name:find("MISSING_") then validCache[name] = false return false end
                         local cosmetic = CosmeticLibrary.Cosmetics and CosmeticLibrary.Cosmetics[name]
@@ -409,6 +415,7 @@ local success, err = pcall(function()
                     end
                     
                     local function cloneCosmetic(name, cosmeticType, options)
+                        if type(name) ~= "string" then return nil end
                         local base = CosmeticLibrary.Cosmetics and CosmeticLibrary.Cosmetics[name]
                         if not base then return nil end
                         local data = {}
@@ -469,14 +476,23 @@ local success, err = pcall(function()
                         local data = oldGet(self, key)
                         if key == "CosmeticInventory" then
                             local proxy = {}
-                            if data then for k, v in pairs(data) do if isValidCosmetic(k) then proxy[k] = v end end end
+                            if type(data) == "table" then
+                                for k, v in pairs(data) do
+                                    if isValidCosmetic(k) then proxy[k] = v end
+                                end
+                            end
                             return setmetatable(proxy, {__index = function(t, k) if isValidCosmetic(k) then return true end return nil end})
                         end
                         if key == "FavoritedCosmetics" then
-                            local result = data and table.clone(data) or {}
+                            local result = {}
+                            if type(data) == "table" then
+                                pcall(function() result = table.clone(data) end)
+                            end
                             for w, f in pairs(favorites) do
                                 result[w] = result[w] or {}
-                                for n, v in pairs(f) do if isValidCosmetic(n) then result[w][n] = v end end
+                                for n, v in pairs(f) do
+                                    if isValidCosmetic(n) then result[w][n] = v end
+                                end
                             end
                             return result
                         end
@@ -488,7 +504,9 @@ local success, err = pcall(function()
                         local data = oldGetW(self, weaponName)
                         if not data then return nil end
                         local merged = {}
-                        for k, v in pairs(data) do merged[k] = v end
+                        if type(data) == "table" then
+                            for k, v in pairs(data) do merged[k] = v end
+                        end
                         merged.Name = weaponName
                         if equipped[weaponName] then
                             for t, d in pairs(equipped[weaponName]) do merged[t] = d end
@@ -496,49 +514,50 @@ local success, err = pcall(function()
                         return merged
                     end
                     
-                    -- 캐릭터 프리징 방지를 위해 강제 Replicate 호출 제거
-                    if hookmetamethod then
-                        local equipRemote = ReplicatedStorage:FindFirstChild("Remotes") and ReplicatedStorage.Remotes:FindFirstChild("Data") and ReplicatedStorage.Remotes.Data:FindFirstChild("EquipCosmetic")
-                        if equipRemote then
-                            local oldNamecall = hookmetamethod(game, "__namecall", function(self, ...)
-                                if getnamecallmethod() ~= "FireServer" then return oldNamecall(self, ...) end
-                                local args = {...}
-                                if self == equipRemote then
-                                    local weaponName, cosmeticType, cosmeticName = args[1], args[2], args[3]
-                                    if weaponName then lastUsedWeapon = weaponName end
-                                    if cosmeticType == "Dance" or cosmeticType == "Emote" then
-                                        equipped.Dances = equipped.Dances or {}
-                                        if not cosmeticName or cosmeticName == "None" or cosmeticName == "" then
-                                            equipped.Dances[cosmeticType] = nil
-                                        else
-                                            local cloned = cloneCosmetic(cosmeticName, cosmeticType, {inverted = (args[4] or {}).IsInverted, favoritesOnly = (args[4] or {}).OnlyUseFavorites})
-                                            if cloned then equipped.Dances[cosmeticType] = cloned end
-                                        end
-                                        task.spawn(function() task.wait(0.2) saveConfig() end)
-                                        return
+                    -- Remotes 경로를 FindFirstChild로 안전하게 찾기 (에러 방지)
+                    local remotes = ReplicatedStorage:FindFirstChild("Remotes")
+                    local dataRemotes = remotes and remotes:FindFirstChild("Data")
+                    local equipRemote = dataRemotes and dataRemotes:FindFirstChild("EquipCosmetic")
+                    
+                    if equipRemote and hookmetamethod then
+                        local oldNamecall = hookmetamethod(game, "__namecall", function(self, ...)
+                            if getnamecallmethod() ~= "FireServer" then return oldNamecall(self, ...) end
+                            local args = {...}
+                            if self == equipRemote then
+                                local weaponName, cosmeticType, cosmeticName = args[1], args[2], args[3]
+                                if weaponName then lastUsedWeapon = weaponName end
+                                if cosmeticType == "Dance" or cosmeticType == "Emote" then
+                                    equipped.Dances = equipped.Dances or {}
+                                    if not cosmeticName or cosmeticName == "None" or cosmeticName == "" then
+                                        equipped.Dances[cosmeticType] = nil
                                     else
-                                        if (not cosmeticName or cosmeticName == "None" or cosmeticName == "") then
-                                            if equipped[weaponName] then
-                                                equipped[weaponName][cosmeticType] = nil
-                                                if not next(equipped[weaponName]) then equipped[weaponName] = nil end
-                                            end
-                                            task.spawn(function() task.wait(0.2) saveConfig() end)
-                                            return oldNamecall(self, ...)
-                                        end
-                                        if cosmeticName and cosmeticName ~= "None" and cosmeticName ~= "" then
-                                            local inv = DataController:Get("CosmeticInventory")
-                                            if inv and rawget(inv, cosmeticName) then return oldNamecall(self, ...) end
-                                        end
-                                        equipped[weaponName] = equipped[weaponName] or {}
                                         local cloned = cloneCosmetic(cosmeticName, cosmeticType, {inverted = (args[4] or {}).IsInverted, favoritesOnly = (args[4] or {}).OnlyUseFavorites})
-                                        if cloned then equipped[weaponName][cosmeticType] = cloned end
-                                        task.spawn(function() task.wait(0.2) saveConfig() end)
-                                        return
+                                        if cloned then equipped.Dances[cosmeticType] = cloned end
                                     end
+                                    task.spawn(function() task.wait(0.2) saveConfig() end)
+                                    return
+                                else
+                                    if (not cosmeticName or cosmeticName == "None" or cosmeticName == "") then
+                                        if equipped[weaponName] then
+                                            equipped[weaponName][cosmeticType] = nil
+                                            if not next(equipped[weaponName]) then equipped[weaponName] = nil end
+                                        end
+                                        task.spawn(function() task.wait(0.2) saveConfig() end)
+                                        return oldNamecall(self, ...)
+                                    end
+                                    if cosmeticName and cosmeticName ~= "None" and cosmeticName ~= "" then
+                                        local inv = DataController:Get("CosmeticInventory")
+                                        if inv and rawget(inv, cosmeticName) then return oldNamecall(self, ...) end
+                                    end
+                                    equipped[weaponName] = equipped[weaponName] or {}
+                                    local cloned = cloneCosmetic(cosmeticName, cosmeticType, {inverted = (args[4] or {}).IsInverted, favoritesOnly = (args[4] or {}).OnlyUseFavorites})
+                                    if cloned then equipped[weaponName][cosmeticType] = cloned end
+                                    task.spawn(function() task.wait(0.2) saveConfig() end)
+                                    return
                                 end
-                                return oldNamecall(self, ...)
-                            end)
-                        end
+                            end
+                            return oldNamecall(self, ...)
+                        end)
                     end
                     
                     loadConfig()
