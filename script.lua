@@ -347,7 +347,7 @@ local success, err = pcall(function()
     TriggerbotGroupBox:AddSlider("TriggerbotDelay", { Text = "Fire Delay (sec)", Default = 0.05, Min = 0.01, Max = 1, Rounding = 2, Callback = function(Value) TB_DELAY = Value end })
 
     -- ==========================================
-    -- UNLOCK ALL 설정 (프리징 현상 방지를 위해 task.wait 추가 및 무한루프 제거)
+    -- UNLOCK ALL 설정 (캐릭터 프리징/이동 버그 완벽 방지)
     -- ==========================================
     local UnlockGroupBox = Tabs.Main:AddRightGroupbox("Unlock All")
     local unlockAllExecuted = false
@@ -369,19 +369,20 @@ local success, err = pcall(function()
             if unlockAllExecuted then Library:Notify("Already executed!") return end
             unlockAllExecuted = true
             Library:Notify("Starting Unlock All...")
-            task.delay(1, function()
+            task.spawn(function()
+                task.wait(0.5)
                 pcall(function()
                     local HttpService = game:GetService("HttpService")
-                    local playerScripts = safeWait(player, "PlayerScripts", 10) task.wait()
-                    local controllers = safeWait(playerScripts, "Controllers", 10) task.wait()
-                    local modules = safeWait(ReplicatedStorage, "Modules", 10) task.wait()
+                    local playerScripts = safeWait(player, "PlayerScripts", 10) task.wait(0.1)
+                    local controllers = safeWait(playerScripts, "Controllers", 10) task.wait(0.1)
+                    local modules = safeWait(ReplicatedStorage, "Modules", 10) task.wait(0.1)
                     if not modules then return end
                     
-                    local EnumLibrary = safeRequire(safeWait(modules, "EnumLibrary", 10)) task.wait()
+                    local EnumLibrary = safeRequire(safeWait(modules, "EnumLibrary", 10)) task.wait(0.1)
                     if EnumLibrary and EnumLibrary.WaitForEnumBuilder then pcall(function() EnumLibrary:WaitForEnumBuilder() end) end
-                    local CosmeticLibrary = safeRequire(safeWait(modules, "CosmeticLibrary", 10)) task.wait()
-                    local ItemLibrary = safeRequire(safeWait(modules, "ItemLibrary", 10)) task.wait()
-                    local DataController = safeRequire(safeWait(controllers, "PlayerDataController", 10)) task.wait()
+                    local CosmeticLibrary = safeRequire(safeWait(modules, "CosmeticLibrary", 10)) task.wait(0.1)
+                    local ItemLibrary = safeRequire(safeWait(modules, "ItemLibrary", 10)) task.wait(0.1)
+                    local DataController = safeRequire(safeWait(controllers, "PlayerDataController", 10)) task.wait(0.1)
                     if not CosmeticLibrary or not ItemLibrary or not DataController then return end
                     
                     local equipped, favorites = {}, {}
@@ -495,7 +496,7 @@ local success, err = pcall(function()
                         return merged
                     end
                     
-                    local FighterController = safeRequire(safeWait(controllers, "FighterController", 10)) task.wait()
+                    -- 캐릭터 프리징 방지를 위해 강제 Replicate 호출 제거
                     if hookmetamethod then
                         local equipRemote = ReplicatedStorage:FindFirstChild("Remotes") and ReplicatedStorage.Remotes:FindFirstChild("Data") and ReplicatedStorage.Remotes.Data:FindFirstChild("EquipCosmetic")
                         if equipRemote then
@@ -513,7 +514,7 @@ local success, err = pcall(function()
                                             local cloned = cloneCosmetic(cosmeticName, cosmeticType, {inverted = (args[4] or {}).IsInverted, favoritesOnly = (args[4] or {}).OnlyUseFavorites})
                                             if cloned then equipped.Dances[cosmeticType] = cloned end
                                         end
-                                        task.defer(function() pcall(function() if DataController.CurrentData and DataController.CurrentData.Replicate then DataController.CurrentData:Replicate("CosmeticInventory") end end) task.wait(0.2) saveConfig() end)
+                                        task.spawn(function() task.wait(0.2) saveConfig() end)
                                         return
                                     else
                                         if (not cosmeticName or cosmeticName == "None" or cosmeticName == "") then
@@ -521,7 +522,7 @@ local success, err = pcall(function()
                                                 equipped[weaponName][cosmeticType] = nil
                                                 if not next(equipped[weaponName]) then equipped[weaponName] = nil end
                                             end
-                                            task.defer(function() pcall(function() if DataController.CurrentData and DataController.CurrentData.Replicate then DataController.CurrentData:Replicate("WeaponInventory") end end) task.wait(0.2) saveConfig() end)
+                                            task.spawn(function() task.wait(0.2) saveConfig() end)
                                             return oldNamecall(self, ...)
                                         end
                                         if cosmeticName and cosmeticName ~= "None" and cosmeticName ~= "" then
@@ -531,7 +532,7 @@ local success, err = pcall(function()
                                         equipped[weaponName] = equipped[weaponName] or {}
                                         local cloned = cloneCosmetic(cosmeticName, cosmeticType, {inverted = (args[4] or {}).IsInverted, favoritesOnly = (args[4] or {}).OnlyUseFavorites})
                                         if cloned then equipped[weaponName][cosmeticType] = cloned end
-                                        task.defer(function() pcall(function() if DataController.CurrentData and DataController.CurrentData.Replicate then DataController.CurrentData:Replicate("WeaponInventory") end end) task.wait(0.2) saveConfig() end)
+                                        task.spawn(function() task.wait(0.2) saveConfig() end)
                                         return
                                     end
                                 end
@@ -541,7 +542,6 @@ local success, err = pcall(function()
                     end
                     
                     loadConfig()
-                    -- 게임 과부하를 일으키던 무한 루프 코드를 제거했습니다.
                     Library:Notify("Unlock All loaded!")
                 end)
             end)
@@ -630,9 +630,9 @@ local success, err = pcall(function()
                         logoImg.Image = assetId
                         logoImg.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
                         logoImg.BackgroundTransparency = 0
-                        logoImg.Size = UDim2.new(1, 0, 1,0)
-                        logoImg.Position = UDim2.new(0.5,0, 0.5,0)
-                        logoImg.AnchorPoint = Vector2.new(0.5,0.5)
+                        logoImg.Size = UDim2.new(1, 0, 1, 0)
+                        logoImg.Position = UDim2.new(0.5, 0, 0.5, 0)
+                        logoImg.AnchorPoint = Vector2.new(0.5, 0.5)
                         logoImg.ZIndex = 1
                         logoImg.ImageTransparency = 0.4
                         logoImg.ScaleType = Enum.ScaleType.Fit
@@ -647,9 +647,12 @@ local success, err = pcall(function()
                 
                 if v:IsA("UIStroke") and v.Parent then
                     if v.Parent.Name == "GroupBox" then
-                        v.Transparency = 0.6 v.Thickness = 1 v.Color = Color3.fromRGB(255, 255, 255)
+                        v.Transparency = 0.6
+                        v.Thickness = 1
+                        v.Color = Color3.fromRGB(255, 255, 255)
                     elseif v.Parent.Name == "Window" or v.Parent.Name == "WindowFrame" or v.Parent.Name == "Background" then
-                        v.Transparency = 1 v.Thickness = 0
+                        v.Transparency = 1
+                        v.Thickness = 0
                     end
                 end
             end
