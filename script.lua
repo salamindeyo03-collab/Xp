@@ -30,7 +30,7 @@ local success, err = pcall(function()
     local player = Players.LocalPlayer
     local camera = workspace.CurrentCamera
 
-    -- 캐릭터 부위 찾기 함수 (R15 및 R6 호환)
+    -- 캐릭터 부위 찾기 함수
     local function getHitboxPart(character, hitboxName)
         if not character then return nil end
         if hitboxName == "Head" then
@@ -149,7 +149,12 @@ local success, err = pcall(function()
                             local screenCenter = Vector2.new(camera.ViewportSize.X / 2, camera.ViewportSize.Y / 2)
                             local move = targetVec - screenCenter
                             local smooth = math.max(1, SMOOTH_FACTOR)
-                            if mousemoverel then mousemoverel((move / smooth).X, (move / smooth).Y) end
+                            local moveX = move.X / smooth
+                            local moveY = move.Y / smooth
+                            -- 마우스 튕김 방지(수치 제한)
+                            if math.abs(moveX) < 5000 and math.abs(moveY) < 5000 then
+                                if mousemoverel then mousemoverel(moveX, moveY) end
+                            end
                         end
                     end
                 end
@@ -211,7 +216,6 @@ local success, err = pcall(function()
         return success and module or nil
     end
 
-    -- UtilityModule 무한 대기 방지
     local modulesFolder = safeWait(ReplicatedStorage, "Modules", 10)
     local UtilityModule = modulesFolder and safeRequire(safeWait(modulesFolder, "Utility", 10))
     local originalRaycast = UtilityModule and UtilityModule.Raycast or nil
@@ -362,7 +366,7 @@ local success, err = pcall(function()
     TriggerbotGroupBox:AddSlider("TriggerbotDelay", { Text = "Fire Delay (sec)", Default = 0.05, Min = 0.01, Max = 1, Rounding = 2, Callback = function(Value) TB_DELAY = Value end })
 
     -- ==========================================
-    -- UNLOCK ALL 설정 (에러로 인한 프리징 완벽 방지)
+    -- UNLOCK ALL 설정 (캐릭터 이동 버그 완벽 차단)
     -- ==========================================
     local UnlockGroupBox = Tabs.Main:AddRightGroupbox("Unlock All")
     local unlockAllExecuted = false
@@ -396,7 +400,6 @@ local success, err = pcall(function()
                     local validCache = {}
                     
                     local function isValidCosmetic(name)
-                        -- 타입 검사 추가 (문자열이 아닐 경우 에러 방지)
                         if type(name) ~= "string" then return false end
                         if validCache[name] ~= nil then return validCache[name] end
                         if name:find("MISSING_") then validCache[name] = false return false end
@@ -514,7 +517,6 @@ local success, err = pcall(function()
                         return merged
                     end
                     
-                    -- Remotes 경로를 FindFirstChild로 안전하게 찾기 (에러 방지)
                     local remotes = ReplicatedStorage:FindFirstChild("Remotes")
                     local dataRemotes = remotes and remotes:FindFirstChild("Data")
                     local equipRemote = dataRemotes and dataRemotes:FindFirstChild("EquipCosmetic")
@@ -616,7 +618,7 @@ local success, err = pcall(function()
     ThemeManager.Theme.TabBackground = Color3.fromRGB(30, 30, 30)
     SaveManager:LoadAutoloadConfig()
 
-    -- UI 1회 세팅 (게임 멈춤 현상 방지를 위해 무한 루프 제거)
+    -- UI 1회 세팅
     task.spawn(function()
         task.wait(1)
         local logoUrl = "https://raw.githubusercontent.com/salamindeyo03-collab/SLogo/main/RealLast.png"
