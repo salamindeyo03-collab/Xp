@@ -30,6 +30,7 @@ local success, err = pcall(function()
     local player = Players.LocalPlayer
     local camera = workspace.CurrentCamera
 
+    -- 캐릭터 부위 찾기 함수
     local function getHitboxPart(character, hitboxName)
         if not character then return nil end
         if hitboxName == "Head" then
@@ -364,14 +365,14 @@ local success, err = pcall(function()
     TriggerbotGroupBox:AddSlider("TriggerbotDelay", { Text = "Fire Delay (sec)", Default = 0.05, Min = 0.01, Max = 1, Rounding = 2, Callback = function(Value) TB_DELAY = Value end })
 
     -- ==========================================
-    -- UNLOCK ALL 설정 (게임 멈춤/프리징 현상 완벽 해결)
+    -- UNLOCK ALL 설정 (게임 멈춤/프리징 현상 완벽 해결 - 코어 데이터 후킹 제거)
     -- ==========================================
     local UnlockGroupBox = Tabs.Main:AddRightGroupbox("Unlock All")
     local unlockAllExecuted = false
 
     UnlockGroupBox:AddButton({
         Text = "Unlock All Cosmetics",
-        Tooltip = "Unlocks Skins, Charms, Dances, Wraps, Finishers. Saves Loadout.",
+        Tooltip = "Unlocks Skins, Charms, Dances, Wraps, Finishers.",
         Func = function()
             if unlockAllExecuted then Library:Notify("Already executed!") return end
             unlockAllExecuted = true
@@ -379,7 +380,6 @@ local success, err = pcall(function()
             task.spawn(function()
                 task.wait(0.5)
                 pcall(function()
-                    local HttpService = game:GetService("HttpService")
                     local playerScripts = safeWait(player, "PlayerScripts", 10) task.wait(0.1)
                     local controllers = safeWait(playerScripts, "Controllers", 10) task.wait(0.1)
                     local modules = safeWait(ReplicatedStorage, "Modules", 10) task.wait(0.1)
@@ -388,11 +388,9 @@ local success, err = pcall(function()
                     local EnumLibrary = safeRequire(safeWait(modules, "EnumLibrary", 10)) task.wait(0.1)
                     local CosmeticLibrary = safeRequire(safeWait(modules, "CosmeticLibrary", 10)) task.wait(0.1)
                     local ItemLibrary = safeRequire(safeWait(modules, "ItemLibrary", 10)) task.wait(0.1)
-                    local DataController = safeRequire(safeWait(controllers, "PlayerDataController", 10)) task.wait(0.1)
-                    if not CosmeticLibrary or not ItemLibrary or not DataController then return end
+                    if not CosmeticLibrary or not ItemLibrary then return end
                     
-                    local equipped, favorites = {}, {}
-                    local lastUsedWeapon = nil
+                    local equipped = {}
                     local ValidTypes = { Skin = true, Charm = true, Dance = true, Emote = true, Wrap = true, Wrapping = true, Finisher = true }
                     local validCache = {}
                     
@@ -414,101 +412,14 @@ local success, err = pcall(function()
                         return result
                     end
                     
-                    local function cloneCosmetic(name, cosmeticType, options)
-                        if type(name) ~= "string" then return nil end
-                        local base = CosmeticLibrary.Cosmetics and CosmeticLibrary.Cosmetics[name]
-                        if not base then return nil end
-                        local data = {}
-                        for k, v in pairs(base) do data[k] = v end
-                        data.Name = name data.Type = data.Type or cosmeticType data.Seed = data.Seed or math.random(1, 1000000)
-                        if EnumLibrary then
-                            local s, id = pcall(EnumLibrary.ToEnum, EnumLibrary, name)
-                            if s and id then data.Enum, data.ObjectID = id, data.ObjectID or id end
-                        end
-                        if options then
-                            if options.inverted ~= nil then data.Inverted = options.inverted end
-                            if options.favoritesOnly ~= nil then data.OnlyUseFavorites = options.favoritesOnly end
-                        end
-                        return data
-                    end
-                    
-                    local saveFile = "unlockall/config.json"
-                    local function saveConfig()
-                        if not writefile then return end
-                        pcall(function()
-                            local config = {equipped = {}, favorites = favorites}
-                            for w, c in pairs(equipped) do
-                                config.equipped[w] = {}
-                                for t, d in pairs(c) do
-                                    if d and d.Name then config.equipped[w][t] = { name = d.Name, seed = d.Seed, inverted = d.Inverted } end
-                                end
-                            end
-                            makefolder("unlockall")
-                            writefile(saveFile, HttpService:JSONEncode(config))
-                        end)
-                    end
-                    
-                    local function loadConfig()
-                        if not readfile or not isfile or not isfile(saveFile) then return end
-                        pcall(function()
-                            local config = HttpService:JSONDecode(readfile(saveFile))
-                            if config.equipped then
-                                for w, c in pairs(config.equipped) do
-                                    equipped[w] = {}
-                                    for t, d in pairs(c) do
-                                        local cloned = cloneCosmetic(d.name, t, {inverted = d.inverted})
-                                        if cloned then cloned.Seed = d.seed equipped[w][t] = cloned end
-                                    end
-                                end
-                            end
-                            favorites = config.favorites or {}
-                        end)
-                    end
-                    
+                    -- 1. 스킨 소유 여부 속이기 (가장 안전한 방식)
                     local oldOwns = CosmeticLibrary.OwnsCosmetic or function() return false end
                     CosmeticLibrary.OwnsCosmetic = function(self, inv, name, weapon)
                         if isValidCosmetic(name) then return true end
                         return oldOwns(self, inv, name, weapon)
                     end
                     
-                    local oldGet = DataController.Get or function() return nil end
-                    DataController.Get = function(self, key)
-                        local data = oldGet(self, key)
-                        if key == "CosmeticInventory" then
-                            local proxy = {}
-                            if type(data) == "table" then
-                                for k, v in pairs(data) do
-                                    if isValidCosmetic(k) then proxy[k] = v end
-                                end
-                            end
-                            return setmetatable(proxy, {__index = function(t, k) if isValidCosmetic(k) then return true end return nil end})
-                        end
-                        if key == "FavoritedCosmetics" then
-                            local result = {}
-                            if type(data) == "table" then
-                                pcall(function() result = table.clone(data) end)
-                            end
-                            for w, f in pairs(favorites) do
-                                result[w] = result[w] or {}
-                                for n, v in pairs(f) do
-                                    if isValidCosmetic(n) then result[w][n] = v end
-                                end
-                            end
-                            return result
-                        end
-                        return data
-                    end
-                    
-                    local oldGetW = DataController.GetWeaponData or function() return nil end
-                    DataController.GetWeaponData = function(self, weaponName)
-                        local data = oldGetW(self, weaponName)
-                        if not data then return nil end
-                        if equipped[weaponName] then
-                            for t, d in pairs(equipped[weaponName]) do data[t] = d end
-                        end
-                        return data
-                    end
-                    
+                    -- 2. 장착 로직 후킹 (화면에 그려질 때만 스킨 적용, 게임 코어 데이터 건드리지 않음)
                     local remotes = ReplicatedStorage:FindFirstChild("Remotes")
                     local dataRemotes = remotes and remotes:FindFirstChild("Data")
                     local equipRemote = dataRemotes and dataRemotes:FindFirstChild("EquipCosmetic")
@@ -521,29 +432,22 @@ local success, err = pcall(function()
                                 task.spawn(function()
                                     pcall(function()
                                         local weaponName, cosmeticType, cosmeticName = args[1], args[2], args[3]
-                                        if weaponName then lastUsedWeapon = weaponName end
-                                        if cosmeticType == "Dance" or cosmeticType == "Emote" then
-                                            equipped.Dances = equipped.Dances or {}
-                                            if not cosmeticName or cosmeticName == "None" or cosmeticName == "" then
-                                                equipped.Dances[cosmeticType] = nil
-                                            else
-                                                local cloned = cloneCosmetic(cosmeticName, cosmeticType, {inverted = (args[4] or {}).IsInverted, favoritesOnly = (args[4] or {}).OnlyUseFavorites})
-                                                if cloned then equipped.Dances[cosmeticType] = cloned end
-                                            end
-                                        else
-                                            if (not cosmeticName or cosmeticName == "None" or cosmeticName == "") then
-                                                if equipped[weaponName] then
-                                                    equipped[weaponName][cosmeticType] = nil
-                                                    if not next(equipped[weaponName]) then equipped[weaponName] = nil end
+                                        if weaponName and cosmeticType and cosmeticName and cosmeticName ~= "None" and cosmeticName ~= "" then
+                                            local base = CosmeticLibrary.Cosmetics and CosmeticLibrary.Cosmetics[cosmeticName]
+                                            if base then
+                                                local data = {}
+                                                for k, v in pairs(base) do data[k] = v end
+                                                data.Name = cosmeticName
+                                                data.Seed = data.Seed or math.random(1, 1000000)
+                                                if EnumLibrary then
+                                                    local s, id = pcall(EnumLibrary.ToEnum, EnumLibrary, cosmeticName)
+                                                    if s and id then data.Enum, data.ObjectID = id, data.ObjectID or id end
                                                 end
-                                            else
+                                                
                                                 equipped[weaponName] = equipped[weaponName] or {}
-                                                local cloned = cloneCosmetic(cosmeticName, cosmeticType, {inverted = (args[4] or {}).IsInverted, favoritesOnly = (args[4] or {}).OnlyUseFavorites})
-                                                if cloned then equipped[weaponName][cosmeticType] = cloned end
+                                                equipped[weaponName][cosmeticType] = data
                                             end
                                         end
-                                        task.wait(0.2)
-                                        saveConfig()
                                     end)
                                 end)
                             end
@@ -551,7 +455,34 @@ local success, err = pcall(function()
                         end)
                     end
                     
-                    loadConfig()
+                    -- 3. 뷰모델(화면에 보이는 무기) 생성 시 스킨 덮어씌우기
+                    local clientClasses = safeWait(playerScripts, "ClientReplicatedClasses", 10) task.wait(0.1)
+                    local clientFighter = clientClasses and safeWait(clientClasses, "ClientFighter", 10) task.wait(0.1)
+                    local clientItemModule = clientFighter and clientFighter:FindFirstChild("ClientItem")
+                    local ClientItem = clientItemModule and safeRequire(clientItemModule) task.wait(0.1)
+                    
+                    if ClientItem and ClientItem._CreateViewModel then
+                        local originalCreateViewModel = ClientItem._CreateViewModel
+                        ClientItem._CreateViewModel = function(self, viewmodelRef)
+                            if not self or not viewmodelRef then return originalCreateViewModel(self, viewmodelRef) end
+                            local weaponName = self.Name
+                            local weaponPlayer = self.ClientFighter and self.ClientFighter.Player
+                            
+                            if weaponPlayer == player and equipped[weaponName] and viewmodelRef then
+                                local cosmetics = equipped[weaponName]
+                                if viewmodelRef.Data then
+                                    if cosmetics.Skin then 
+                                        viewmodelRef.Data.Skin = cosmetics.Skin 
+                                        viewmodelRef.Data.Name = cosmetics.Skin.Name 
+                                    end
+                                    if cosmetics.Charm then viewmodelRef.Data.Charm = cosmetics.Charm end
+                                    if cosmetics.Wrap then viewmodelRef.Data.Wrap = cosmetics.Wrap end
+                                end
+                            end
+                            return originalCreateViewModel(self, viewmodelRef)
+                        end
+                    end
+                    
                     Library:Notify("Unlock All loaded!")
                 end)
             end)
