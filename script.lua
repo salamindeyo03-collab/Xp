@@ -213,13 +213,6 @@ local success, err = pcall(function()
         local success, module = pcall(function() return require(path) end)
         return success and module or nil
     end
-    local function safeClone(t)
-        if type(t) ~= "table" then return {} end
-        if table.clone then return table.clone(t) end
-        local copy = {}
-        for k, v in pairs(t) do copy[k] = v end
-        return copy
-    end
 
     local modulesFolder = safeWait(ReplicatedStorage, "Modules", 10)
     local UtilityModule = modulesFolder and safeRequire(safeWait(modulesFolder, "Utility", 10))
@@ -371,7 +364,7 @@ local success, err = pcall(function()
     TriggerbotGroupBox:AddSlider("TriggerbotDelay", { Text = "Fire Delay (sec)", Default = 0.05, Min = 0.01, Max = 1, Rounding = 2, Callback = function(Value) TB_DELAY = Value end })
 
     -- ==========================================
-    -- UNLOCK ALL 설정 (제공된 코드 + 피니셔 추가)
+    -- UNLOCK ALL 설정 (중복 후킹 제거 및 완벽한 비동기 처리로 프리징 해결)
     -- ==========================================
     local UnlockGroupBox = Tabs.Main:AddRightGroupbox("Unlock All")
     local unlockAllExecuted = false
@@ -388,16 +381,16 @@ local success, err = pcall(function()
                 task.wait(0.5)
                 local ok, err = pcall(function()
                     local HttpService = game:GetService("HttpService")
-                    local playerScripts = safeWait(player, "PlayerScripts", 10)
-                    local controllers = safeWait(playerScripts, "Controllers", 10)
-                    local modules = safeWait(ReplicatedStorage, "Modules", 10)
+                    local playerScripts = safeWait(player, "PlayerScripts", 10) task.wait(0.1)
+                    local controllers = safeWait(playerScripts, "Controllers", 10) task.wait(0.1)
+                    local modules = safeWait(ReplicatedStorage, "Modules", 10) task.wait(0.1)
                     if not modules then return end
                     
-                    local EnumLibrary = safeRequire(safeWait(modules, "EnumLibrary", 10))
+                    local EnumLibrary = safeRequire(safeWait(modules, "EnumLibrary", 10)) task.wait(0.1)
                     if EnumLibrary and EnumLibrary.WaitForEnumBuilder then pcall(function() EnumLibrary:WaitForEnumBuilder() end) end
-                    local CosmeticLibrary = safeRequire(safeWait(modules, "CosmeticLibrary", 10))
-                    local ItemLibrary = safeRequire(safeWait(modules, "ItemLibrary", 10))
-                    local DataController = safeRequire(safeWait(controllers, "PlayerDataController", 10))
+                    local CosmeticLibrary = safeRequire(safeWait(modules, "CosmeticLibrary", 10)) task.wait(0.1)
+                    local ItemLibrary = safeRequire(safeWait(modules, "ItemLibrary", 10)) task.wait(0.1)
+                    local DataController = safeRequire(safeWait(controllers, "PlayerDataController", 10)) task.wait(0.1)
                     if not CosmeticLibrary or not ItemLibrary or not DataController then return end
                     
                     local equipped, favorites = {}, {}
@@ -476,6 +469,7 @@ local success, err = pcall(function()
                         end)
                     end
                     
+                    -- 단일 후킹 (중복 제거)
                     if type(CosmeticLibrary.OwnsCosmetic) == "function" then
                         local oldOwns = CosmeticLibrary.OwnsCosmetic
                         CosmeticLibrary.OwnsCosmetic = function(self, inv, name, weapon)
