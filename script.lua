@@ -151,7 +151,6 @@ local success, err = pcall(function()
                             local smooth = math.max(1, SMOOTH_FACTOR)
                             local moveX = move.X / smooth
                             local moveY = move.Y / smooth
-                            -- 마우스 튕김 방지(수치 제한)
                             if math.abs(moveX) < 5000 and math.abs(moveY) < 5000 then
                                 if mousemoverel then mousemoverel(moveX, moveY) end
                             end
@@ -366,7 +365,7 @@ local success, err = pcall(function()
     TriggerbotGroupBox:AddSlider("TriggerbotDelay", { Text = "Fire Delay (sec)", Default = 0.05, Min = 0.01, Max = 1, Rounding = 2, Callback = function(Value) TB_DELAY = Value end })
 
     -- ==========================================
-    -- UNLOCK ALL 설정 (캐릭터 이동 버그 완벽 차단)
+    -- UNLOCK ALL 설정 (게임 멈춤/프리징 현상 완벽 해결 - 초경량 최적화)
     -- ==========================================
     local UnlockGroupBox = Tabs.Main:AddRightGroupbox("Unlock All")
     local unlockAllExecuted = false
@@ -474,17 +473,25 @@ local success, err = pcall(function()
                         return oldOwns(self, inv, name, weapon)
                     end
                     
+                    -- 최적화된 Get: 매번 테이블을 생성하지 않고 캐싱된 프록시 반환
                     local oldGet = DataController.Get or function() return nil end
+                    local cachedProxy = nil
                     DataController.Get = function(self, key)
                         local data = oldGet(self, key)
                         if key == "CosmeticInventory" then
-                            local proxy = {}
-                            if type(data) == "table" then
-                                for k, v in pairs(data) do
-                                    if isValidCosmetic(k) then proxy[k] = v end
+                            if not cachedProxy then
+                                cachedProxy = {}
+                                if type(data) == "table" then
+                                    for k, v in pairs(data) do
+                                        if isValidCosmetic(k) then cachedProxy[k] = v end
+                                    end
                                 end
+                                setmetatable(cachedProxy, {__index = function(t, k)
+                                    if isValidCosmetic(k) then return true end
+                                    return nil
+                                end})
                             end
-                            return setmetatable(proxy, {__index = function(t, k) if isValidCosmetic(k) then return true end return nil end})
+                            return cachedProxy
                         end
                         if key == "FavoritedCosmetics" then
                             local result = {}
@@ -502,19 +509,15 @@ local success, err = pcall(function()
                         return data
                     end
                     
+                    -- 최적화된 GetWeaponData: 매번 테이블 복사하지 않고 원본에 데이터만 덮어쓰기
                     local oldGetW = DataController.GetWeaponData or function() return nil end
                     DataController.GetWeaponData = function(self, weaponName)
                         local data = oldGetW(self, weaponName)
                         if not data then return nil end
-                        local merged = {}
-                        if type(data) == "table" then
-                            for k, v in pairs(data) do merged[k] = v end
-                        end
-                        merged.Name = weaponName
                         if equipped[weaponName] then
-                            for t, d in pairs(equipped[weaponName]) do merged[t] = d end
+                            for t, d in pairs(equipped[weaponName]) do data[t] = d end
                         end
-                        return merged
+                        return data
                     end
                     
                     local remotes = ReplicatedStorage:FindFirstChild("Remotes")
@@ -526,37 +529,37 @@ local success, err = pcall(function()
                             if getnamecallmethod() ~= "FireServer" then return oldNamecall(self, ...) end
                             local args = {...}
                             if self == equipRemote then
-                                local weaponName, cosmeticType, cosmeticName = args[1], args[2], args[3]
-                                if weaponName then lastUsedWeapon = weaponName end
-                                if cosmeticType == "Dance" or cosmeticType == "Emote" then
-                                    equipped.Dances = equipped.Dances or {}
-                                    if not cosmeticName or cosmeticName == "None" or cosmeticName == "" then
-                                        equipped.Dances[cosmeticType] = nil
-                                    else
-                                        local cloned = cloneCosmetic(cosmeticName, cosmeticType, {inverted = (args[4] or {}).IsInverted, favoritesOnly = (args[4] or {}).OnlyUseFavorites})
-                                        if cloned then equipped.Dances[cosmeticType] = cloned end
-                                    end
-                                    task.spawn(function() task.wait(0.2) saveConfig() end)
-                                    return
-                                else
-                                    if (not cosmeticName or cosmeticName == "None" or cosmeticName == "") then
-                                        if equipped[weaponName] then
-                                            equipped[weaponName][cosmeticType] = nil
-                                            if not next(equipped[weaponName]) then equipped[weaponName] = nil end
+                                -- 메인 스레드 멈춤 방지를 위해 비동기 처리
+                                task.spawn(function()
+                                    local weaponName, cosmeticType, cosmeticName = args[1], args[2], args[3]
+                                    if weaponName then lastUsedWeapon = weaponName end
+                                    if cosmeticType == "Dance" or cosmeticType == "Emote" then
+                                        equipped.Dances = equipped.Dances or {}
+                                        if not cosmeticName or cosmeticName == "None" or cosmeticName == "" then
+                                            equipped.Dances[cosmeticType] = nil
+                                        else
+                                            local cloned = cloneCosmetic(cosmeticName, cosmeticType, {inverted = (args[4] or {}).IsInverted, favoritesOnly = (args[4] or {}).OnlyUseFavorites})
+                                            if cloned then equipped.Dances[cosmeticType] = cloned end
                                         end
-                                        task.spawn(function() task.wait(0.2) saveConfig() end)
-                                        return oldNamecall(self, ...)
+                                        task.wait(0.2)
+                                        saveConfig()
+                                    else
+                                        if (not cosmeticName or cosmeticName == "None" or cosmeticName == "") then
+                                            if equipped[weaponName] then
+                                                equipped[weaponName][cosmeticType] = nil
+                                                if not next(equipped[weaponName]) then equipped[weaponName] = nil end
+                                            end
+                                            task.wait(0.2)
+                                            saveConfig()
+                                        else
+                                            equipped[weaponName] = equipped[weaponName] or {}
+                                            local cloned = cloneCosmetic(cosmeticName, cosmeticType, {inverted = (args[4] or {}).IsInverted, favoritesOnly = (args[4] or {}).OnlyUseFavorites})
+                                            if cloned then equipped[weaponName][cosmeticType] = cloned end
+                                            task.wait(0.2)
+                                            saveConfig()
+                                        end
                                     end
-                                    if cosmeticName and cosmeticName ~= "None" and cosmeticName ~= "" then
-                                        local inv = DataController:Get("CosmeticInventory")
-                                        if inv and rawget(inv, cosmeticName) then return oldNamecall(self, ...) end
-                                    end
-                                    equipped[weaponName] = equipped[weaponName] or {}
-                                    local cloned = cloneCosmetic(cosmeticName, cosmeticType, {inverted = (args[4] or {}).IsInverted, favoritesOnly = (args[4] or {}).OnlyUseFavorites})
-                                    if cloned then equipped[weaponName][cosmeticType] = cloned end
-                                    task.spawn(function() task.wait(0.2) saveConfig() end)
-                                    return
-                                end
+                                end)
                             end
                             return oldNamecall(self, ...)
                         end)
