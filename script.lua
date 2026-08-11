@@ -371,7 +371,7 @@ local success, err = pcall(function()
     TriggerbotGroupBox:AddSlider("TriggerbotDelay", { Text = "Fire Delay (sec)", Default = 0.05, Min = 0.01, Max = 1, Rounding = 2, Callback = function(Value) TB_DELAY = Value end })
 
     -- ==========================================
-    -- UNLOCK ALL 설정 (원본 코드로 복구, 프리징 루프만 제거)
+    -- UNLOCK ALL 설정 (제공된 코드 + 피니셔 추가)
     -- ==========================================
     local UnlockGroupBox = Tabs.Main:AddRightGroupbox("Unlock All")
     local unlockAllExecuted = false
@@ -383,6 +383,7 @@ local success, err = pcall(function()
             if unlockAllExecuted then Library:Notify("Already executed!") return end
             unlockAllExecuted = true
             Library:Notify("Starting Unlock All...")
+            
             task.spawn(function()
                 task.wait(0.5)
                 local ok, err = pcall(function()
@@ -410,7 +411,7 @@ local success, err = pcall(function()
                         if name:find("MISSING_") then validCache[name] = false return false end
                         local cosmetic = CosmeticLibrary.Cosmetics and CosmeticLibrary.Cosmetics[name]
                         local result = false
-                        if cosmetic then
+                        if type(cosmetic) == "table" then
                             if ValidTypes[cosmetic.Type] then result = true end
                             local ln = name:lower()
                             if cosmetic.Type == "Charm" or ln:find("charm") then result = true end
@@ -423,18 +424,19 @@ local success, err = pcall(function()
                     end
                     
                     local function cloneCosmetic(name, cosmeticType, options)
+                        if type(name) ~= "string" then return nil end
                         local base = CosmeticLibrary.Cosmetics and CosmeticLibrary.Cosmetics[name]
-                        if not base then return nil end
+                        if type(base) ~= "table" then return nil end
                         local data = {}
                         for k, v in pairs(base) do data[k] = v end
-                        data.Name = name
-                        data.Type = data.Type or cosmeticType
+                        data.Name = name 
+                        data.Type = data.Type or cosmeticType 
                         data.Seed = data.Seed or math.random(1, 1000000)
-                        if EnumLibrary then
-                            local s, enumId = pcall(EnumLibrary.ToEnum, EnumLibrary, name)
-                            if s and enumId then data.Enum, data.ObjectID = enumId, data.ObjectID or enumId end
+                        if EnumLibrary and type(EnumLibrary.ToEnum) == "function" then
+                            local s, id = pcall(EnumLibrary.ToEnum, EnumLibrary, name)
+                            if s and id then data.Enum, data.ObjectID = id, data.ObjectID or id end
                         end
-                        if options then
+                        if type(options) == "table" then
                             if options.inverted ~= nil then data.Inverted = options.inverted end
                             if options.favoritesOnly ~= nil then data.OnlyUseFavorites = options.favoritesOnly end
                         end
@@ -474,42 +476,54 @@ local success, err = pcall(function()
                         end)
                     end
                     
-                    local originalOwnsCosmetic = CosmeticLibrary.OwnsCosmetic or function() return false end
-                    CosmeticLibrary.OwnsCosmetic = function(self, inv, name, weapon)
-                        if isValidCosmetic(name) then return true end
-                        return originalOwnsCosmetic(self, inv, name, weapon)
+                    if type(CosmeticLibrary.OwnsCosmetic) == "function" then
+                        local oldOwns = CosmeticLibrary.OwnsCosmetic
+                        CosmeticLibrary.OwnsCosmetic = function(self, inv, name, weapon)
+                            if isValidCosmetic(name) then return true end
+                            return oldOwns(self, inv, name, weapon)
+                        end
                     end
                     
-                    local originalGet = DataController.Get or function() return nil end
-                    DataController.Get = function(self, key)
-                        local data = originalGet(self, key)
-                        if key == "CosmeticInventory" then
-                            local proxy = {}
-                            if data then for k, v in pairs(data) do if isValidCosmetic(k) then proxy[k] = v end end end
-                            return setmetatable(proxy, {__index = function(t, k) if isValidCosmetic(k) then return true end return nil end})
-                        end
-                        if key == "FavoritedCosmetics" then
-                            local result = data and safeClone(data) or {}
-                            for w, favs in pairs(favorites) do
-                                result[w] = result[w] or {}
-                                for n, isFav in pairs(favs) do if isValidCosmetic(n) then result[w][n] = isFav end end
+                    if type(DataController.Get) == "function" then
+                        local oldGet = DataController.Get
+                        DataController.Get = function(self, key)
+                            local data = oldGet(self, key)
+                            if key == "CosmeticInventory" then
+                                local proxy = {}
+                                if type(data) == "table" then
+                                    for k, v in pairs(data) do
+                                        if isValidCosmetic(k) then proxy[k] = v end
+                                    end
+                                end
+                                return setmetatable(proxy, {__index = function(t, k) if isValidCosmetic(k) then return true end return nil end})
                             end
-                            return result
+                            if key == "FavoritedCosmetics" then
+                                local result = {}
+                                if type(data) == "table" then
+                                    pcall(function() result = table.clone(data) end)
+                                end
+                                for w, f in pairs(favorites) do
+                                    result[w] = result[w] or {}
+                                    for n, v in pairs(f) do
+                                        if isValidCosmetic(n) then result[w][n] = v end
+                                    end
+                                end
+                                return result
+                            end
+                            return data
                         end
-                        return data
                     end
                     
-                    local originalGetWeaponData = DataController.GetWeaponData or function() return nil end
-                    DataController.GetWeaponData = function(self, weaponName)
-                        local data = originalGetWeaponData(self, weaponName)
-                        if not data then return nil end
-                        local merged = {}
-                        for k, v in pairs(data) do merged[k] = v end
-                        merged.Name = weaponName
-                        if equipped[weaponName] then
-                            for t, d in pairs(equipped[weaponName]) do merged[t] = d end
+                    if type(DataController.GetWeaponData) == "function" then
+                        local oldGetW = DataController.GetWeaponData
+                        DataController.GetWeaponData = function(self, weaponName)
+                            local data = oldGetW(self, weaponName)
+                            if not data then return nil end
+                            if equipped[weaponName] then
+                                for t, d in pairs(equipped[weaponName]) do data[t] = d end
+                            end
+                            return data
                         end
-                        return merged
                     end
                     
                     local remotes = ReplicatedStorage:FindFirstChild("Remotes")
@@ -517,54 +531,93 @@ local success, err = pcall(function()
                     local equipRemote = dataRemotes and dataRemotes:FindFirstChild("EquipCosmetic")
                     
                     if equipRemote and hookmetamethod then
-                        local oldNamecall
-                        oldNamecall = hookmetamethod(game, "__namecall", function(self, ...)
+                        local oldNamecall = hookmetamethod(game, "__namecall", function(self, ...)
                             if getnamecallmethod() ~= "FireServer" then return oldNamecall(self, ...) end
                             local args = {...}
-                            
                             if self == equipRemote then
-                                local weaponName, cosmeticType, cosmeticName, options = args[1], args[2], args[3], args[4] or {}
-                                if weaponName then lastUsedWeapon = weaponName end
-
-                                if cosmeticType == "Dance" or cosmeticType == "Emote" then
-                                    equipped.Dances = equipped.Dances or {}
-                                    if not cosmeticName or cosmeticName == "None" or cosmeticName == "" then
-                                        equipped.Dances[cosmeticType] = nil
-                                    else
-                                        local cloned = cloneCosmetic(cosmeticName, cosmeticType, {inverted = options.IsInverted, favoritesOnly = options.OnlyUseFavorites})
-                                        if cloned then equipped.Dances[cosmeticType] = cloned end
-                                    end
-                                    task.defer(function() pcall(function() if DataController.CurrentData and DataController.CurrentData.Replicate then DataController.CurrentData:Replicate("CosmeticInventory") end end) task.wait(0.2) saveConfig() end)
-                                    return
-                                else
-                                    if (not cosmeticName or cosmeticName == "None" or cosmeticName == "") then
-                                        if equipped[weaponName] then
-                                            equipped[weaponName][cosmeticType] = nil
-                                            if not next(equipped[weaponName]) then equipped[weaponName] = nil end
+                                task.spawn(function()
+                                    pcall(function()
+                                        local weaponName, cosmeticType, cosmeticName = args[1], args[2], args[3]
+                                        if weaponName then lastUsedWeapon = weaponName end
+                                        if cosmeticType == "Dance" or cosmeticType == "Emote" then
+                                            equipped.Dances = equipped.Dances or {}
+                                            if not cosmeticName or cosmeticName == "None" or cosmeticName == "" then
+                                                equipped.Dances[cosmeticType] = nil
+                                            else
+                                                local cloned = cloneCosmetic(cosmeticName, cosmeticType, {inverted = (args[4] or {}).IsInverted, favoritesOnly = (args[4] or {}).OnlyUseFavorites})
+                                                if cloned then equipped.Dances[cosmeticType] = cloned end
+                                            end
+                                        else
+                                            if (not cosmeticName or cosmeticName == "None" or cosmeticName == "") then
+                                                if equipped[weaponName] then
+                                                    equipped[weaponName][cosmeticType] = nil
+                                                    if not next(equipped[weaponName]) then equipped[weaponName] = nil end
+                                                end
+                                            else
+                                                equipped[weaponName] = equipped[weaponName] or {}
+                                                local cloned = cloneCosmetic(cosmeticName, cosmeticType, {inverted = (args[4] or {}).IsInverted, favoritesOnly = (args[4] or {}).OnlyUseFavorites})
+                                                if cloned then equipped[weaponName][cosmeticType] = cloned end
+                                            end
                                         end
-                                        task.defer(function() pcall(function() if DataController.CurrentData and DataController.CurrentData.Replicate then DataController.CurrentData:Replicate("WeaponInventory") end end) task.wait(0.2) saveConfig() end)
-                                        return oldNamecall(self, ...)
-                                    end
-                                    
-                                    if cosmeticName and cosmeticName ~= "None" and cosmeticName ~= "" then
-                                        local inventory = DataController:Get("CosmeticInventory")
-                                        if inventory and rawget(inventory, cosmeticName) then return oldNamecall(self, ...) end
-                                    end
-                                    equipped[weaponName] = equipped[weaponName] or {}
-                                    if not cosmeticName or cosmeticName == "None" or cosmeticName == "" then
-                                        equipped[weaponName][cosmeticType] = nil
-                                        if not next(equipped[weaponName]) then equipped[weaponName] = nil end
-                                    else
-                                        local cloned = cloneCosmetic(cosmeticName, cosmeticType, {inverted = options.IsInverted, favoritesOnly = options.OnlyUseFavorites})
-                                        if cloned then equipped[weaponName][cosmeticType] = cloned end
-                                    end
-                                    task.defer(function() pcall(function() if DataController.CurrentData and DataController.CurrentData.Replicate then DataController.CurrentData:Replicate("WeaponInventory") end end) task.wait(0.2) saveConfig() end)
-                                    return
-                                end
+                                        task.wait(0.2)
+                                        saveConfig()
+                                    end)
+                                end)
                             end
-                            
                             return oldNamecall(self, ...)
                         end)
+                    end
+                    
+                    -- ==================== FINISHER 추가 ====================
+                    local ClientEntityModule = safeWait(playerScripts:FindFirstChild("Modules"), "ClientReplicatedClasses", 10)
+                    local ClientEntity = ClientEntityModule and safeRequire(safeWait(ClientEntityModule, "ClientEntity", 10))
+                    
+                    if ClientEntity and ClientEntity.ReplicateFromServer then
+                        local originalReplicateFromServer = ClientEntity.ReplicateFromServer
+                        ClientEntity.ReplicateFromServer = function(self, action, ...)
+                            if action == "FinisherEffect" then
+                                local argCount = select("#", ...)
+                                local args = {...}
+                                local killerName = args[3]            
+                                local decodedKiller = killerName
+                                if type(killerName) == "userdata" and EnumLibrary and EnumLibrary.FromEnum then
+                                    local ok, decoded = pcall(EnumLibrary.FromEnum, EnumLibrary, killerName)
+                                    if ok and decoded then decodedKiller = decoded end
+                                end            
+                                local isOurKill = tostring(decodedKiller) == player.Name or tostring(decodedKiller):lower() == player.Name:lower()            
+                                
+                                if isOurKill then
+                                    local finisherEnum = nil
+                                    
+                                    if lastUsedWeapon and equipped[lastUsedWeapon] and equipped[lastUsedWeapon].Finisher then
+                                        finisherEnum = equipped[lastUsedWeapon].Finisher.Enum
+                                        if not finisherEnum and EnumLibrary then
+                                            local ok, result = pcall(EnumLibrary.ToEnum, EnumLibrary, equipped[lastUsedWeapon].Finisher.Name)
+                                            if ok and result then finisherEnum = result end
+                                        end
+                                    end
+                                    
+                                    if not finisherEnum then
+                                        for weaponName, cosmetics in pairs(equipped) do
+                                            if cosmetics.Finisher then
+                                                finisherEnum = cosmetics.Finisher.Enum
+                                                if not finisherEnum and EnumLibrary then
+                                                    local ok, result = pcall(EnumLibrary.ToEnum, EnumLibrary, cosmetics.Finisher.Name)
+                                                    if ok and result then finisherEnum = result end
+                                                end
+                                                if finisherEnum then break end
+                                            end
+                                        end
+                                    end
+                                    
+                                    if finisherEnum then
+                                        args[1] = finisherEnum
+                                        return originalReplicateFromServer(self, action, unpack(args, 1, argCount))
+                                    end
+                                end
+                            end        
+                            return originalReplicateFromServer(self, action, ...)
+                        end
                     end
                     
                     loadConfig()
@@ -573,6 +626,7 @@ local success, err = pcall(function()
                 
                 if not ok then
                     warn("Unlock All Error:", err)
+                    Library:Notify("Failed to load Unlock All.")
                     unlockAllExecuted = false
                 end
             end)
@@ -662,8 +716,8 @@ local success, err = pcall(function()
                         logoImg.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
                         logoImg.BackgroundTransparency = 0
                         logoImg.Size = UDim2.new(1, 0, 1, 0)
-                        logoImg.Position = UDim2.new(0.5, 0, 0.5, 0)
-                        logoImg.AnchorPoint = Vector2.new(0.5, 0.5)
+                        logoImg.Position = UDim2.new(0.5,0, 0.5,0)
+                        logoImg.AnchorPoint = Vector2.new(0.5,0.5)
                         logoImg.ZIndex = 1
                         logoImg.ImageTransparency = 0.4
                         logoImg.ScaleType = Enum.ScaleType.Fit
