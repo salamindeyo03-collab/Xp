@@ -46,7 +46,7 @@ local success, err = pcall(function()
         elseif hitboxName == "Right Leg" then
             return character:FindFirstChild("Right Leg") or character:FindFirstChild("RightFoot") or character:FindFirstChild("RightLowerLeg") or character:FindFirstChild("RightUpperLeg")
         end
-        return character:FindFirstChild("Head")
+        return character:FindFirstChild("Head") -- 기본값
     end
 
     -- ==========================================
