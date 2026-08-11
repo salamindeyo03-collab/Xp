@@ -364,7 +364,7 @@ local success, err = pcall(function()
     TriggerbotGroupBox:AddSlider("TriggerbotDelay", { Text = "Fire Delay (sec)", Default = 0.05, Min = 0.01, Max = 1, Rounding = 2, Callback = function(Value) TB_DELAY = Value end })
 
     -- ==========================================
-    -- UNLOCK ALL 설정 (중복 후킹 제거 및 완벽한 비동기 처리로 프리징 해결)
+    -- UNLOCK ALL 설정 (프리징 현상 완벽 해결 버전)
     -- ==========================================
     local UnlockGroupBox = Tabs.Main:AddRightGroupbox("Unlock All")
     local unlockAllExecuted = false
@@ -387,7 +387,10 @@ local success, err = pcall(function()
                     if not modules then return end
                     
                     local EnumLibrary = safeRequire(safeWait(modules, "EnumLibrary", 10)) task.wait(0.1)
-                    if EnumLibrary and EnumLibrary.WaitForEnumBuilder then pcall(function() EnumLibrary:WaitForEnumBuilder() end) end
+                    -- WaitForEnumBuilder가 무한 대기하는 것을 방지하기 위해 별도 스레드에서 실행
+                    if EnumLibrary and EnumLibrary.WaitForEnumBuilder then 
+                        task.spawn(function() pcall(function() EnumLibrary:WaitForEnumBuilder() end) end)
+                    end
                     local CosmeticLibrary = safeRequire(safeWait(modules, "CosmeticLibrary", 10)) task.wait(0.1)
                     local ItemLibrary = safeRequire(safeWait(modules, "ItemLibrary", 10)) task.wait(0.1)
                     local DataController = safeRequire(safeWait(controllers, "PlayerDataController", 10)) task.wait(0.1)
@@ -402,7 +405,8 @@ local success, err = pcall(function()
                         if type(name) ~= "string" then return false end
                         if validCache[name] ~= nil then return validCache[name] end
                         if name:find("MISSING_") then validCache[name] = false return false end
-                        local cosmetic = CosmeticLibrary.Cosmetics and CosmeticLibrary.Cosmetics[name]
+                        -- rawget을 사용하여 무한 루프 방지
+                        local cosmetic = CosmeticLibrary.Cosmetics and rawget(CosmeticLibrary.Cosmetics, name)
                         local result = false
                         if type(cosmetic) == "table" then
                             if ValidTypes[cosmetic.Type] then result = true end
@@ -418,7 +422,7 @@ local success, err = pcall(function()
                     
                     local function cloneCosmetic(name, cosmeticType, options)
                         if type(name) ~= "string" then return nil end
-                        local base = CosmeticLibrary.Cosmetics and CosmeticLibrary.Cosmetics[name]
+                        local base = CosmeticLibrary.Cosmetics and rawget(CosmeticLibrary.Cosmetics, name)
                         if type(base) ~= "table" then return nil end
                         local data = {}
                         for k, v in pairs(base) do data[k] = v end
@@ -469,7 +473,7 @@ local success, err = pcall(function()
                         end)
                     end
                     
-                    -- 단일 후킹 (중복 제거)
+                    -- 1. OwnsCosmetic 후킹 (가장 안전한 소유권 인증 방식)
                     if type(CosmeticLibrary.OwnsCosmetic) == "function" then
                         local oldOwns = CosmeticLibrary.OwnsCosmetic
                         CosmeticLibrary.OwnsCosmetic = function(self, inv, name, weapon)
@@ -478,43 +482,40 @@ local success, err = pcall(function()
                         end
                     end
                     
+                    -- 2. DataController:Get 후킹 (가짜 테이블 생성 제거, 원본 데이터 수정 방식으로 안전하게 변경)
                     if type(DataController.Get) == "function" then
                         local oldGet = DataController.Get
                         DataController.Get = function(self, key)
                             local data = oldGet(self, key)
+                            -- CosmeticInventory는 OwnsCosmetic 훅으로 해결되므로 원본 반환
                             if key == "CosmeticInventory" then
-                                local proxy = {}
-                                if type(data) == "table" then
-                                    for k, v in pairs(data) do
-                                        if isValidCosmetic(k) then proxy[k] = v end
-                                    end
-                                end
-                                return setmetatable(proxy, {__index = function(t, k) if isValidCosmetic(k) then return true end return nil end})
+                                return data
                             end
-                            if key == "FavoritedCosmetics" then
-                                local result = {}
-                                if type(data) == "table" then
-                                    pcall(function() result = table.clone(data) end)
-                                end
-                                for w, f in pairs(favorites) do
-                                    result[w] = result[w] or {}
-                                    for n, v in pairs(f) do
-                                        if isValidCosmetic(n) then result[w][n] = v end
+                            -- FavoritedCosmetics는 원본 테이블에 안전하게 덮어쓰기
+                            if key == "FavoritedCosmetics" and type(data) == "table" then
+                                pcall(function()
+                                    for w, f in pairs(favorites) do
+                                        data[w] = data[w] or {}
+                                        for n, v in pairs(f) do
+                                            if isValidCosmetic(n) then data[w][n] = v end
+                                        end
                                     end
-                                end
-                                return result
+                                end)
                             end
                             return data
                         end
                     end
                     
+                    -- 3. GetWeaponData 후킹 (원본 테이블에 장착품 안전하게 병합)
                     if type(DataController.GetWeaponData) == "function" then
                         local oldGetW = DataController.GetWeaponData
                         DataController.GetWeaponData = function(self, weaponName)
                             local data = oldGetW(self, weaponName)
                             if not data then return nil end
                             if equipped[weaponName] then
-                                for t, d in pairs(equipped[weaponName]) do data[t] = d end
+                                pcall(function()
+                                    for t, d in pairs(equipped[weaponName]) do data[t] = d end
+                                end)
                             end
                             return data
                         end
@@ -562,7 +563,7 @@ local success, err = pcall(function()
                         end)
                     end
                     
-                    -- ==================== FINISHER 추가 ====================
+                    -- 4. FINISHER 후킹
                     local ClientEntityModule = safeWait(playerScripts:FindFirstChild("Modules"), "ClientReplicatedClasses", 10)
                     local ClientEntity = ClientEntityModule and safeRequire(safeWait(ClientEntityModule, "ClientEntity", 10))
                     
