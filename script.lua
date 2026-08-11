@@ -100,7 +100,6 @@ local success, err = pcall(function()
                         local distance3D = (char.HumanoidRootPart.Position - localRoot.Position).Magnitude
                         if distance3D <= MAX_DISTANCE then
                             local screenPos, onScreen = camera:WorldToViewportPoint(targetPart.Position)
-                            -- 화면 앞쪽(Z > 0)에 있을 때만 타겟으로 인식하게 수정하여 버그 방지
                             if onScreen and screenPos.Z > 0 then
                                 local d = (Vector2.new(screenPos.X, screenPos.Y) - screenCenter).Magnitude
                                 if d < dist then
@@ -145,7 +144,6 @@ local success, err = pcall(function()
                     local targetPart = getHitboxPart(target, aimbotHitbox)
                     if targetPart then
                         local screenPos = camera:WorldToViewportPoint(targetPart.Position)
-                        -- 화면 앞쪽에 있을 때만 마우스 이동 (캐릭터가 뒤로 가버리는 버그 완벽 차단)
                         if screenPos.Z > 0 then
                             local targetVec = Vector2.new(screenPos.X, screenPos.Y)
                             local screenCenter = Vector2.new(camera.ViewportSize.X / 2, camera.ViewportSize.Y / 2)
@@ -222,7 +220,6 @@ local success, err = pcall(function()
                     local targetPart = getHitboxPart(plr.Character, saHitbox)
                     if targetPart and humanoid and humanoid.Health > 0 then
                         local screenPos, onScreen = camera:WorldToViewportPoint(targetPart.Position)
-                        -- 화면 앞쪽(Z > 0)에 있을 때만 인식
                         if onScreen and screenPos.Z > 0 then
                             local dist = (screenCenter - Vector2.new(screenPos.X, screenPos.Y)).Magnitude
                             if dist < shortestDist then
@@ -350,7 +347,7 @@ local success, err = pcall(function()
     TriggerbotGroupBox:AddSlider("TriggerbotDelay", { Text = "Fire Delay (sec)", Default = 0.05, Min = 0.01, Max = 1, Rounding = 2, Callback = function(Value) TB_DELAY = Value end })
 
     -- ==========================================
-    -- UNLOCK ALL 설정
+    -- UNLOCK ALL 설정 (프리징 현상 방지를 위해 task.wait 추가 및 무한루프 제거)
     -- ==========================================
     local UnlockGroupBox = Tabs.Main:AddRightGroupbox("Unlock All")
     local unlockAllExecuted = false
@@ -375,16 +372,16 @@ local success, err = pcall(function()
             task.delay(1, function()
                 pcall(function()
                     local HttpService = game:GetService("HttpService")
-                    local playerScripts = safeWait(player, "PlayerScripts", 10)
-                    local controllers = safeWait(playerScripts, "Controllers", 10)
-                    local modules = safeWait(ReplicatedStorage, "Modules", 10)
+                    local playerScripts = safeWait(player, "PlayerScripts", 10) task.wait()
+                    local controllers = safeWait(playerScripts, "Controllers", 10) task.wait()
+                    local modules = safeWait(ReplicatedStorage, "Modules", 10) task.wait()
                     if not modules then return end
                     
-                    local EnumLibrary = safeRequire(safeWait(modules, "EnumLibrary", 10))
+                    local EnumLibrary = safeRequire(safeWait(modules, "EnumLibrary", 10)) task.wait()
                     if EnumLibrary and EnumLibrary.WaitForEnumBuilder then pcall(function() EnumLibrary:WaitForEnumBuilder() end) end
-                    local CosmeticLibrary = safeRequire(safeWait(modules, "CosmeticLibrary", 10))
-                    local ItemLibrary = safeRequire(safeWait(modules, "ItemLibrary", 10))
-                    local DataController = safeRequire(safeWait(controllers, "PlayerDataController", 10))
+                    local CosmeticLibrary = safeRequire(safeWait(modules, "CosmeticLibrary", 10)) task.wait()
+                    local ItemLibrary = safeRequire(safeWait(modules, "ItemLibrary", 10)) task.wait()
+                    local DataController = safeRequire(safeWait(controllers, "PlayerDataController", 10)) task.wait()
                     if not CosmeticLibrary or not ItemLibrary or not DataController then return end
                     
                     local equipped, favorites = {}, {}
@@ -498,7 +495,7 @@ local success, err = pcall(function()
                         return merged
                     end
                     
-                    local FighterController = safeRequire(safeWait(controllers, "FighterController", 10))
+                    local FighterController = safeRequire(safeWait(controllers, "FighterController", 10)) task.wait()
                     if hookmetamethod then
                         local equipRemote = ReplicatedStorage:FindFirstChild("Remotes") and ReplicatedStorage.Remotes:FindFirstChild("Data") and ReplicatedStorage.Remotes.Data:FindFirstChild("EquipCosmetic")
                         if equipRemote then
@@ -544,13 +541,7 @@ local success, err = pcall(function()
                     end
                     
                     loadConfig()
-                    task.spawn(function()
-                        while task.wait(2) do
-                            pcall(function()
-                                if DataController.CurrentData and DataController.CurrentData.Replicate then DataController.CurrentData:Replicate("WeaponInventory") end
-                            end)
-                        end
-                    end)
+                    -- 게임 과부하를 일으키던 무한 루프 코드를 제거했습니다.
                     Library:Notify("Unlock All loaded!")
                 end)
             end)
@@ -594,7 +585,7 @@ local success, err = pcall(function()
     SaveManager:BuildConfigSection(Tabs["UI Settings"])
     ThemeManager:ApplyToTab(Tabs["UI Settings"])
     
-    -- 다크 레드 테마 강제 적용 (1회만 적용)
+    -- 다크 레드 테마 강제 적용
     ThemeManager.Theme = ThemeManager.Theme or {}
     ThemeManager.Theme.Main = Color3.fromRGB(25, 25, 25)
     ThemeManager.Theme.Background = Color3.fromRGB(20, 20, 20)
@@ -608,7 +599,7 @@ local success, err = pcall(function()
 
     -- UI 1회 세팅 (게임 멈춤 현상 방지를 위해 무한 루프 제거)
     task.spawn(function()
-        task.wait(1) -- UI가 온전히 생성될 때까지 대기
+        task.wait(1)
         local logoUrl = "https://raw.githubusercontent.com/salamindeyo03-collab/SLogo/main/RealLast.png"
         local assetId = nil
         pcall(function()
@@ -626,12 +617,10 @@ local success, err = pcall(function()
         local windowFrame = Window.WindowFrame or Window.Window or Window.Main
         if windowFrame then
             for _, v in pairs(windowFrame:GetDescendants()) do
-                -- 글꼴 고정
                 if v:IsA("TextLabel") or v:IsA("TextButton") or v:IsA("TextBox") then
                     v.Font = Enum.Font.Gotham
                 end
                 
-                -- 루트 Background (창 전체 배경) - 검은색 불투명 고정 및 로고 삽입
                 if v.Name == "Background" and v.Parent == windowFrame then
                     v.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
                     v.BackgroundTransparency = 0
@@ -641,35 +630,26 @@ local success, err = pcall(function()
                         logoImg.Image = assetId
                         logoImg.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
                         logoImg.BackgroundTransparency = 0
-                        logoImg.Size = UDim2.new(1, 0, 1, 0)
-                        logoImg.Position = UDim2.new(0.5, 0, 0.5, 0)
-                        logoImg.AnchorPoint = Vector2.new(0.5, 0.5)
+                        logoImg.Size = UDim2.new(1, 0, 1,0)
+                        logoImg.Position = UDim2.new(0.5,0, 0.5,0)
+                        logoImg.AnchorPoint = Vector2.new(0.5,0.5)
                         logoImg.ZIndex = 1
                         logoImg.ImageTransparency = 0.4
                         logoImg.ScaleType = Enum.ScaleType.Fit
                         logoImg.Parent = v
                     end
-                
-                -- 내부 Background, GroupBox, 탭 등 - 투명화하여 로고가 보이게 함
                 elseif v:IsA("Frame") and (v.Name == "Background" or v.Name == "Container" or v.Name == "List" or v.Name == "TabContainer" or v.Name == "Tab" or v.Name == "GroupBox") then
                     v.BackgroundTransparency = 1
                     v.BorderSizePixel = 0
                 end
                 
-                -- 그림자 강제 숨김
-                if v:IsA("ImageLabel") and v.Name == "Shadow" then
-                    v.Visible = false
-                end
+                if v:IsA("ImageLabel") and v.Name == "Shadow" then v.Visible = false end
                 
-                -- 그룹박스 외곽선 투명도 0.6 유지, 메인 창 테두리는 제거
                 if v:IsA("UIStroke") and v.Parent then
                     if v.Parent.Name == "GroupBox" then
-                        v.Transparency = 0.6
-                        v.Thickness = 1
-                        v.Color = Color3.fromRGB(255, 255, 255)
+                        v.Transparency = 0.6 v.Thickness = 1 v.Color = Color3.fromRGB(255, 255, 255)
                     elseif v.Parent.Name == "Window" or v.Parent.Name == "WindowFrame" or v.Parent.Name == "Background" then
-                        v.Transparency = 1
-                        v.Thickness = 0
+                        v.Transparency = 1 v.Thickness = 0
                     end
                 end
             end
