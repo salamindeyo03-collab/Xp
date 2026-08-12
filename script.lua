@@ -20,6 +20,7 @@ local success, err = pcall(function()
 
     local Tabs = {
         Main = Window:AddTab("Main"),
+        ESP = Window:AddTab("ESP"),
         ["UI Settings"] = Window:AddTab("UI Settings"),
     }
 
@@ -30,7 +31,6 @@ local success, err = pcall(function()
     local player = Players.LocalPlayer
     local camera = workspace.CurrentCamera
 
-    -- 캐릭터 부위 찾기 함수 (R15 및 R6 호환)
     local function getHitboxPart(character, hitboxName)
         if not character then return nil end
         if hitboxName == "Head" then
@@ -50,7 +50,7 @@ local success, err = pcall(function()
     end
 
     -- ==========================================
-    -- AIMBOT 설정 및 초기화
+    -- AIMBOT 설정
     -- ==========================================
     local AIM_RADIUS = 200
     local SMOOTH_FACTOR = 1.0
@@ -59,13 +59,15 @@ local success, err = pcall(function()
     local teamCheck = true
     local wallCheck = true
     local showFOV = false
+    local aimbotFOVColor = Color3.fromRGB(255, 255, 255)
+    local aimbotFOVRainbow = false
     local aimbotHitbox = "Head"
 
     local fovCircle = nil
     if Drawing then
         pcall(function()
             fovCircle = Drawing.new("Circle")
-            fovCircle.Color = Color3.fromRGB(255, 255, 255)
+            fovCircle.Color = aimbotFOVColor
             fovCircle.Thickness = 2
             fovCircle.Transparency = 1
             fovCircle.Filled = false
@@ -125,6 +127,11 @@ local success, err = pcall(function()
                 local mousePos = UserInputService:GetMouseLocation()
                 fovCircle.Position = Vector2.new(mousePos.X, mousePos.Y)
                 fovCircle.Radius = AIM_RADIUS
+                if aimbotFOVRainbow then
+                    fovCircle.Color = Color3.fromHSV(tick() % 5 / 5, 1, 1)
+                else
+                    fovCircle.Color = aimbotFOVColor
+                end
                 fovCircle.Visible = true
             elseif fovCircle then
                 fovCircle.Visible = false
@@ -164,9 +171,11 @@ local success, err = pcall(function()
         Callback = function(Value) aimbotHitbox = Value end
     })
     AimbotGroupBox:AddToggle("AimbotShowFOV", { Text = "Show FOV Circle", Default = false, Callback = function(Value) showFOV = Value end })
+    AimbotGroupBox:AddLabel("FOV Color"):AddColorPicker("AimbotFOVColorPicker", { Default = Color3.fromRGB(255, 255, 255), Title = "Aimbot FOV Color", Transparency = 0, Callback = function(Value) aimbotFOVColor = Value end })
+    AimbotGroupBox:AddToggle("AimbotFOVRainbow", { Text = "Rainbow FOV", Default = false, Callback = function(Value) aimbotFOVRainbow = Value end })
     AimbotGroupBox:AddToggle("AimbotTeamCheck", { Text = "Team Check", Default = true, Callback = function(Value) teamCheck = Value end })
     AimbotGroupBox:AddToggle("AimbotWallCheck", { Text = "Wall Check", Default = true, Callback = function(Value) wallCheck = Value end })
-    AimbotGroupBox:AddSlider("AimbotSmoothness", { Text = "Smoothness (1 = Strong)", Default = 1, Min = 1, Max = 10, Rounding = 0, Callback = function(Value) SMOOTH_FACTOR = Value end })
+    AimbotGroupBox:AddSlider("AimbotSmoothness", { Text = "Smoothness", Default = 1, Min = 1, Max = 10, Rounding = 0, Callback = function(Value) SMOOTH_FACTOR = Value end })
     AimbotGroupBox:AddSlider("AimbotFOV", { Text = "FOV Radius", Default = 200, Min = 1, Max = 1000, Rounding = 0, Callback = function(Value) AIM_RADIUS = Value end })
     AimbotGroupBox:AddSlider("AimbotDistance", { Text = "Max Distance", Default = 1000, Min = 1, Max = 5000, Rounding = 0, Callback = function(Value) MAX_DISTANCE = Value end })
 
@@ -178,13 +187,15 @@ local success, err = pcall(function()
     local SA_SHOW_FOV = true
     local SA_TEAMCHECK = true
     local SA_WALLCHECK = true
+    local saFOVColor = Color3.fromRGB(255, 0, 0)
+    local saFOVRainbow = false
     local saHitbox = "Head"
 
     local saFovCircle = nil
     if Drawing then
         pcall(function()
             saFovCircle = Drawing.new("Circle")
-            saFovCircle.Color = Color3.fromRGB(255, 0, 0)
+            saFovCircle.Color = saFOVColor
             saFovCircle.Thickness = 1
             saFovCircle.Transparency = 1
             saFovCircle.Filled = false
@@ -273,6 +284,11 @@ local success, err = pcall(function()
                 if SA_ENABLED and SA_SHOW_FOV and isKeybindActive then
                     saFovCircle.Position = camera.ViewportSize / 2
                     saFovCircle.Radius = SA_FOV
+                    if saFOVRainbow then
+                        saFovCircle.Color = Color3.fromHSV(tick() % 5 / 5, 1, 1)
+                    else
+                        saFovCircle.Color = saFOVColor
+                    end
                     saFovCircle.Visible = true
                 else
                     saFovCircle.Visible = false
@@ -283,7 +299,7 @@ local success, err = pcall(function()
 
     local SilentAimGroupBox = Tabs.Main:AddLeftGroupbox("Silent Aim")
     SilentAimGroupBox:AddToggle("SilentAimToggle", { Text = "Enable Silent Aim", Default = false, Callback = function(Value) SA_ENABLED = Value end })
-    SilentAimGroupBox:AddLabel("Silent Aim Keybind"):AddKeyPicker("SilentAimKeybind", { Default = "MB2", SyncToggleState = false, Mode = "Hold", Text = "Silent Key", NoUI = false })
+    SilentAimGroupBox:AddLabel("Silent Keybind"):AddKeyPicker("SilentAimKeybind", { Default = "MB2", SyncToggleState = false, Mode = "Hold", Text = "Silent Key", NoUI = false })
     SilentAimGroupBox:AddDropdown("SilentAimHitbox", {
         Text = "Silent Aim Hitbox",
         Values = { "Head", "Torso", "Left Arm", "Right Arm", "Left Leg", "Right Leg" },
@@ -293,6 +309,8 @@ local success, err = pcall(function()
     SilentAimGroupBox:AddToggle("SilentAimTeamCheck", { Text = "Team Check", Default = true, Callback = function(Value) SA_TEAMCHECK = Value end })
     SilentAimGroupBox:AddToggle("SilentAimWallCheck", { Text = "Wall Check", Default = true, Callback = function(Value) SA_WALLCHECK = Value end })
     SilentAimGroupBox:AddToggle("SilentAimShowFOV", { Text = "Show Silent FOV", Default = true, Callback = function(Value) SA_SHOW_FOV = Value end })
+    SilentAimGroupBox:AddLabel("SA FOV Color"):AddColorPicker("SilentAimFOVColorPicker", { Default = Color3.fromRGB(255, 0, 0), Title = "Silent Aim FOV Color", Transparency = 0, Callback = function(Value) saFOVColor = Value end })
+    SilentAimGroupBox:AddToggle("SilentAimFOVRainbow", { Text = "Rainbow FOV", Default = false, Callback = function(Value) saFOVRainbow = Value end })
     SilentAimGroupBox:AddSlider("SilentAimFOV", { Text = "Silent FOV Radius", Default = 50, Min = 10, Max = 1000, Rounding = 0, Callback = function(Value) SA_FOV = Value end })
 
     -- ==========================================
@@ -352,6 +370,108 @@ local success, err = pcall(function()
     TriggerbotGroupBox:AddToggle("TriggerbotWallCheck", { Text = "Wall Check", Default = true, Callback = function(Value) TB_WALLCHECK = Value end })
     TriggerbotGroupBox:AddSlider("TriggerbotFOV", { Text = "Trigger FOV Radius", Default = 50, Min = 1, Max = 1000, Rounding = 0, Callback = function(Value) TB_FOV = Value end })
     TriggerbotGroupBox:AddSlider("TriggerbotDelay", { Text = "Fire Delay (sec)", Default = 0.05, Min = 0.01, Max = 1, Rounding = 2, Callback = function(Value) TB_DELAY = Value end })
+
+    -- ==========================================
+    -- ESP 설정 (새로운 탭 추가)
+    -- ==========================================
+    local ESPGroupBox = Tabs.ESP:AddLeftGroupbox("ESP Settings")
+    local espColor = Color3.fromRGB(0, 255, 127)
+    
+    ESPGroupBox:AddToggle("ESP_Box", { Text = "Box ESP (Highlight)", Default = false })
+    ESPGroupBox:AddToggle("ESP_Lines", { Text = "Line ESP (Tracers)", Default = false })
+    ESPGroupBox:AddToggle("ESP_Name", { Text = "Name ESP", Default = false })
+    ESPGroupBox:AddToggle("ESP_Health", { Text = "Health ESP", Default = false })
+    ESPGroupBox:AddLabel("ESP Color"):AddColorPicker("ESP_Color", { 
+        Default = espColor, 
+        Title = "ESP Color", 
+        Transparency = 0, 
+        Callback = function(Value) espColor = Value end 
+    })
+
+    local ESPTracers = {}
+
+    local function clearESP(plr)
+        if ESPTracers[plr] then
+            pcall(function() ESPTracers[plr]:Remove() end)
+            ESPTracers[plr] = nil
+        end
+        if plr.Character then
+            local h = plr.Character:FindFirstChild("AB_H")
+            if h then pcall(function() h:Destroy() end) end
+            local head = plr.Character:FindFirstChild("Head")
+            if head then
+                local b = head:FindFirstChild("AB_B")
+                if b then pcall(function() b:Destroy() end) end
+            end
+        end
+    end
+
+    Players.PlayerRemoving:Connect(clearESP)
+
+    RunService.RenderStepped:Connect(function()
+        pcall(function()
+            for _, p in pairs(Players:GetPlayers()) do
+                if p ~= player then
+                    if not p.Character or not p.Character:FindFirstChild("HumanoidRootPart") or not p.Character:FindFirstChild("Humanoid") or p.Character.Humanoid.Health <= 0 then
+                        clearESP(p)
+                        continue
+                    end
+
+                    local char = p.Character
+                    local hrp = char.HumanoidRootPart
+                    local pos, onScreen = camera:WorldToViewportPoint(hrp.Position)
+
+                    -- Line ESP
+                    if Toggles.ESP_Lines.Value and onScreen then
+                        if not ESPTracers[p] then
+                            ESPTracers[p] = Drawing.new("Line")
+                            ESPTracers[p].Thickness = 1.5
+                        end
+                        ESPTracers[p].Visible = true
+                        ESPTracers[p].Color = espColor
+                        ESPTracers[p].From = Vector2.new(camera.ViewportSize.X/2, camera.ViewportSize.Y)
+                        ESPTracers[p].To = Vector2.new(pos.X, pos.Y)
+                    else
+                        if ESPTracers[p] then ESPTracers[p].Visible = false end
+                    end
+
+                    -- Box ESP (Highlight)
+                    local h = char:FindFirstChild("AB_H") or Instance.new("Highlight")
+                    h.Name = "AB_H"
+                    h.Parent = char
+                    h.Enabled = Toggles.ESP_Box.Value
+                    h.FillTransparency = 1
+                    h.OutlineColor = espColor
+
+                    -- Name & Health ESP
+                    local head = char:FindFirstChild("Head")
+                    if head then
+                        local b = head:FindFirstChild("AB_B") or Instance.new("BillboardGui")
+                        b.Name = "AB_B"
+                        b.Parent = head
+                        b.AlwaysOnTop = true
+                        b.Size = UDim2.new(0, 100, 0, 40)
+                        b.ExtentsOffset = Vector3.new(0, 2, 0)
+
+                        local l = b:FindFirstChild("L") or Instance.new("TextLabel")
+                        l.Name = "L"
+                        l.Parent = b
+                        l.BackgroundTransparency = 1
+                        l.Size = UDim2.new(1,0,1,0)
+                        l.TextColor3 = espColor
+                        l.Font = Enum.Font.GothamBold
+                        l.TextSize = 11
+
+                        local txt = ""
+                        if Toggles.ESP_Name.Value then txt = txt .. p.Name .. "\n" end
+                        if Toggles.ESP_Health.Value then txt = txt .. math.floor(char.Humanoid.Health) .. " HP" end
+                        l.Text = txt
+                        l.Visible = (Toggles.ESP_Name.Value or Toggles.ESP_Health.Value)
+                    end
+                end
+            end
+        end)
+    end)
 
     -- ==========================================
     -- UNLOCK ALL 설정
@@ -829,9 +949,7 @@ local success, err = pcall(function()
     SaveManager:BuildConfigSection(Tabs["UI Settings"])
     ThemeManager:ApplyToTab(Tabs["UI Settings"])
     
-    -- ==========================================
     -- 다크 레드 테마 강제 적용
-    -- ==========================================
     ThemeManager.Theme = ThemeManager.Theme or {}
     ThemeManager.Theme.Main = Color3.fromRGB(25, 25, 25)
     ThemeManager.Theme.Background = Color3.fromRGB(20, 20, 20)
@@ -841,22 +959,18 @@ local success, err = pcall(function()
     ThemeManager.Theme.Accent = Color3.fromRGB(150, 30, 30)
     ThemeManager.Theme.TabText = Color3.fromRGB(200, 200, 200)
     ThemeManager.Theme.TabBackground = Color3.fromRGB(30, 30, 30)
-    
     SaveManager:LoadAutoloadConfig()
 
-    -- 💡 UI 강제 유지 루프 (메인 배경 예외처리 완벽 적용)
+    -- UI 1회 세팅
     task.spawn(function()
-        -- 로고 이미지 다운로드
+        task.wait(1)
         local logoUrl = "https://raw.githubusercontent.com/salamindeyo03-collab/SLogo/main/RealLast.png"
         local assetId = nil
-
         pcall(function()
             if writefile and (getcustomasset or getsynasset) then
                 if not isfile("slogo.png") or #readfile("slogo.png") < 1000 then
                     local ok, imgData = pcall(function() return game:HttpGet(logoUrl) end)
-                    if ok and imgData and #imgData > 1000 then
-                        writefile("slogo.png", imgData)
-                    end
+                    if ok and imgData and #imgData > 1000 then writefile("slogo.png", imgData) end
                 end
                 if isfile("slogo.png") and #readfile("slogo.png") > 1000 then
                     assetId = (getcustomasset or getsynasset)("slogo.png")
@@ -864,74 +978,51 @@ local success, err = pcall(function()
             end
         end)
 
-        -- 0.2초마다 덮어씌워지는 배경을 투명하게 유지
-        while task.wait(0.2) do 
-            pcall(function()
-                local windowFrame = Window.Window or Window.WindowFrame or Window.Main
-                if not windowFrame then
-                    for _, v in pairs(Window) do
-                        if typeof(v) == "Instance" and v:IsA("Frame") then
-                            windowFrame = v
-                            break
-                        end
+        local windowFrame = Window.WindowFrame or Window.Window or Window.Main
+        if windowFrame then
+            for _, v in pairs(windowFrame:GetDescendants()) do
+                if v:IsA("TextLabel") or v:IsA("TextButton") or v:IsA("TextBox") then
+                    v.Font = Enum.Font.Gotham
+                end
+                
+                if v.Name == "Background" and v.Parent == windowFrame then
+                    v.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+                    v.BackgroundTransparency = 0
+                    if assetId and not v:FindFirstChild("CenterLogo") then
+                        local logoImg = Instance.new("ImageLabel")
+                        logoImg.Name = "CenterLogo"
+                        logoImg.Image = assetId
+                        logoImg.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+                        logoImg.BackgroundTransparency = 0
+                        logoImg.Size = UDim2.new(1, 0, 1, 0)
+                        logoImg.Position = UDim2.new(0.5, 0, 0.5, 0)
+                        logoImg.AnchorPoint = Vector2.new(0.5, 0.5)
+                        logoImg.ZIndex = 1
+                        logoImg.ImageTransparency = 0.4
+                        logoImg.ScaleType = Enum.ScaleType.Fit
+                        logoImg.Parent = v
+                    end
+                elseif v:IsA("Frame") and (v.Name == "Background" or v.Name == "Container" or v.Name == "List" or v.Name == "TabContainer" or v.Name == "Tab" or v.Name == "GroupBox") then
+                    v.BackgroundTransparency = 1
+                    v.BorderSizePixel = 0
+                end
+                
+                if v:IsA("ImageLabel") and v.Name == "Shadow" then v.Visible = false end
+                
+                if v:IsA("UIStroke") and v.Parent then
+                    if v.Parent.Name == "GroupBox" then
+                        v.Transparency = 0.6
+                        v.Thickness = 1
+                        v.Color = Color3.fromRGB(255, 255, 255)
+                    elseif v.Parent.Name == "Window" or v.Parent.Name == "WindowFrame" or v.Parent.Name == "Background" then
+                        v.Transparency = 1
+                        v.Thickness = 0
                     end
                 end
-
-                if windowFrame then
-                    for _, v in pairs(windowFrame:GetDescendants()) do
-                        -- 1. 루트 Background (창 전체 배경) - 검은색 불투명 고정 및 로고 삽입
-                        if v.Name == "Background" and v.Parent == windowFrame then
-                            v.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
-                            v.BackgroundTransparency = 0
-                            
-                            if assetId and not v:FindFirstChild("CenterLogo") then
-                                local logoImg = Instance.new("ImageLabel")
-                                logoImg.Name = "CenterLogo"
-                                logoImg.Image = assetId
-                                logoImg.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
-                                logoImg.BackgroundTransparency = 0
-                                logoImg.Size = UDim2.new(1, 0, 1, 0)
-                                logoImg.Position = UDim2.new(0.5, 0, 0.5, 0)
-                                logoImg.AnchorPoint = Vector2.new(0.5, 0.5)
-                                logoImg.ZIndex = 1
-                                logoImg.ImageTransparency = 0.4
-                                logoImg.ScaleType = Enum.ScaleType.Fit
-                                logoImg.Parent = v
-                            end
-                        
-                        -- 2. 내부 Background, GroupBox, 탭 등 - 투명화하여 로고가 보이게 함
-                        elseif v:IsA("Frame") and (v.Name == "Background" or v.Name == "Container" or v.Name == "List" or v.Name == "TabContainer" or v.Name == "Tab" or v.Name == "GroupBox") then
-                            v.BackgroundTransparency = 1
-                            v.BorderSizePixel = 0
-                        end
-                        
-                        -- 3. 그림자 강제 숨김 유지
-                        if v:IsA("ImageLabel") and v.Name == "Shadow" then
-                            v.Visible = false
-                        end
-                        
-                        -- 4. 그룹박스 외곽선 투명도 0.6 유지, 메인 창 테두리는 제거
-                        if v:IsA("UIStroke") and v.Parent then
-                            if v.Parent.Name == "GroupBox" then
-                                v.Transparency = 0.6
-                                v.Thickness = 1
-                                v.Color = Color3.fromRGB(255, 255, 255)
-                            elseif v.Parent.Name == "Window" or v.Parent.Name == "WindowFrame" or v.Parent.Name == "Background" then
-                                v.Transparency = 1
-                                v.Thickness = 0
-                            end
-                        end
-                        
-                        -- 5. 글꼴 고정
-                        if v:IsA("TextLabel") or v:IsA("TextButton") or v:IsA("TextBox") then
-                            v.Font = Enum.Font.Gotham
-                        end
-                    end
-                end
-            end)
+            end
         end
     end)
-end) -- 맨 마지막 end)
+end)
 
 if not success then
     warn("Script failed to load:", err)
