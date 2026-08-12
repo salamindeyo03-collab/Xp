@@ -372,12 +372,83 @@ local success, err = pcall(function()
     TriggerbotGroupBox:AddSlider("TriggerbotDelay", { Text = "Fire Delay (sec)", Default = 0.05, Min = 0.01, Max = 1, Rounding = 2, Callback = function(Value) TB_DELAY = Value end })
 
     -- ==========================================
-    -- ESP 설정 (새로운 탭 추가)
+    -- ESP 설정 (고도화 및 최적화)
     -- ==========================================
     local ESPGroupBox = Tabs.ESP:AddLeftGroupbox("ESP Settings")
     local espColor = Color3.fromRGB(0, 255, 127)
     
-    ESPGroupBox:AddToggle("ESP_Box", { Text = "Box ESP (Highlight)", Default = false })
+    -- ESP 객체 풀 (성능 최적화를 위해 플레이어마다 객체 할당)
+    local ESPObjects = {}
+
+    local function createESPObject()
+        local obj = {}
+        -- Full Box용 Square
+        obj.Box = Drawing.new("Square")
+        obj.Box.Thickness = 1
+        obj.Box.Filled = false
+        
+        -- Corner Box용 Line 8개
+        obj.Corners = {}
+        for i = 1, 8 do
+            obj.Corners[i] = Drawing.new("Line")
+            obj.Corners[i].Thickness = 1
+        end
+        
+        -- 3D Highlight (기존 방식)
+        obj.Highlight = nil 
+        
+        -- Line ESP
+        obj.Tracer = Drawing.new("Line")
+        obj.Tracer.Thickness = 1
+        
+        -- Name & Health Text (외곽선 있어서 잘보임)
+        obj.NameText = Drawing.new("Text")
+        obj.NameText.Center = true
+        obj.NameText.Outline = true
+        obj.NameText.OutlineColor = Color3.fromRGB(0, 0, 0)
+        obj.NameText.Size = 13
+        obj.NameText.Font = 2
+        
+        obj.HealthText = Drawing.new("Text")
+        obj.HealthText.Center = true
+        obj.HealthText.Outline = true
+        obj.HealthText.OutlineColor = Color3.fromRGB(0, 0, 0)
+        obj.HealthText.Size = 13
+        obj.HealthText.Font = 2
+        
+        return obj
+    end
+
+    local function hideESP(p)
+        local obj = ESPObjects[p]
+        if not obj then return end
+        obj.Box.Visible = false
+        for _, c in ipairs(obj.Corners) do c.Visible = false end
+        if obj.Highlight then obj.Highlight.Enabled = false end
+        obj.Tracer.Visible = false
+        obj.NameText.Visible = false
+        obj.HealthText.Visible = false
+    end
+
+    local function clearESP(p)
+        local obj = ESPObjects[p]
+        if obj then
+            pcall(function() obj.Box:Remove() end)
+            for _, c in ipairs(obj.Corners) do pcall(function() c:Remove() end) end
+            if obj.Highlight then pcall(function() obj.Highlight:Destroy() end) end
+            pcall(function() obj.Tracer:Remove() end)
+            pcall(function() obj.NameText:Remove() end)
+            pcall(function() obj.HealthText:Remove() end)
+            ESPObjects[p] = nil
+        end
+    end
+
+    -- UI 컨트롤 추가
+    ESPGroupBox:AddDropdown("ESP_BoxType", {
+        Text = "Box ESP Type",
+        Values = { "Off", "Full Box", "Corner Box", "Highlight" },
+        Default = 1,
+    })
     ESPGroupBox:AddToggle("ESP_Lines", { Text = "Line ESP (Tracers)", Default = false })
     ESPGroupBox:AddToggle("ESP_Name", { Text = "Name ESP", Default = false })
     ESPGroupBox:AddToggle("ESP_Health", { Text = "Health ESP", Default = false })
@@ -388,85 +459,105 @@ local success, err = pcall(function()
         Callback = function(Value) espColor = Value end 
     })
 
-    local ESPTracers = {}
-
-    local function clearESP(plr)
-        if ESPTracers[plr] then
-            pcall(function() ESPTracers[plr]:Remove() end)
-            ESPTracers[plr] = nil
-        end
-        if plr.Character then
-            local h = plr.Character:FindFirstChild("AB_H")
-            if h then pcall(function() h:Destroy() end) end
-            local head = plr.Character:FindFirstChild("Head")
-            if head then
-                local b = head:FindFirstChild("AB_B")
-                if b then pcall(function() b:Destroy() end) end
-            end
-        end
-    end
-
     Players.PlayerRemoving:Connect(clearESP)
 
     RunService.RenderStepped:Connect(function()
         pcall(function()
             for _, p in pairs(Players:GetPlayers()) do
                 if p ~= player then
-                    if not p.Character or not p.Character:FindFirstChild("HumanoidRootPart") or not p.Character:FindFirstChild("Humanoid") or p.Character.Humanoid.Health <= 0 then
-                        clearESP(p)
+                    if not p.Character or not p.Character:FindFirstChild("HumanoidRootPart") or not p.Character:FindFirstChild("Humanoid") or not p.Character:FindFirstChild("Head") or p.Character.Humanoid.Health <= 0 then
+                        hideESP(p)
                         continue
                     end
 
                     local char = p.Character
-                    local hrp = char.HumanoidRootPart
-                    local pos, onScreen = camera:WorldToViewportPoint(hrp.Position)
-
-                    -- Line ESP
-                    if Toggles.ESP_Lines.Value and onScreen then
-                        if not ESPTracers[p] then
-                            ESPTracers[p] = Drawing.new("Line")
-                            ESPTracers[p].Thickness = 1.5
-                        end
-                        ESPTracers[p].Visible = true
-                        ESPTracers[p].Color = espColor
-                        ESPTracers[p].From = Vector2.new(camera.ViewportSize.X/2, camera.ViewportSize.Y)
-                        ESPTracers[p].To = Vector2.new(pos.X, pos.Y)
-                    else
-                        if ESPTracers[p] then ESPTracers[p].Visible = false end
+                    local root = char.HumanoidRootPart
+                    local head = char.Head
+                    
+                    if not ESPObjects[p] then ESPObjects[p] = createESPObject() end
+                    local obj = ESPObjects[p]
+                    
+                    local rootPos, rootVis = camera:WorldToViewportPoint(root.Position)
+                    local headPos = camera:WorldToViewportPoint(head.Position + Vector3.new(0, 0.5, 0))
+                    local legPos = camera:WorldToViewportPoint(root.Position - Vector3.new(0, 3, 0))
+                    
+                    -- 화면 밖이면 숨기기
+                    if not rootVis then
+                        hideESP(p)
+                        continue
                     end
 
-                    -- Box ESP (Highlight)
-                    local h = char:FindFirstChild("AB_H") or Instance.new("Highlight")
-                    h.Name = "AB_H"
-                    h.Parent = char
-                    h.Enabled = Toggles.ESP_Box.Value
-                    h.FillTransparency = 1
-                    h.OutlineColor = espColor
-
-                    -- Name & Health ESP
-                    local head = char:FindFirstChild("Head")
-                    if head then
-                        local b = head:FindFirstChild("AB_B") or Instance.new("BillboardGui")
-                        b.Name = "AB_B"
-                        b.Parent = head
-                        b.AlwaysOnTop = true
-                        b.Size = UDim2.new(0, 100, 0, 40)
-                        b.ExtentsOffset = Vector3.new(0, 2, 0)
-
-                        local l = b:FindFirstChild("L") or Instance.new("TextLabel")
-                        l.Name = "L"
-                        l.Parent = b
-                        l.BackgroundTransparency = 1
-                        l.Size = UDim2.new(1,0,1,0)
-                        l.TextColor3 = espColor
-                        l.Font = Enum.Font.GothamBold
-                        l.TextSize = 11
-
-                        local txt = ""
-                        if Toggles.ESP_Name.Value then txt = txt .. p.Name .. "\n" end
-                        if Toggles.ESP_Health.Value then txt = txt .. math.floor(char.Humanoid.Health) .. " HP" end
-                        l.Text = txt
-                        l.Visible = (Toggles.ESP_Name.Value or Toggles.ESP_Health.Value)
+                    local height = math.abs(headPos.Y - legPos.Y)
+                    local width = height / 2
+                    
+                    local boxTop = headPos.Y
+                    local boxBottom = legPos.Y
+                    local boxLeft = rootPos.X - width / 2
+                    local boxRight = rootPos.X + width / 2
+                    
+                    -- 색상 업데이트
+                    obj.Box.Color = espColor
+                    for _, c in ipairs(obj.Corners) do c.Color = espColor end
+                    obj.Tracer.Color = espColor
+                    obj.NameText.Color = espColor
+                    obj.HealthText.Color = espColor
+                    
+                    -- Line ESP
+                    if Toggles.ESP_Lines.Value then
+                        obj.Tracer.Visible = true
+                        obj.Tracer.From = Vector2.new(camera.ViewportSize.X/2, camera.ViewportSize.Y)
+                        obj.Tracer.To = Vector2.new(rootPos.X, boxBottom)
+                    else
+                        obj.Tracer.Visible = false
+                    end
+                    
+                    -- Name ESP (외곽선으로 가독성 완벽 확보)
+                    obj.NameText.Visible = Toggles.ESP_Name.Value
+                    if Toggles.ESP_Name.Value then
+                        obj.NameText.Text = p.Name
+                        obj.NameText.Position = Vector2.new(rootPos.X, boxTop - 16)
+                    end
+                    
+                    -- Health ESP
+                    obj.HealthText.Visible = Toggles.ESP_Health.Value
+                    if Toggles.ESP_Health.Value then
+                        obj.HealthText.Text = math.floor(char.Humanoid.Health) .. " HP"
+                        obj.HealthText.Position = Vector2.new(rootPos.X, boxBottom + 2)
+                    end
+                    
+                    -- Box Type (전체 박스, 코너 박스, 하이라이트)
+                    -- 일단 전부 끄고 시작
+                    obj.Box.Visible = false
+                    for _, c in ipairs(obj.Corners) do c.Visible = false end
+                    if obj.Highlight then obj.Highlight.Enabled = false end
+                    
+                    local boxType = Options.ESP_BoxType.Value
+                    if boxType == "Full Box" then
+                        obj.Box.Visible = true
+                        obj.Box.Position = Vector2.new(boxLeft, boxTop)
+                        obj.Box.Size = Vector2.new(width, height)
+                    elseif boxType == "Corner Box" then
+                        local cornerLen = height * 0.3
+                        -- Top Left
+                        obj.Corners[1].Visible = true; obj.Corners[1].From = Vector2.new(boxLeft, boxTop); obj.Corners[1].To = Vector2.new(boxLeft + cornerLen, boxTop)
+                        obj.Corners[2].Visible = true; obj.Corners[2].From = Vector2.new(boxLeft, boxTop); obj.Corners[2].To = Vector2.new(boxLeft, boxTop + cornerLen)
+                        -- Top Right
+                        obj.Corners[3].Visible = true; obj.Corners[3].From = Vector2.new(boxRight, boxTop); obj.Corners[3].To = Vector2.new(boxRight - cornerLen, boxTop)
+                        obj.Corners[4].Visible = true; obj.Corners[4].From = Vector2.new(boxRight, boxTop); obj.Corners[4].To = Vector2.new(boxRight, boxTop + cornerLen)
+                        -- Bottom Left
+                        obj.Corners[5].Visible = true; obj.Corners[5].From = Vector2.new(boxLeft, boxBottom); obj.Corners[5].To = Vector2.new(boxLeft + cornerLen, boxBottom)
+                        obj.Corners[6].Visible = true; obj.Corners[6].From = Vector2.new(boxLeft, boxBottom); obj.Corners[6].To = Vector2.new(boxLeft, boxBottom - cornerLen)
+                        -- Bottom Right
+                        obj.Corners[7].Visible = true; obj.Corners[7].From = Vector2.new(boxRight, boxBottom); obj.Corners[7].To = Vector2.new(boxRight - cornerLen, boxBottom)
+                        obj.Corners[8].Visible = true; obj.Corners[8].From = Vector2.new(boxRight, boxBottom); obj.Corners[8].To = Vector2.new(boxRight, boxBottom - cornerLen)
+                    elseif boxType == "Highlight" then
+                        if not obj.Highlight then 
+                            obj.Highlight = Instance.new("Highlight")
+                            obj.Highlight.Parent = char 
+                        end
+                        obj.Highlight.Enabled = true
+                        obj.Highlight.FillTransparency = 1
+                        obj.Highlight.OutlineColor = espColor
                     end
                 end
             end
