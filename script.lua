@@ -372,36 +372,47 @@ local success, err = pcall(function()
     TriggerbotGroupBox:AddSlider("TriggerbotDelay", { Text = "Fire Delay (sec)", Default = 0.05, Min = 0.01, Max = 1, Rounding = 2, Callback = function(Value) TB_DELAY = Value end })
 
     -- ==========================================
-    -- ESP 설정 (고도화 및 최적화)
+    -- ESP 설정 (박스 크기 확대 및 글로우 효과 추가)
     -- ==========================================
     local ESPGroupBox = Tabs.ESP:AddLeftGroupbox("ESP Settings")
     local espColor = Color3.fromRGB(0, 255, 127)
     
-    -- ESP 객체 풀 (성능 최적화를 위해 플레이어마다 객체 할당)
     local ESPObjects = {}
 
     local function createESPObject()
         local obj = {}
-        -- Full Box용 Square
-        obj.Box = Drawing.new("Square")
-        obj.Box.Thickness = 1
-        obj.Box.Filled = false
+        -- Full Box용 (메인 + 글로우 라인 4개씩)
+        obj.GlowLines = {}
+        obj.Lines = {}
+        for i = 1, 4 do
+            obj.GlowLines[i] = Drawing.new("Line")
+            obj.GlowLines[i].Thickness = 3
+            obj.GlowLines[i].Transparency = 0.6 -- 반투명하게 하여 빛나는 효과
+            
+            obj.Lines[i] = Drawing.new("Line")
+            obj.Lines[i].Thickness = 1
+        end
         
-        -- Corner Box용 Line 8개
+        -- Corner Box용 (메인 + 글로우 라인 8개씩)
+        obj.GlowCorners = {}
         obj.Corners = {}
         for i = 1, 8 do
+            obj.GlowCorners[i] = Drawing.new("Line")
+            obj.GlowCorners[i].Thickness = 3
+            obj.GlowCorners[i].Transparency = 0.6
+            
             obj.Corners[i] = Drawing.new("Line")
             obj.Corners[i].Thickness = 1
         end
         
-        -- 3D Highlight (기존 방식)
+        -- 3D Highlight
         obj.Highlight = nil 
         
         -- Line ESP
         obj.Tracer = Drawing.new("Line")
         obj.Tracer.Thickness = 1
         
-        -- Name & Health Text (외곽선 있어서 잘보임)
+        -- Name & Health Text
         obj.NameText = Drawing.new("Text")
         obj.NameText.Center = true
         obj.NameText.Outline = true
@@ -422,7 +433,9 @@ local success, err = pcall(function()
     local function hideESP(p)
         local obj = ESPObjects[p]
         if not obj then return end
-        obj.Box.Visible = false
+        for _, c in ipairs(obj.GlowLines) do c.Visible = false end
+        for _, c in ipairs(obj.Lines) do c.Visible = false end
+        for _, c in ipairs(obj.GlowCorners) do c.Visible = false end
         for _, c in ipairs(obj.Corners) do c.Visible = false end
         if obj.Highlight then obj.Highlight.Enabled = false end
         obj.Tracer.Visible = false
@@ -433,7 +446,9 @@ local success, err = pcall(function()
     local function clearESP(p)
         local obj = ESPObjects[p]
         if obj then
-            pcall(function() obj.Box:Remove() end)
+            for _, c in ipairs(obj.GlowLines) do pcall(function() c:Remove() end) end
+            for _, c in ipairs(obj.Lines) do pcall(function() c:Remove() end) end
+            for _, c in ipairs(obj.GlowCorners) do pcall(function() c:Remove() end) end
             for _, c in ipairs(obj.Corners) do pcall(function() c:Remove() end) end
             if obj.Highlight then pcall(function() obj.Highlight:Destroy() end) end
             pcall(function() obj.Tracer:Remove() end)
@@ -481,22 +496,24 @@ local success, err = pcall(function()
                     local headPos = camera:WorldToViewportPoint(head.Position + Vector3.new(0, 0.5, 0))
                     local legPos = camera:WorldToViewportPoint(root.Position - Vector3.new(0, 3, 0))
                     
-                    -- 화면 밖이면 숨기기
                     if not rootVis then
                         hideESP(p)
                         continue
                     end
 
-                    local height = math.abs(headPos.Y - legPos.Y)
-                    local width = height / 2
+                    -- 박스 크기 계산 (1.2배 키워서 여유있게 예쁘게 조정)
+                    local height = math.abs(headPos.Y - legPos.Y) * 1.2
+                    local width = height / 2.2
                     
-                    local boxTop = headPos.Y
-                    local boxBottom = legPos.Y
+                    local boxTop = headPos.Y - (height * 0.1)
+                    local boxBottom = boxTop + height
                     local boxLeft = rootPos.X - width / 2
                     local boxRight = rootPos.X + width / 2
                     
                     -- 색상 업데이트
-                    obj.Box.Color = espColor
+                    for _, c in ipairs(obj.GlowLines) do c.Color = espColor end
+                    for _, c in ipairs(obj.Lines) do c.Color = espColor end
+                    for _, c in ipairs(obj.GlowCorners) do c.Color = espColor end
                     for _, c in ipairs(obj.Corners) do c.Color = espColor end
                     obj.Tracer.Color = espColor
                     obj.NameText.Color = espColor
@@ -511,7 +528,7 @@ local success, err = pcall(function()
                         obj.Tracer.Visible = false
                     end
                     
-                    -- Name ESP (외곽선으로 가독성 완벽 확보)
+                    -- Name ESP
                     obj.NameText.Visible = Toggles.ESP_Name.Value
                     if Toggles.ESP_Name.Value then
                         obj.NameText.Text = p.Name
@@ -525,31 +542,50 @@ local success, err = pcall(function()
                         obj.HealthText.Position = Vector2.new(rootPos.X, boxBottom + 2)
                     end
                     
-                    -- Box Type (전체 박스, 코너 박스, 하이라이트)
-                    -- 일단 전부 끄고 시작
-                    obj.Box.Visible = false
+                    -- 박스 렌더링 전 초기화
+                    for _, c in ipairs(obj.GlowLines) do c.Visible = false end
+                    for _, c in ipairs(obj.Lines) do c.Visible = false end
+                    for _, c in ipairs(obj.GlowCorners) do c.Visible = false end
                     for _, c in ipairs(obj.Corners) do c.Visible = false end
                     if obj.Highlight then obj.Highlight.Enabled = false end
                     
                     local boxType = Options.ESP_BoxType.Value
                     if boxType == "Full Box" then
-                        obj.Box.Visible = true
-                        obj.Box.Position = Vector2.new(boxLeft, boxTop)
-                        obj.Box.Size = Vector2.new(width, height)
+                        -- 글로우 효과 (외곽선)
+                        obj.GlowLines[1].Visible = true; obj.GlowLines[1].From = Vector2.new(boxLeft, boxTop); obj.GlowLines[1].To = Vector2.new(boxRight, boxTop)
+                        obj.GlowLines[2].Visible = true; obj.GlowLines[2].From = Vector2.new(boxLeft, boxBottom); obj.GlowLines[2].To = Vector2.new(boxRight, boxBottom)
+                        obj.GlowLines[3].Visible = true; obj.GlowLines[3].From = Vector2.new(boxLeft, boxTop); obj.GlowLines[3].To = Vector2.new(boxLeft, boxBottom)
+                        obj.GlowLines[4].Visible = true; obj.GlowLines[4].From = Vector2.new(boxRight, boxTop); obj.GlowLines[4].To = Vector2.new(boxRight, boxBottom)
+                        
+                        -- 메인 박스 (내곽선)
+                        obj.Lines[1].Visible = true; obj.Lines[1].From = Vector2.new(boxLeft, boxTop); obj.Lines[1].To = Vector2.new(boxRight, boxTop)
+                        obj.Lines[2].Visible = true; obj.Lines[2].From = Vector2.new(boxLeft, boxBottom); obj.Lines[2].To = Vector2.new(boxRight, boxBottom)
+                        obj.Lines[3].Visible = true; obj.Lines[3].From = Vector2.new(boxLeft, boxTop); obj.Lines[3].To = Vector2.new(boxLeft, boxBottom)
+                        obj.Lines[4].Visible = true; obj.Lines[4].From = Vector2.new(boxRight, boxTop); obj.Lines[4].To = Vector2.new(boxRight, boxBottom)
+                        
                     elseif boxType == "Corner Box" then
                         local cornerLen = height * 0.3
-                        -- Top Left
+                        
+                        -- 글로우 코너
+                        obj.GlowCorners[1].Visible = true; obj.GlowCorners[1].From = Vector2.new(boxLeft, boxTop); obj.GlowCorners[1].To = Vector2.new(boxLeft + cornerLen, boxTop)
+                        obj.GlowCorners[2].Visible = true; obj.GlowCorners[2].From = Vector2.new(boxLeft, boxTop); obj.GlowCorners[2].To = Vector2.new(boxLeft, boxTop + cornerLen)
+                        obj.GlowCorners[3].Visible = true; obj.GlowCorners[3].From = Vector2.new(boxRight, boxTop); obj.GlowCorners[3].To = Vector2.new(boxRight - cornerLen, boxTop)
+                        obj.GlowCorners[4].Visible = true; obj.GlowCorners[4].From = Vector2.new(boxRight, boxTop); obj.GlowCorners[4].To = Vector2.new(boxRight, boxTop + cornerLen)
+                        obj.GlowCorners[5].Visible = true; obj.GlowCorners[5].From = Vector2.new(boxLeft, boxBottom); obj.GlowCorners[5].To = Vector2.new(boxLeft + cornerLen, boxBottom)
+                        obj.GlowCorners[6].Visible = true; obj.GlowCorners[6].From = Vector2.new(boxLeft, boxBottom); obj.GlowCorners[6].To = Vector2.new(boxLeft, boxBottom - cornerLen)
+                        obj.GlowCorners[7].Visible = true; obj.GlowCorners[7].From = Vector2.new(boxRight, boxBottom); obj.GlowCorners[7].To = Vector2.new(boxRight - cornerLen, boxBottom)
+                        obj.GlowCorners[8].Visible = true; obj.GlowCorners[8].From = Vector2.new(boxRight, boxBottom); obj.GlowCorners[8].To = Vector2.new(boxRight, boxBottom - cornerLen)
+                        
+                        -- 메인 코너
                         obj.Corners[1].Visible = true; obj.Corners[1].From = Vector2.new(boxLeft, boxTop); obj.Corners[1].To = Vector2.new(boxLeft + cornerLen, boxTop)
                         obj.Corners[2].Visible = true; obj.Corners[2].From = Vector2.new(boxLeft, boxTop); obj.Corners[2].To = Vector2.new(boxLeft, boxTop + cornerLen)
-                        -- Top Right
                         obj.Corners[3].Visible = true; obj.Corners[3].From = Vector2.new(boxRight, boxTop); obj.Corners[3].To = Vector2.new(boxRight - cornerLen, boxTop)
                         obj.Corners[4].Visible = true; obj.Corners[4].From = Vector2.new(boxRight, boxTop); obj.Corners[4].To = Vector2.new(boxRight, boxTop + cornerLen)
-                        -- Bottom Left
                         obj.Corners[5].Visible = true; obj.Corners[5].From = Vector2.new(boxLeft, boxBottom); obj.Corners[5].To = Vector2.new(boxLeft + cornerLen, boxBottom)
                         obj.Corners[6].Visible = true; obj.Corners[6].From = Vector2.new(boxLeft, boxBottom); obj.Corners[6].To = Vector2.new(boxLeft, boxBottom - cornerLen)
-                        -- Bottom Right
                         obj.Corners[7].Visible = true; obj.Corners[7].From = Vector2.new(boxRight, boxBottom); obj.Corners[7].To = Vector2.new(boxRight - cornerLen, boxBottom)
                         obj.Corners[8].Visible = true; obj.Corners[8].From = Vector2.new(boxRight, boxBottom); obj.Corners[8].To = Vector2.new(boxRight, boxBottom - cornerLen)
+                        
                     elseif boxType == "Highlight" then
                         if not obj.Highlight then 
                             obj.Highlight = Instance.new("Highlight")
