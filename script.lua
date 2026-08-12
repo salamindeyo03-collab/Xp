@@ -464,9 +464,9 @@ local success, err = pcall(function()
         Values = { "Off", "Full Box", "Corner Box", "Highlight" },
         Default = 1,
     })
-    ESPGroupBox:AddToggle("ESP_Lines", { Text = "Line ESP (Tracers)", Default = false })
-    ESPGroupBox:AddToggle("ESP_Name", { Text = "Name ESP", Default = false })
-    ESPGroupBox:AddToggle("ESP_Health", { Text = "Health ESP", Default = false })
+    ESPGroupBox:AddToggle("ESP_Lines", { Text = "Tracers", Default = false })
+    ESPGroupBox:AddToggle("ESP_Name", { Text = "Name", Default = false })
+    ESPGroupBox:AddToggle("ESP_Health", { Text = "Health", Default = false })
     ESPGroupBox:AddLabel("ESP Color"):AddColorPicker("ESP_Color", { 
         Default = espColor, 
         Title = "ESP Color", 
