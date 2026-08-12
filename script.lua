@@ -372,28 +372,29 @@ local success, err = pcall(function()
     TriggerbotGroupBox:AddSlider("TriggerbotDelay", { Text = "Fire Delay (sec)", Default = 0.05, Min = 0.01, Max = 1, Rounding = 2, Callback = function(Value) TB_DELAY = Value end })
 
     -- ==========================================
-    -- ESP 설정 (박스 크기 확대 및 글로우 효과 추가)
+    -- ESP 설정 (메인 토글, 색상 분리, 체력바, 미리보기 추가)
     -- ==========================================
     local ESPGroupBox = Tabs.ESP:AddLeftGroupbox("ESP Settings")
-    local espColor = Color3.fromRGB(0, 255, 127)
+    local espBoxColor = Color3.fromRGB(0, 255, 127)
+    local espTracerColor = Color3.fromRGB(0, 255, 127)
+    local espNameColor = Color3.fromRGB(255, 255, 255)
+    local espHealthColor = Color3.fromRGB(0, 255, 0)
     
     local ESPObjects = {}
 
     local function createESPObject()
         local obj = {}
-        -- Full Box용 (메인 + 글로우 라인 4개씩)
         obj.GlowLines = {}
         obj.Lines = {}
         for i = 1, 4 do
             obj.GlowLines[i] = Drawing.new("Line")
             obj.GlowLines[i].Thickness = 3
-            obj.GlowLines[i].Transparency = 0.6 -- 반투명하게 하여 빛나는 효과
+            obj.GlowLines[i].Transparency = 0.6
             
             obj.Lines[i] = Drawing.new("Line")
             obj.Lines[i].Thickness = 1
         end
         
-        -- Corner Box용 (메인 + 글로우 라인 8개씩)
         obj.GlowCorners = {}
         obj.Corners = {}
         for i = 1, 8 do
@@ -405,14 +406,11 @@ local success, err = pcall(function()
             obj.Corners[i].Thickness = 1
         end
         
-        -- 3D Highlight
         obj.Highlight = nil 
         
-        -- Line ESP
         obj.Tracer = Drawing.new("Line")
         obj.Tracer.Thickness = 1
         
-        -- Name & Health Text
         obj.NameText = Drawing.new("Text")
         obj.NameText.Center = true
         obj.NameText.Outline = true
@@ -420,12 +418,12 @@ local success, err = pcall(function()
         obj.NameText.Size = 13
         obj.NameText.Font = 2
         
-        obj.HealthText = Drawing.new("Text")
-        obj.HealthText.Center = true
-        obj.HealthText.Outline = true
-        obj.HealthText.OutlineColor = Color3.fromRGB(0, 0, 0)
-        obj.HealthText.Size = 13
-        obj.HealthText.Font = 2
+        obj.HealthBarBg = Drawing.new("Square")
+        obj.HealthBarBg.Thickness = 1
+        obj.HealthBarBg.Filled = false
+        
+        obj.HealthBarFill = Drawing.new("Square")
+        obj.HealthBarFill.Filled = true
         
         return obj
     end
@@ -440,7 +438,8 @@ local success, err = pcall(function()
         if obj.Highlight then obj.Highlight.Enabled = false end
         obj.Tracer.Visible = false
         obj.NameText.Visible = false
-        obj.HealthText.Visible = false
+        obj.HealthBarBg.Visible = false
+        obj.HealthBarFill.Visible = false
     end
 
     local function clearESP(p)
@@ -453,34 +452,104 @@ local success, err = pcall(function()
             if obj.Highlight then pcall(function() obj.Highlight:Destroy() end) end
             pcall(function() obj.Tracer:Remove() end)
             pcall(function() obj.NameText:Remove() end)
-            pcall(function() obj.HealthText:Remove() end)
+            pcall(function() obj.HealthBarBg:Remove() end)
+            pcall(function() obj.HealthBarFill:Remove() end)
             ESPObjects[p] = nil
         end
     end
 
-    -- UI 컨트롤 추가
+    -- ESP UI 컨트롤
+    ESPGroupBox:AddToggle("ESP_Enable", { Text = "Enable ESP", Default = false })
     ESPGroupBox:AddDropdown("ESP_BoxType", {
         Text = "Box ESP Type",
         Values = { "Off", "Full Box", "Corner Box", "Highlight" },
         Default = 1,
     })
-    ESPGroupBox:AddToggle("ESP_Lines", { Text = "Tracers", Default = false })
-    ESPGroupBox:AddToggle("ESP_Name", { Text = "Name", Default = false })
-    ESPGroupBox:AddToggle("ESP_Health", { Text = "Health", Default = false })
-    ESPGroupBox:AddLabel("ESP Color"):AddColorPicker("ESP_Color", { 
-        Default = espColor, 
-        Title = "ESP Color", 
-        Transparency = 0, 
-        Callback = function(Value) espColor = Value end 
-    })
+    ESPGroupBox:AddToggle("ESP_Tracer", { Text = "Tracer ESP", Default = false })
+    ESPGroupBox:AddToggle("ESP_Name", { Text = "Name ESP", Default = false })
+    ESPGroupBox:AddToggle("ESP_HealthBar", { Text = "Health Bar ESP", Default = false })
+    
+    ESPGroupBox:AddLabel("Box Color"):AddColorPicker("ESP_BoxColor", { Default = espBoxColor, Title = "Box Color", Callback = function(v) espBoxColor = v end })
+    ESPGroupBox:AddLabel("Tracer Color"):AddColorPicker("ESP_TracerColor", { Default = espTracerColor, Title = "Tracer Color", Callback = function(v) espTracerColor = v end })
+    ESPGroupBox:AddLabel("Name Color"):AddColorPicker("ESP_NameColor", { Default = espNameColor, Title = "Name Color", Callback = function(v) espNameColor = v end })
+    ESPGroupBox:AddLabel("Health Color"):AddColorPicker("ESP_HealthColor", { Default = espHealthColor, Title = "Health Color", Callback = function(v) espHealthColor = v end })
 
     Players.PlayerRemoving:Connect(clearESP)
 
+    -- ESP 미리보기(Preview) UI 구성
+    local PreviewGroupbox = Tabs.ESP:AddRightGroupbox("Preview")
+    local previewFrame = Instance.new("ViewportFrame")
+    previewFrame.Size = UDim2.new(1, 0, 0, 250)
+    previewFrame.BackgroundColor3 = Color3.fromRGB(15, 15, 15)
+    previewFrame.BorderSizePixel = 0
+    previewFrame.Parent = PreviewGroupbox.Container
+
+    local previewCam = Instance.new("Camera")
+    previewCam.CFrame = CFrame.new(Vector3.new(0, 2, 5), Vector3.new(0, 0, 0))
+    previewFrame.CurrentCamera = previewCam
+    previewCam.Parent = previewFrame
+
+    -- 미리보기 더미 모델 생성
+    local dummy = Instance.new("Model")
+    dummy.Parent = previewFrame
+
+    local dRoot = Instance.new("Part")
+    dRoot.Size = Vector3.new(2, 2, 1)
+    dRoot.CFrame = CFrame.new(0, 0, 0)
+    dRoot.Color = Color3.fromRGB(150, 150, 150)
+    dRoot.Anchored = true
+    dRoot.Parent = dummy
+
+    local dHead = Instance.new("Part")
+    dHead.Size = Vector3.new(1, 1, 1)
+    dHead.CFrame = CFrame.new(0, 1.5, 0)
+    dHead.Color = Color3.fromRGB(200, 200, 200)
+    dHead.Anchored = true
+    dHead.Parent = dummy
+
+    local dHum = Instance.new("Humanoid")
+    dHum.Parent = dummy
+
+    local previewHighlight = Instance.new("Highlight")
+    previewHighlight.Parent = dummy
+
+    local previewBillboard = Instance.new("BillboardGui")
+    previewBillboard.Size = UDim2.new(0, 100, 0, 20)
+    previewBillboard.StudsOffset = Vector3.new(0, 2, 0)
+    previewBillboard.Parent = dHead
+
+    local previewText = Instance.new("TextLabel")
+    previewText.BackgroundTransparency = 1
+    previewText.Text = "Preview"
+    previewText.TextColor3 = Color3.new(1, 1, 1)
+    previewText.Size = UDim2.new(1, 0, 1, 0)
+    previewText.Font = Enum.Font.GothamBold
+    previewText.TextStrokeTransparency = 0
+    previewText.Parent = previewBillboard
+
     RunService.RenderStepped:Connect(function()
         pcall(function()
+            -- 미리보기 회전 및 업데이트
+            dummy:SetPrimaryPartCFrame(CFrame.Angles(0, tick() * 0.5, 0))
+            
+            if Toggles.ESP_Enable.Value and Options.ESP_BoxType.Value == "Highlight" then
+                previewHighlight.Enabled = true
+                previewHighlight.OutlineColor = espBoxColor
+            else
+                previewHighlight.Enabled = false
+            end
+            
+            if Toggles.ESP_Enable.Value and Toggles.ESP_Name.Value then
+                previewBillboard.Enabled = true
+                previewText.TextColor3 = espNameColor
+            else
+                previewBillboard.Enabled = false
+            end
+
+            -- 실제 게임 플레이어 ESP 로직
             for _, p in pairs(Players:GetPlayers()) do
                 if p ~= player then
-                    if not p.Character or not p.Character:FindFirstChild("HumanoidRootPart") or not p.Character:FindFirstChild("Humanoid") or not p.Character:FindFirstChild("Head") or p.Character.Humanoid.Health <= 0 then
+                    if not Toggles.ESP_Enable.Value or not p.Character or not p.Character:FindFirstChild("HumanoidRootPart") or not p.Character:FindFirstChild("Humanoid") or not p.Character:FindFirstChild("Head") or p.Character.Humanoid.Health <= 0 then
                         hideESP(p)
                         continue
                     end
@@ -501,7 +570,6 @@ local success, err = pcall(function()
                         continue
                     end
 
-                    -- 박스 크기 계산 (1.2배 키워서 여유있게 예쁘게 조정)
                     local height = math.abs(headPos.Y - legPos.Y) * 1.2
                     local width = height / 2.2
                     
@@ -511,16 +579,17 @@ local success, err = pcall(function()
                     local boxRight = rootPos.X + width / 2
                     
                     -- 색상 업데이트
-                    for _, c in ipairs(obj.GlowLines) do c.Color = espColor end
-                    for _, c in ipairs(obj.Lines) do c.Color = espColor end
-                    for _, c in ipairs(obj.GlowCorners) do c.Color = espColor end
-                    for _, c in ipairs(obj.Corners) do c.Color = espColor end
-                    obj.Tracer.Color = espColor
-                    obj.NameText.Color = espColor
-                    obj.HealthText.Color = espColor
+                    for _, c in ipairs(obj.GlowLines) do c.Color = espBoxColor end
+                    for _, c in ipairs(obj.Lines) do c.Color = espBoxColor end
+                    for _, c in ipairs(obj.GlowCorners) do c.Color = espBoxColor end
+                    for _, c in ipairs(obj.Corners) do c.Color = espBoxColor end
+                    obj.Tracer.Color = espTracerColor
+                    obj.NameText.Color = espNameColor
+                    obj.HealthBarFill.Color = espHealthColor
+                    obj.HealthBarBg.Color = Color3.fromRGB(0, 0, 0)
                     
-                    -- Line ESP
-                    if Toggles.ESP_Lines.Value then
+                    -- Tracer
+                    if Toggles.ESP_Tracer.Value then
                         obj.Tracer.Visible = true
                         obj.Tracer.From = Vector2.new(camera.ViewportSize.X/2, camera.ViewportSize.Y)
                         obj.Tracer.To = Vector2.new(rootPos.X, boxBottom)
@@ -528,21 +597,37 @@ local success, err = pcall(function()
                         obj.Tracer.Visible = false
                     end
                     
-                    -- Name ESP
+                    -- Name
                     obj.NameText.Visible = Toggles.ESP_Name.Value
                     if Toggles.ESP_Name.Value then
                         obj.NameText.Text = p.Name
                         obj.NameText.Position = Vector2.new(rootPos.X, boxTop - 16)
                     end
                     
-                    -- Health ESP
-                    obj.HealthText.Visible = Toggles.ESP_Health.Value
-                    if Toggles.ESP_Health.Value then
-                        obj.HealthText.Text = math.floor(char.Humanoid.Health) .. " HP"
-                        obj.HealthText.Position = Vector2.new(rootPos.X, boxBottom + 2)
+                    -- Health Bar
+                    if Toggles.ESP_HealthBar.Value then
+                        local hp = char.Humanoid.Health
+                        local maxHp = char.Humanoid.MaxHealth
+                        local ratio = hp / maxHp
+                        
+                        local barX = boxLeft - 6
+                        local barY = boxTop
+                        local barW = 3
+                        local barH = height
+                        
+                        obj.HealthBarBg.Visible = true
+                        obj.HealthBarBg.Position = Vector2.new(barX, barY)
+                        obj.HealthBarBg.Size = Vector2.new(barW, barH)
+                        
+                        obj.HealthBarFill.Visible = true
+                        obj.HealthBarFill.Position = Vector2.new(barX, barY + (barH * (1 - ratio)))
+                        obj.HealthBarFill.Size = Vector2.new(barW, barH * ratio)
+                    else
+                        obj.HealthBarBg.Visible = false
+                        obj.HealthBarFill.Visible = false
                     end
                     
-                    -- 박스 렌더링 전 초기화
+                    -- Box 초기화
                     for _, c in ipairs(obj.GlowLines) do c.Visible = false end
                     for _, c in ipairs(obj.Lines) do c.Visible = false end
                     for _, c in ipairs(obj.GlowCorners) do c.Visible = false end
@@ -551,13 +636,11 @@ local success, err = pcall(function()
                     
                     local boxType = Options.ESP_BoxType.Value
                     if boxType == "Full Box" then
-                        -- 글로우 효과 (외곽선)
                         obj.GlowLines[1].Visible = true; obj.GlowLines[1].From = Vector2.new(boxLeft, boxTop); obj.GlowLines[1].To = Vector2.new(boxRight, boxTop)
                         obj.GlowLines[2].Visible = true; obj.GlowLines[2].From = Vector2.new(boxLeft, boxBottom); obj.GlowLines[2].To = Vector2.new(boxRight, boxBottom)
                         obj.GlowLines[3].Visible = true; obj.GlowLines[3].From = Vector2.new(boxLeft, boxTop); obj.GlowLines[3].To = Vector2.new(boxLeft, boxBottom)
                         obj.GlowLines[4].Visible = true; obj.GlowLines[4].From = Vector2.new(boxRight, boxTop); obj.GlowLines[4].To = Vector2.new(boxRight, boxBottom)
                         
-                        -- 메인 박스 (내곽선)
                         obj.Lines[1].Visible = true; obj.Lines[1].From = Vector2.new(boxLeft, boxTop); obj.Lines[1].To = Vector2.new(boxRight, boxTop)
                         obj.Lines[2].Visible = true; obj.Lines[2].From = Vector2.new(boxLeft, boxBottom); obj.Lines[2].To = Vector2.new(boxRight, boxBottom)
                         obj.Lines[3].Visible = true; obj.Lines[3].From = Vector2.new(boxLeft, boxTop); obj.Lines[3].To = Vector2.new(boxLeft, boxBottom)
@@ -566,7 +649,6 @@ local success, err = pcall(function()
                     elseif boxType == "Corner Box" then
                         local cornerLen = height * 0.3
                         
-                        -- 글로우 코너
                         obj.GlowCorners[1].Visible = true; obj.GlowCorners[1].From = Vector2.new(boxLeft, boxTop); obj.GlowCorners[1].To = Vector2.new(boxLeft + cornerLen, boxTop)
                         obj.GlowCorners[2].Visible = true; obj.GlowCorners[2].From = Vector2.new(boxLeft, boxTop); obj.GlowCorners[2].To = Vector2.new(boxLeft, boxTop + cornerLen)
                         obj.GlowCorners[3].Visible = true; obj.GlowCorners[3].From = Vector2.new(boxRight, boxTop); obj.GlowCorners[3].To = Vector2.new(boxRight - cornerLen, boxTop)
@@ -576,7 +658,6 @@ local success, err = pcall(function()
                         obj.GlowCorners[7].Visible = true; obj.GlowCorners[7].From = Vector2.new(boxRight, boxBottom); obj.GlowCorners[7].To = Vector2.new(boxRight - cornerLen, boxBottom)
                         obj.GlowCorners[8].Visible = true; obj.GlowCorners[8].From = Vector2.new(boxRight, boxBottom); obj.GlowCorners[8].To = Vector2.new(boxRight, boxBottom - cornerLen)
                         
-                        -- 메인 코너
                         obj.Corners[1].Visible = true; obj.Corners[1].From = Vector2.new(boxLeft, boxTop); obj.Corners[1].To = Vector2.new(boxLeft + cornerLen, boxTop)
                         obj.Corners[2].Visible = true; obj.Corners[2].From = Vector2.new(boxLeft, boxTop); obj.Corners[2].To = Vector2.new(boxLeft, boxTop + cornerLen)
                         obj.Corners[3].Visible = true; obj.Corners[3].From = Vector2.new(boxRight, boxTop); obj.Corners[3].To = Vector2.new(boxRight - cornerLen, boxTop)
@@ -593,7 +674,7 @@ local success, err = pcall(function()
                         end
                         obj.Highlight.Enabled = true
                         obj.Highlight.FillTransparency = 1
-                        obj.Highlight.OutlineColor = espColor
+                        obj.Highlight.OutlineColor = espBoxColor
                     end
                 end
             end
