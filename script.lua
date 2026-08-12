@@ -1,15 +1,5 @@
---[[
-                                               _                                 
-                     __      ____ _ _ __ _ __ (_)_ __   __ _                     
-                     \ \ /\ / / _` | '__| '_ \| | '_ \ / _` |                    
-                      \ V  V / (_{ | |  | | | | | | | | (_{ |                    
-                       \_/\_/ \__,_|_|  |_| |_|_|_| |_|\__, |                    
-                                                       |___/                     
- --]]
-
 local success, err = pcall(function()
     local repo = "https://raw.githubusercontent.com/mstudio45/LinoriaLib/main/"
-
     local Library = loadstring(game:HttpGet(repo .. "Library.lua"))()
     local ThemeManager = loadstring(game:HttpGet(repo .. "addons/ThemeManager.lua"))()
     local SaveManager = loadstring(game:HttpGet(repo .. "addons/SaveManager.lua"))()
@@ -23,14 +13,9 @@ local success, err = pcall(function()
 
     local Window = Library:CreateWindow({
         Title = "Necrophilia",
-        Center = true,
-        AutoShow = true,
-        Resizable = true,
-        ShowCustomCursor = true,
-        UnlockMouseWhileOpen = true,
-        NotifySide = "Left",
-        TabPadding = 8,
-        MenuFadeTime = 0.2
+        Center = true, AutoShow = true, Resizable = true,
+        ShowCustomCursor = true, UnlockMouseWhileOpen = true,
+        NotifySide = "Left", TabPadding = 8, MenuFadeTime = 0.2
     })
 
     local Tabs = {
@@ -42,9 +27,27 @@ local success, err = pcall(function()
     local RunService = game:GetService("RunService")
     local UserInputService = game:GetService("UserInputService")
     local ReplicatedStorage = game:GetService("ReplicatedStorage")
-
     local player = Players.LocalPlayer
     local camera = workspace.CurrentCamera
+
+    -- 캐릭터 부위 찾기 함수 (R15 및 R6 호환)
+    local function getHitboxPart(character, hitboxName)
+        if not character then return nil end
+        if hitboxName == "Head" then
+            return character:FindFirstChild("Head")
+        elseif hitboxName == "Torso" then
+            return character:FindFirstChild("HumanoidRootPart") or character:FindFirstChild("Torso") or character:FindFirstChild("UpperTorso")
+        elseif hitboxName == "Left Arm" then
+            return character:FindFirstChild("Left Arm") or character:FindFirstChild("LeftHand") or character:FindFirstChild("LeftLowerArm") or character:FindFirstChild("LeftUpperArm")
+        elseif hitboxName == "Right Arm" then
+            return character:FindFirstChild("Right Arm") or character:FindFirstChild("RightHand") or character:FindFirstChild("RightLowerArm") or character:FindFirstChild("RightUpperArm")
+        elseif hitboxName == "Left Leg" then
+            return character:FindFirstChild("Left Leg") or character:FindFirstChild("LeftFoot") or character:FindFirstChild("LeftLowerLeg") or character:FindFirstChild("LeftUpperLeg")
+        elseif hitboxName == "Right Leg" then
+            return character:FindFirstChild("Right Leg") or character:FindFirstChild("RightFoot") or character:FindFirstChild("RightLowerLeg") or character:FindFirstChild("RightUpperLeg")
+        end
+        return character:FindFirstChild("Head")
+    end
 
     -- ==========================================
     -- AIMBOT 설정 및 초기화
@@ -56,6 +59,7 @@ local success, err = pcall(function()
     local teamCheck = true
     local wallCheck = true
     local showFOV = false
+    local aimbotHitbox = "Head"
 
     local fovCircle = nil
     if Drawing then
@@ -83,27 +87,27 @@ local success, err = pcall(function()
         rayParams.IgnoreWater = true
         
         for _, plr in pairs(Players:GetPlayers()) do
-            if plr ~= player then
+            if plr ~= player and plr.Character then
                 local char = plr.Character
-                if char and char:FindFirstChild("Head") and char:FindFirstChild("Humanoid") and char:FindFirstChild("HumanoidRootPart") then
-                    if char.Humanoid.Health > 0 then
-                        local isTeammate = teamCheck and player.Team and plr.Team == player.Team
-                        if not isTeammate then
-                            local distance3D = (char.HumanoidRootPart.Position - localRoot.Position).Magnitude
-                            if distance3D <= MAX_DISTANCE then
-                                local screenPos, onScreen = camera:WorldToViewportPoint(char.Head.Position)
-                                if onScreen then
-                                    local d = (Vector2.new(screenPos.X, screenPos.Y) - screenCenter).Magnitude
-                                    if d < dist then
-                                        local canSee = true
-                                        if wallCheck then
-                                            local origin = camera.CFrame.Position
-                                            local direction = (char.Head.Position - origin)
-                                            local hit = workspace:Raycast(origin, direction, rayParams)
-                                            if hit and hit.Instance and not hit.Instance:IsDescendantOf(char) then canSee = false end
-                                        end
-                                        if canSee then dist = d closest = char end
+                local humanoid = char:FindFirstChildOfClass("Humanoid")
+                local targetPart = getHitboxPart(char, aimbotHitbox)
+                
+                if targetPart and humanoid and humanoid.Health > 0 and char:FindFirstChild("HumanoidRootPart") then
+                    local isTeammate = teamCheck and player.Team and plr.Team == player.Team
+                    if not isTeammate then
+                        local distance3D = (char.HumanoidRootPart.Position - localRoot.Position).Magnitude
+                        if distance3D <= MAX_DISTANCE then
+                            local screenPos, onScreen = camera:WorldToViewportPoint(targetPart.Position)
+                            if onScreen and screenPos.Z > 0 then
+                                local d = (Vector2.new(screenPos.X, screenPos.Y) - screenCenter).Magnitude
+                                if d < dist then
+                                    local canSee = true
+                                    if wallCheck then
+                                        local origin = camera.CFrame.Position
+                                        local hit = workspace:Raycast(origin, (targetPart.Position - origin), rayParams)
+                                        if hit and hit.Instance and not hit.Instance:IsDescendantOf(char) then canSee = false end
                                     end
+                                    if canSee then dist = d closest = char end
                                 end
                             end
                         end
@@ -126,21 +130,24 @@ local success, err = pcall(function()
                 fovCircle.Visible = false
             end
 
-            local isKeybindActive = false
-            if Options.AimbotKeybind then isKeybindActive = Options.AimbotKeybind:GetState() end
-            
+            local isKeybindActive = Options.AimbotKeybind and Options.AimbotKeybind:GetState() or false
             if aimbotEnabled and isKeybindActive then
                 local target = getTarget()
-                if target then
-                    local head = target:FindFirstChild("Head")
-                    if head and camera then
-                        local screenPos = camera:WorldToViewportPoint(head.Position)
-                        local targetVec = Vector2.new(screenPos.X, screenPos.Y)
-                        local screenCenter = Vector2.new(camera.ViewportSize.X / 2, camera.ViewportSize.Y / 2)
-                        local move = targetVec - screenCenter
-                        local smooth = math.max(1, SMOOTH_FACTOR)
-                        local moveStep = move / smooth
-                        if mousemoverel then mousemoverel(moveStep.X, moveStep.Y) end
+                if target and camera then
+                    local targetPart = getHitboxPart(target, aimbotHitbox)
+                    if targetPart then
+                        local screenPos = camera:WorldToViewportPoint(targetPart.Position)
+                        if screenPos.Z > 0 then
+                            local targetVec = Vector2.new(screenPos.X, screenPos.Y)
+                            local screenCenter = Vector2.new(camera.ViewportSize.X / 2, camera.ViewportSize.Y / 2)
+                            local move = targetVec - screenCenter
+                            local smooth = math.max(1, SMOOTH_FACTOR)
+                            local moveX = move.X / smooth
+                            local moveY = move.Y / smooth
+                            if math.abs(moveX) < 5000 and math.abs(moveY) < 5000 then
+                                if mousemoverel then mousemoverel(moveX, moveY) end
+                            end
+                        end
                     end
                 end
             end
@@ -150,6 +157,12 @@ local success, err = pcall(function()
     local AimbotGroupBox = Tabs.Main:AddLeftGroupbox("Aimbot")
     AimbotGroupBox:AddToggle("AimbotToggle", { Text = "Enable Aimbot", Default = false, Callback = function(Value) aimbotEnabled = Value end })
     AimbotGroupBox:AddLabel("Aimbot Keybind"):AddKeyPicker("AimbotKeybind", { Default = "MB2", SyncToggleState = false, Mode = "Hold", Text = "Aimbot Key", NoUI = false })
+    AimbotGroupBox:AddDropdown("AimbotHitbox", {
+        Text = "Aimbot Hitbox",
+        Values = { "Head", "Torso", "Left Arm", "Right Arm", "Left Leg", "Right Leg" },
+        Default = 1,
+        Callback = function(Value) aimbotHitbox = Value end
+    })
     AimbotGroupBox:AddToggle("AimbotShowFOV", { Text = "Show FOV Circle", Default = false, Callback = function(Value) showFOV = Value end })
     AimbotGroupBox:AddToggle("AimbotTeamCheck", { Text = "Team Check", Default = true, Callback = function(Value) teamCheck = Value end })
     AimbotGroupBox:AddToggle("AimbotWallCheck", { Text = "Wall Check", Default = true, Callback = function(Value) wallCheck = Value end })
@@ -165,6 +178,7 @@ local success, err = pcall(function()
     local SA_SHOW_FOV = true
     local SA_TEAMCHECK = true
     local SA_WALLCHECK = true
+    local saHitbox = "Head"
 
     local saFovCircle = nil
     if Drawing then
@@ -179,90 +193,82 @@ local success, err = pcall(function()
         end)
     end
 
-    local UtilityModule = nil
-    local originalRaycast = nil
+    local function safeWait(parent, name, timeout)
+        if not parent then return nil end
+        local success, obj = pcall(function() return parent:WaitForChild(name, timeout or 5) end)
+        return success and obj or nil
+    end
+    local function safeRequire(path)
+        if not path then return nil end
+        local success, module = pcall(function() return require(path) end)
+        return success and module or nil
+    end
+    local function safeClone(t)
+        if type(t) ~= "table" then return {} end
+        if table.clone then return table.clone(t) end
+        local copy = {}
+        for k, v in pairs(t) do copy[k] = v end
+        return copy
+    end
 
-    pcall(function()
-        UtilityModule = require(ReplicatedStorage.Modules.Utility)
-        if UtilityModule and UtilityModule.Raycast then originalRaycast = UtilityModule.Raycast end
-    end)
+    local modulesFolder = safeWait(ReplicatedStorage, "Modules", 10)
+    local UtilityModule = modulesFolder and safeRequire(safeWait(modulesFolder, "Utility", 10))
+    local originalRaycast = UtilityModule and UtilityModule.Raycast or nil
 
-    local function getSilentTargetPart()
-        local screenCenter = Vector2.new(camera.ViewportSize.X / 2, camera.ViewportSize.Y / 2)
-        local closestPart = nil
-        local shortestDist = SA_FOV
+    if UtilityModule and originalRaycast then
+        local function getSilentTargetPart()
+            local screenCenter = Vector2.new(camera.ViewportSize.X / 2, camera.ViewportSize.Y / 2)
+            local closestPart = nil
+            local shortestDist = SA_FOV
+            local rayParams = RaycastParams.new()
+            rayParams.FilterType = Enum.RaycastFilterType.Blacklist
+            rayParams.FilterDescendantsInstances = {player.Character}
+            rayParams.IgnoreWater = true
 
-        local rayParams = RaycastParams.new()
-        rayParams.FilterType = Enum.RaycastFilterType.Blacklist
-        rayParams.FilterDescendantsInstances = {player.Character}
-        rayParams.IgnoreWater = true
-
-        for _, plr in pairs(Players:GetPlayers()) do
-            if plr ~= player and plr.Character then
-                local isTeammate = SA_TEAMCHECK and player.Team and plr.Team == player.Team
-                if not isTeammate then
-                    local char = plr.Character
-                    local head = char:FindFirstChild("Head")
-                    local humanoid = char:FindFirstChildOfClass("Humanoid")
-                    if head and humanoid and humanoid.Health > 0 then
-                        local screenPos, onScreen = camera:WorldToViewportPoint(head.Position)
-                        if onScreen and screenPos.Z > 0 then
-                            local dist = (screenCenter - Vector2.new(screenPos.X, screenPos.Y)).Magnitude
-                            if dist < shortestDist then
-                                local canSee = true
-                                if SA_WALLCHECK then
-                                    local origin = camera.CFrame.Position
-                                    local direction = (head.Position - origin)
-                                    local hit = workspace:Raycast(origin, direction, rayParams)
-                                    if hit and hit.Instance and not hit.Instance:IsDescendantOf(char) then canSee = false end
+            for _, plr in pairs(Players:GetPlayers()) do
+                if plr ~= player and plr.Character then
+                    local isTeammate = SA_TEAMCHECK and player.Team and plr.Team == player.Team
+                    if not isTeammate then
+                        local humanoid = plr.Character:FindFirstChildOfClass("Humanoid")
+                        local targetPart = getHitboxPart(plr.Character, saHitbox)
+                        if targetPart and humanoid and humanoid.Health > 0 then
+                            local screenPos, onScreen = camera:WorldToViewportPoint(targetPart.Position)
+                            if onScreen and screenPos.Z > 0 then
+                                local dist = (screenCenter - Vector2.new(screenPos.X, screenPos.Y)).Magnitude
+                                if dist < shortestDist then
+                                    local canSee = true
+                                    if SA_WALLCHECK then
+                                        local hit = workspace:Raycast(camera.CFrame.Position, (targetPart.Position - camera.CFrame.Position), rayParams)
+                                        if hit and hit.Instance and not hit.Instance:IsDescendantOf(plr.Character) then canSee = false end
+                                    end
+                                    if canSee then shortestDist = dist closestPart = targetPart end
                                 end
-                                if canSee then shortestDist = dist closestPart = head end
                             end
                         end
                     end
                 end
             end
+            return closestPart
         end
-        return closestPart
-    end
 
-    if originalRaycast then
         UtilityModule.Raycast = function(self, origin, direction, distance, params, ignoreWater, debug)
-            local isKeybindActive = false
-            if Options.SilentAimKeybind then isKeybindActive = Options.SilentAimKeybind:GetState() end
-
+            local isKeybindActive = Options.SilentAimKeybind and Options.SilentAimKeybind:GetState() or false
             if not SA_ENABLED or not isKeybindActive or type(distance) ~= "number" or distance < 100 then
                 return originalRaycast(self, origin, direction, distance, params, ignoreWater, debug)
             end
-
             local targetPart = getSilentTargetPart()
-            if not targetPart then
-                return originalRaycast(self, origin, direction, distance, params, ignoreWater, debug)
-            end
-
+            if not targetPart then return originalRaycast(self, origin, direction, distance, params, ignoreWater, debug) end
             local targetPos = targetPart.Position
             local newDir = (targetPos - origin).Unit
             local newDist = (targetPos - origin).Magnitude
-
-            if newDist > distance then
-                newDist = distance
-                targetPos = origin + (newDir * distance)
-            end
-
-            return {
-                Position = targetPos,
-                Distance = newDist,
-                Instance = targetPart,
-                Material = targetPart.Material,
-                Normal = -newDir
-            }
+            if newDist > distance then newDist = distance targetPos = origin + (newDir * distance) end
+            return { Position = targetPos, Distance = newDist, Instance = targetPart, Material = targetPart.Material, Normal = -newDir }
         end
     end
 
     RunService.RenderStepped:Connect(function()
         pcall(function()
-            local isKeybindActive = false
-            if Options.SilentAimKeybind then isKeybindActive = Options.SilentAimKeybind:GetState() end
+            local isKeybindActive = Options.SilentAimKeybind and Options.SilentAimKeybind:GetState() or false
             if saFovCircle then
                 if SA_ENABLED and SA_SHOW_FOV and isKeybindActive then
                     saFovCircle.Position = camera.ViewportSize / 2
@@ -278,6 +284,12 @@ local success, err = pcall(function()
     local SilentAimGroupBox = Tabs.Main:AddLeftGroupbox("Silent Aim")
     SilentAimGroupBox:AddToggle("SilentAimToggle", { Text = "Enable Silent Aim", Default = false, Callback = function(Value) SA_ENABLED = Value end })
     SilentAimGroupBox:AddLabel("Silent Aim Keybind"):AddKeyPicker("SilentAimKeybind", { Default = "MB2", SyncToggleState = false, Mode = "Hold", Text = "Silent Key", NoUI = false })
+    SilentAimGroupBox:AddDropdown("SilentAimHitbox", {
+        Text = "Silent Aim Hitbox",
+        Values = { "Head", "Torso", "Left Arm", "Right Arm", "Left Leg", "Right Leg" },
+        Default = 1,
+        Callback = function(Value) saHitbox = Value end
+    })
     SilentAimGroupBox:AddToggle("SilentAimTeamCheck", { Text = "Team Check", Default = true, Callback = function(Value) SA_TEAMCHECK = Value end })
     SilentAimGroupBox:AddToggle("SilentAimWallCheck", { Text = "Wall Check", Default = true, Callback = function(Value) SA_WALLCHECK = Value end })
     SilentAimGroupBox:AddToggle("SilentAimShowFOV", { Text = "Show Silent FOV", Default = true, Callback = function(Value) SA_SHOW_FOV = Value end })
@@ -296,51 +308,37 @@ local success, err = pcall(function()
         return ok and res or false
     end
 
-    local function getTriggerTarget()
-        local closest, dist = nil, TB_FOV
-        local mousePos = UserInputService:GetMouseLocation()
-        local localRoot = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
-        if not localRoot then return nil end
-        
-        local rayParams = RaycastParams.new()
-        rayParams.FilterType = Enum.RaycastFilterType.Blacklist
-        rayParams.FilterDescendantsInstances = {player.Character}
-        rayParams.IgnoreWater = true
-        
-        for _, plr in pairs(Players:GetPlayers()) do
-            if plr ~= player and plr.Character and plr.Character:FindFirstChild("Head") and plr.Character:FindFirstChild("Humanoid") then
-                if plr.Character.Humanoid.Health > 0 then
-                    local pos, onScreen = camera:WorldToViewportPoint(plr.Character.Head.Position)
-                    if onScreen then
-                        local d = (Vector2.new(pos.X, pos.Y) - mousePos).Magnitude
-                        if d < dist then
-                            local canSee = true
-                            if TB_WALLCHECK then
-                                local origin = camera.CFrame.Position
-                                local direction = (plr.Character.Head.Position - origin)
-                                local hit = workspace:Raycast(origin, direction, rayParams)
-                                if hit and hit.Instance and not hit.Instance:IsDescendantOf(plr.Character) then canSee = false end
-                            end
-                            if canSee then dist = d closest = plr.Character end
-                        end
-                    end
-                end
-            end
-        end
-        return closest
-    end
-
     task.spawn(function()
         while task.wait() do
             pcall(function()
                 if TB_ENABLED and not isLobbyVisible() then
-                    local isKeybindActive = false
-                    if Options.TriggerbotKeybind then isKeybindActive = Options.TriggerbotKeybind:GetState() end
+                    local isKeybindActive = Options.TriggerbotKeybind and Options.TriggerbotKeybind:GetState() or false
                     if isKeybindActive then
-                        local target = getTriggerTarget()
-                        if target then
-                            if mouse1click then mouse1click() end
-                            task.wait(TB_DELAY)
+                        local mousePos = UserInputService:GetMouseLocation()
+                        local localRoot = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
+                        if localRoot then
+                            local rayParams = RaycastParams.new()
+                            rayParams.FilterType = Enum.RaycastFilterType.Blacklist
+                            rayParams.FilterDescendantsInstances = {player.Character}
+                            rayParams.IgnoreWater = true
+                            local closest, dist = nil, TB_FOV
+                            for _, plr in pairs(Players:GetPlayers()) do
+                                if plr ~= player and plr.Character and plr.Character:FindFirstChild("Head") and plr.Character:FindFirstChild("Humanoid") and plr.Character.Humanoid.Health > 0 then
+                                    local pos, onScreen = camera:WorldToViewportPoint(plr.Character.Head.Position)
+                                    if onScreen and pos.Z > 0 then
+                                        local d = (Vector2.new(pos.X, pos.Y) - mousePos).Magnitude
+                                        if d < dist then
+                                            local canSee = true
+                                            if TB_WALLCHECK then
+                                                local hit = workspace:Raycast(camera.CFrame.Position, (plr.Character.Head.Position - camera.CFrame.Position), rayParams)
+                                                if hit and hit.Instance and not hit.Instance:IsDescendantOf(plr.Character) then canSee = false end
+                                            end
+                                            if canSee then dist = d closest = plr.Character end
+                                        end
+                                    end
+                                end
+                            end
+                            if closest and mouse1click then mouse1click() task.wait(TB_DELAY) end
                         end
                     end
                 end
@@ -350,7 +348,7 @@ local success, err = pcall(function()
 
     local TriggerbotGroupBox = Tabs.Main:AddLeftGroupbox("Triggerbot")
     TriggerbotGroupBox:AddToggle("TriggerbotToggle", { Text = "Enable Triggerbot", Default = false, Callback = function(Value) TB_ENABLED = Value end })
-    TriggerbotGroupBox:AddLabel("Triggerbot Keybind"):AddKeyPicker("TriggerbotKeybind", { Default = "MB2", SyncToggleState = false, Mode = "Hold", Text = "Trigger Key", NoUI = false })
+    TriggerbotGroupBox:AddLabel("Trigger Keybind"):AddKeyPicker("TriggerbotKeybind", { Default = "MB2", SyncToggleState = false, Mode = "Hold", Text = "Trigger Key", NoUI = false })
     TriggerbotGroupBox:AddToggle("TriggerbotWallCheck", { Text = "Wall Check", Default = true, Callback = function(Value) TB_WALLCHECK = Value end })
     TriggerbotGroupBox:AddSlider("TriggerbotFOV", { Text = "Trigger FOV Radius", Default = 50, Min = 1, Max = 1000, Rounding = 0, Callback = function(Value) TB_FOV = Value end })
     TriggerbotGroupBox:AddSlider("TriggerbotDelay", { Text = "Fire Delay (sec)", Default = 0.05, Min = 0.01, Max = 1, Rounding = 2, Callback = function(Value) TB_DELAY = Value end })
@@ -358,28 +356,8 @@ local success, err = pcall(function()
     -- ==========================================
     -- UNLOCK ALL 설정
     -- ==========================================
-    local LeftGroupBox = Tabs.Main:AddLeftGroupbox("Groupbox")
     local UnlockGroupBox = Tabs.Main:AddRightGroupbox("Unlock All")
-
     local unlockAllExecuted = false
-    local function safeWait(parent, name, timeout)
-        if not parent then return nil end
-        timeout = timeout or 5
-        local success, obj = pcall(function() return parent:WaitForChild(name, timeout) end)
-        return success and obj or nil
-    end
-    local function safeRequire(path)
-        if not path then return nil end
-        local success, module = pcall(function() return require(path) end)
-        return success and module or nil
-    end
-    local function safeClone(t)
-        if not t then return {} end
-        if type(table) == "table" and type(table.clone) == "function" then return table.clone(t) end
-        local copy = {}
-        for k, v in pairs(t) do copy[k] = v end
-        return copy
-    end
 
     UnlockGroupBox:AddButton({
         Text = "Unlock All Cosmetics",
@@ -797,81 +775,7 @@ local success, err = pcall(function()
         end
     })
 
-    LeftGroupBox:AddToggle("MyToggle", { Text = "This is a toggle", Tooltip = "This is a tooltip", DisabledTooltip = "I am disabled!", Default = true, Disabled = false, Visible = true, Risky = false, Callback = function(Value) print("[cb] MyToggle changed to:", Value) end }):AddColorPicker("ColorPicker1", { Default = Color3.new(1, 0, 0), Title = "Some color1", Transparency = 0, Callback = function(Value, Transparency) print("[cb] Color changed!", Value, "| Transparency changed to:", Transparency) end }):AddColorPicker("ColorPicker2", { Default = Color3.new(0, 1, 0), Title = "Some color2", Transparency = 0, Callback = function(Value, Transparency) print("[cb] Color changed!", Value, "| Transparency changed to:", Transparency) end }):AddColorPicker("ColorPicker3", { Default = Color3.new(0, 0, 1), Title = "Some color3", Transparency = 0, Callback = function(Value, Transparency) print("[cb] Color changed!", Value, "| Transparency changed to:", Transparency) end })
-
-    Toggles.MyToggle:OnChanged(function() print("MyToggle changed to:", Toggles.MyToggle.Value) end)
-    Toggles.MyToggle:SetValue(false)
-
-    local MyButton = LeftGroupBox:AddButton({ Text = "Button", Func = function() print("You clicked a button!") Library:Notify("This is a notification") end, DoubleClick = false, Tooltip = "This is the main button", DisabledTooltip = "I am disabled!", Disabled = false, Visible = true })
-    local MyButton2 = MyButton:AddButton({ Text = "Sub button", Func = function() print("You clicked a sub button!") Library:Notify("This is a notification with sound", nil, 4590657391) end, DoubleClick = true, Tooltip = "This is the sub button (double click me!)" })
-    local MyDisabledButton = LeftGroupBox:AddButton({ Text = "Disabled Button", Func = function() print("You somehow clicked a disabled button!") end, DoubleClick = false, Tooltip = "This is a disabled button", DisabledTooltip = "I am disabled!", Disabled = true })
-
-    LeftGroupBox:AddLabel("This is a label")
-    LeftGroupBox:AddLabel("This is a label\n\nwhich wraps its text!", true)
-    LeftGroupBox:AddLabel("This is a label exposed to Labels", true, "TestLabel")
-    LeftGroupBox:AddLabel("SecondTestLabel", { Text = "This is a label made with table options and an index", DoesWrap = true })
-    LeftGroupBox:AddLabel("SecondTestLabel", { Text = "This is a label that doesn\"t wrap it\"s own text", DoesWrap = false })
-    LeftGroupBox:AddDivider()
-
-    LeftGroupBox:AddSlider("MySlider", { Text = "This is my slider!", Default = 0, Min = 0, Max = 5, Rounding = 1, Compact = false, Callback = function(Value) print("[cb] MySlider was changed! New value:", Value) end, Tooltip = "I am a slider!", DisabledTooltip = "I am disabled!", Disabled = false, Visible = true })
-    local Number = Options.MySlider.Value
-    Options.MySlider:OnChanged(function() print("MySlider was changed! New value:", Options.MySlider.Value) end)
-    Options.MySlider:SetValue(3)
-
-    LeftGroupBox:AddSlider("MySlider2", { Text = "This is my custom display slider!", Default = 0, Min = 0, Max = 5, Rounding = 1, Compact = false, FormatDisplayValue = function(slider, value) if value == slider.Max then return "Everything" end if value == slider.Min then return "Nothing" end end, Tooltip = "I am a slider!", DisabledTooltip = "I am disabled!", Disabled = false, Visible = true })
-    LeftGroupBox:AddInput("MyTextbox", { Default = "My textbox!", Numeric = false, Finished = false, ClearTextOnFocus = true, Text = "This is a textbox", Tooltip = "This is a tooltip", Placeholder = "Placeholder text", Callback = function(Value) print("[cb] Text updated. New text:", Value) end })
-    Options.MyTextbox:OnChanged(function() print("Text updated. New text:", Options.MyTextbox.Value) end)
-
-    local DropdownGroupBox = Tabs.Main:AddRightGroupbox("Dropdowns")
-    DropdownGroupBox:AddDropdown("MyDropdown", { Values = { "This", "is", "a", "dropdown" }, Default = 1, Multi = false, Text = "A dropdown", Tooltip = "This is a tooltip", DisabledTooltip = "I am disabled!", Searchable = false, Callback = function(Value) print("[cb] Dropdown got changed. New value:", Value) end, Disabled = false, Visible = true })
-    Options.MyDropdown:OnChanged(function() print("Dropdown got changed. New value:", Options.MyDropdown.Value) end)
-    Options.MyDropdown:SetValue("This")
-    DropdownGroupBox:AddDropdown("MySearchableDropdown", { Values = { "This", "is", "a", "searchable", "dropdown" }, Default = 1, Multi = false, Text = "A searchable dropdown", Tooltip = "This is a tooltip", DisabledTooltip = "I am disabled!", Searchable = true, Callback = function(Value) print("[cb] Dropdown got changed. New value:", Value) end, Disabled = false, Visible = true })
-    DropdownGroupBox:AddDropdown("MyDisplayFormattedDropdown", { Values = { "This", "is", "a", "formatted", "dropdown" }, Default = 1, Multi = false, Text = "A display formatted dropdown", Tooltip = "This is a tooltip", DisabledTooltip = "I am disabled!", FormatDisplayValue = function(Value) if Value == "formatted" then return "display formatted" end; return Value end, Searchable = false, Callback = function(Value) print("[cb] Display formatted dropdown got changed. New value:", Value) end, Disabled = false, Visible = true })
-    DropdownGroupBox:AddDropdown("MyMultiDropdown", { Values = { "This", "is", "a", "dropdown" }, Default = 1, Multi = true, Text = "A multi dropdown", Tooltip = "This is a tooltip", Callback = function(Value) print("[cb] Multi dropdown got changed:") for key, value in next, Options.MyMultiDropdown.Value do print(key, value) end end })
-    Options.MyMultiDropdown:SetValue({ This = true, is = true })
-    DropdownGroupBox:AddDropdown("MyDisabledDropdown", { Values = { "This", "is", "a", "dropdown" }, Default = 1, Multi = false, Text = "A disabled dropdown", Tooltip = "This is a tooltip", DisabledTooltip = "I am disabled!", Callback = function(Value) print("[cb] Disabled dropdown got changed. New value:", Value) end, Disabled = true, Visible = true })
-    DropdownGroupBox:AddDropdown("MyDisabledValueDropdown", { Values = { "This", "is", "a", "dropdown", "with", "disabled", "value" }, DisabledValues = { "disabled" }, Default = 1, Multi = false, Text = "A dropdown with disabled value", Tooltip = "This is a tooltip", DisabledTooltip = "I am disabled!", Callback = function(Value) print("[cb] Dropdown with disabled value got changed. New value:", Value) end, Disabled = false, Visible = true })
-    DropdownGroupBox:AddDropdown("MyVeryLongDropdown", { Values = { "This", "is", "a", "very", "long", "dropdown", "with", "a", "lot", "of", "values", "but", "you", "can", "see", "more", "than", "8", "values" }, Default = 1, Multi = false, MaxVisibleDropdownItems = 12, Text = "A very long dropdown", Tooltip = "This is a tooltip", DisabledTooltip = "I am disabled!", Searchable = false, Callback = function(Value) print("[cb] Very long dropdown got changed. New value:", Value) end, Disabled = false, Visible = true })
-    DropdownGroupBox:AddDropdown("MyPlayerDropdown", { SpecialType = "Player", ExcludeLocalPlayer = true, Text = "A player dropdown", Tooltip = "This is a tooltip", Callback = function(Value) print("[cb] Player dropdown got changed:", Value) end })
-    DropdownGroupBox:AddDropdown("MyTeamDropdown", { SpecialType = "Team", Text = "A team dropdown", Tooltip = "This is a tooltip", Callback = function(Value) print("[cb] Team dropdown got changed:", Value) end })
-
-    LeftGroupBox:AddLabel("Color"):AddColorPicker("ColorPicker", { Default = Color3.new(0, 1, 0), Title = "Some color", Transparency = 0, Callback = function(Value) print("[cb] Color changed!", Value) end })
-    Options.ColorPicker:OnChanged(function() print("Color changed!", Options.ColorPicker.Value) print("Transparency changed!", Options.ColorPicker.Transparency) end)
-    Options.ColorPicker:SetValueRGB(Color3.fromRGB(0, 255, 140))
-
-    LeftGroupBox:AddLabel("Keybind"):AddKeyPicker("KeyPicker", { Default = "MB2", SyncToggleState = false, Mode = "Toggle", Text = "Auto lockpick safes", NoUI = false, Callback = function(Value) print("[cb] Keybind clicked!", Value) end, ChangedCallback = function(NewKey, NewModifiers) print("[cb] Keybind changed!", NewKey, table.unpack(NewModifiers or {})) end })
-    Options.KeyPicker:OnClick(function() print("Keybind clicked!", Options.KeyPicker:GetState()) end)
-    Options.KeyPicker:OnChanged(function() print("Keybind changed!", Options.KeyPicker.Value, table.unpack(Options.KeyPicker.Modifiers or {})) end)
-    task.spawn(function() while task.wait(1) do local state = Options.KeyPicker:GetState() if state then print("KeyPicker is being held down") end if Library.Unloaded then break end end end)
-    Options.KeyPicker:SetValue({ "MB2", "Hold" }) 
-
-    local KeybindNumber = 0
-    LeftGroupBox:AddLabel("Press Keybind"):AddKeyPicker("KeyPicker2", { Default = "X", Mode = "Press", WaitForCallback = false, Text = "Increase Number", Callback = function() KeybindNumber = KeybindNumber + 1 print("[cb] Keybind clicked! Number increased to:", KeybindNumber) end })
-    LeftGroupBox:AddLabel("Dropdown"):AddDropdown("MyDropdown", { Values = { "Addon", "Dropdown" }, Default = 1, Multi = false, Tooltip = "This is a tooltip", DisabledTooltip = "I am disabled!", Searchable = false, Callback = function(Value) print("[cb] Dropdown got changed. New value:", Value) end, Disabled = false, Visible = true })
-
-    local LeftGroupBox2 = Tabs.Main:AddLeftGroupbox("Groupbox #2");
-    LeftGroupBox2:AddLabel("Oh no...\nThis label spans multiple lines!\n\nWe\'re gonna run out of UI space...\nJust kidding! Scroll down!\n\n\nHello from below!", true)
-
-    local TabBox = Tabs.Main:AddRightTabbox() 
-    local Tab1 = TabBox:AddTab("Tab 1")
-    Tab1:AddToggle("Tab1Toggle", { Text = "Tab1 Toggle" });
-    local Tab2 = TabBox:AddTab("Tab 2")
-    Tab2:AddToggle("Tab2Toggle", { Text = "Tab2 Toggle" });
-
-    local RightGroupbox = Tabs.Main:AddRightGroupbox("Groupbox #3");
-    RightGroupbox:AddToggle("ControlToggle", { Text = "Dependency box toggle" });
-    local Depbox = RightGroupbox:AddDependencyBox();
-    Depbox:AddToggle("DepboxToggle", { Text = "Sub-dependency box toggle" });
-    local SubDepbox = Depbox:AddDependencyBox();
-    SubDepbox:AddSlider("DepboxSlider", { Text = "Slider", Default = 50, Min = 0, Max = 100, Rounding = 0 });
-    SubDepbox:AddDropdown("DepboxDropdown", { Text = "Dropdown", Default = 1, Values = {"a", "b", "c"} });
-    local SecretDepbox = SubDepbox:AddDependencyBox();
-    SecretDepbox:AddLabel("You found a seĉret!")
-    Depbox:SetupDependencies({ { Toggles.ControlToggle, true } });
-    SubDepbox:SetupDependencies({ { Toggles.DepboxToggle, true } });
-    SecretDepbox:SetupDependencies({ { Options.DepboxDropdown, "ĉ"} })
-
+    -- WATERMARK
     Library:SetWatermarkVisibility(true)
     local FrameTimer = tick()
     local FrameCounter = 0;
@@ -940,7 +844,7 @@ local success, err = pcall(function()
     
     SaveManager:LoadAutoloadConfig()
 
-    -- 💡 UI 강제 유지 루프 (지인 조언 반영 + 메인 배경 예외처리)
+    -- 💡 UI 강제 유지 루프 (메인 배경 예외처리 완벽 적용)
     task.spawn(function()
         -- 로고 이미지 다운로드
         local logoUrl = "https://raw.githubusercontent.com/salamindeyo03-collab/SLogo/main/RealLast.png"
