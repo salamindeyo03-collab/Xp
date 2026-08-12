@@ -57,15 +57,11 @@ local success, err = pcall(function()
     local wallCheck = true
     local showFOV = false
 
-    -- 에임봇 FOV 커스텀 변수
-    local aimbotFOVColor = Color3.fromRGB(255, 255, 255)
-    local aimbotFOVRainbow = false
-
     local fovCircle = nil
     if Drawing then
         pcall(function()
             fovCircle = Drawing.new("Circle")
-            fovCircle.Color = aimbotFOVColor
+            fovCircle.Color = Color3.fromRGB(255, 255, 255)
             fovCircle.Thickness = 2
             fovCircle.Transparency = 1
             fovCircle.Filled = false
@@ -125,15 +121,6 @@ local success, err = pcall(function()
                 local mousePos = UserInputService:GetMouseLocation()
                 fovCircle.Position = Vector2.new(mousePos.X, mousePos.Y)
                 fovCircle.Radius = AIM_RADIUS
-                
-                -- 레인보우 모드일 경우 색상 변경, 아닐 경우 커스텀 색상 유지
-                if aimbotFOVRainbow then
-                    local hue = tick() % 5 / 5
-                    fovCircle.Color = Color3.fromHSV(hue, 1, 1)
-                else
-                    fovCircle.Color = aimbotFOVColor
-                end
-                
                 fovCircle.Visible = true
             elseif fovCircle then
                 fovCircle.Visible = false
@@ -164,20 +151,6 @@ local success, err = pcall(function()
     AimbotGroupBox:AddToggle("AimbotToggle", { Text = "Enable Aimbot", Default = false, Callback = function(Value) aimbotEnabled = Value end })
     AimbotGroupBox:AddLabel("Aimbot Keybind"):AddKeyPicker("AimbotKeybind", { Default = "MB2", SyncToggleState = false, Mode = "Hold", Text = "Aimbot Key", NoUI = false })
     AimbotGroupBox:AddToggle("AimbotShowFOV", { Text = "Show FOV Circle", Default = false, Callback = function(Value) showFOV = Value end })
-    
-    -- 에임봇 FOV 색상 및 레인보우 설정 UI 추가
-    AimbotGroupBox:AddLabel("Aimbot FOV Color"):AddColorPicker("AimbotFOVColorPicker", { 
-        Default = Color3.fromRGB(255, 255, 255), 
-        Title = "Aimbot FOV Color", 
-        Transparency = 0, 
-        Callback = function(Value) aimbotFOVColor = Value end 
-    })
-    AimbotGroupBox:AddToggle("AimbotFOVRainbowToggle", { 
-        Text = "Rainbow FOV", 
-        Default = false, 
-        Callback = function(Value) aimbotFOVRainbow = Value end 
-    })
-
     AimbotGroupBox:AddToggle("AimbotTeamCheck", { Text = "Team Check", Default = true, Callback = function(Value) teamCheck = Value end })
     AimbotGroupBox:AddToggle("AimbotWallCheck", { Text = "Wall Check", Default = true, Callback = function(Value) wallCheck = Value end })
     AimbotGroupBox:AddSlider("AimbotSmoothness", { Text = "Smoothness (1 = Strong)", Default = 1, Min = 1, Max = 10, Rounding = 0, Callback = function(Value) SMOOTH_FACTOR = Value end })
@@ -193,15 +166,11 @@ local success, err = pcall(function()
     local SA_TEAMCHECK = true
     local SA_WALLCHECK = true
 
-    -- 사일런트 에임 FOV 커스텀 변수
-    local saFOVColor = Color3.fromRGB(255, 0, 0)
-    local saFOVRainbow = false
-
     local saFovCircle = nil
     if Drawing then
         pcall(function()
             saFovCircle = Drawing.new("Circle")
-            saFovCircle.Color = saFOVColor
+            saFovCircle.Color = Color3.fromRGB(255, 0, 0)
             saFovCircle.Thickness = 1
             saFovCircle.Transparency = 1
             saFovCircle.Filled = false
@@ -298,15 +267,6 @@ local success, err = pcall(function()
                 if SA_ENABLED and SA_SHOW_FOV and isKeybindActive then
                     saFovCircle.Position = camera.ViewportSize / 2
                     saFovCircle.Radius = SA_FOV
-                    
-                    -- 레인보우 모드일 경우 색상 변경, 아닐 경우 커스텀 색상 유지
-                    if saFOVRainbow then
-                        local hue = tick() % 5 / 5
-                        saFovCircle.Color = Color3.fromHSV(hue, 1, 1)
-                    else
-                        saFovCircle.Color = saFOVColor
-                    end
-                    
                     saFovCircle.Visible = true
                 else
                     saFovCircle.Visible = false
@@ -321,20 +281,6 @@ local success, err = pcall(function()
     SilentAimGroupBox:AddToggle("SilentAimTeamCheck", { Text = "Team Check", Default = true, Callback = function(Value) SA_TEAMCHECK = Value end })
     SilentAimGroupBox:AddToggle("SilentAimWallCheck", { Text = "Wall Check", Default = true, Callback = function(Value) SA_WALLCHECK = Value end })
     SilentAimGroupBox:AddToggle("SilentAimShowFOV", { Text = "Show Silent FOV", Default = true, Callback = function(Value) SA_SHOW_FOV = Value end })
-    
-    -- 사일런트 에임 FOV 색상 및 레인보우 설정 UI 추가
-    SilentAimGroupBox:AddLabel("Silent Aim FOV Color"):AddColorPicker("SilentAimFOVColorPicker", { 
-        Default = Color3.fromRGB(255, 0, 0), 
-        Title = "Silent Aim FOV Color", 
-        Transparency = 0, 
-        Callback = function(Value) saFOVColor = Value end 
-    })
-    SilentAimGroupBox:AddToggle("SilentAimFOVRainbowToggle", { 
-        Text = "Rainbow FOV", 
-        Default = false, 
-        Callback = function(Value) saFOVRainbow = Value end 
-    })
-
     SilentAimGroupBox:AddSlider("SilentAimFOV", { Text = "Silent FOV Radius", Default = 50, Min = 10, Max = 1000, Rounding = 0, Callback = function(Value) SA_FOV = Value end })
 
     -- ==========================================
@@ -591,7 +537,7 @@ local success, err = pcall(function()
                             local oldNamecall
                             oldNamecall = hookmetamethod(game, "__namecall", function(self, ...)
                                 if not getnamecallmethod then return oldNamecall(self, ...) end
-                                if getnamecallmethod() ~= "FireServer" then return oldNamecall(self, ...) end
+                                if getnamecallmethod() != "FireServer" then return oldNamecall(self, ...) end
                                 local args = {...}
                                 
                                 if useItemRemote and self == useItemRemote then
@@ -1041,8 +987,8 @@ local success, err = pcall(function()
                                 logoImg.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
                                 logoImg.BackgroundTransparency = 0
                                 logoImg.Size = UDim2.new(1, 0, 1, 0)
-                                logoImg.Position = UDim2.new(0.5, 0, 0.5, 0)
-                                logoImg.AnchorPoint = Vector2.new(0.5, 0.5)
+                                logoImg.Position = UDim2.new(0.5,0, 0.5,0)
+                                logoImg.AnchorPoint = Vector2.new(0.5,0.5)
                                 logoImg.ZIndex = 1
                                 logoImg.ImageTransparency = 0.4
                                 logoImg.ScaleType = Enum.ScaleType.Fit
