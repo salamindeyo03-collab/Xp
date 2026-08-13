@@ -372,16 +372,15 @@ local success, err = pcall(function()
     TriggerbotGroupBox:AddSlider("TriggerbotDelay", { Text = "Fire Delay (sec)", Default = 0.05, Min = 0.01, Max = 1, Rounding = 2, Callback = function(Value) TB_DELAY = Value end })
 
     -- ==========================================
-    -- RAGEBOT & POSTSHOT 설정 (우측 그룹박스)
+    -- RAGEBOT 설정 (우측 그룹박스)
     -- ==========================================
     local RB_ENABLED = false
     local RB_FOV = 300
     local RB_HITBOX = "Head"
     local RB_WALLCHECK = true
     local RB_TEAMCHECK = true
-    local POSTSHOT_PERCENT = 100
 
-    local RagebotGroupBox = Tabs.Main:AddRightGroupbox("Ragebot & Postshot")
+    local RagebotGroupBox = Tabs.Main:AddRightGroupbox("Ragebot")
     RagebotGroupBox:AddToggle("RagebotToggle", { Text = "Enable Ragebot", Default = false, Callback = function(Value) RB_ENABLED = Value end })
     RagebotGroupBox:AddLabel("Ragebot Keybind"):AddKeyPicker("RagebotKeybind", { Default = "MB2", SyncToggleState = false, Mode = "Hold", Text = "Rage Key", NoUI = false })
     RagebotGroupBox:AddDropdown("RagebotHitbox", {
@@ -393,16 +392,6 @@ local success, err = pcall(function()
     RagebotGroupBox:AddToggle("RagebotTeamCheck", { Text = "Team Check", Default = true, Callback = function(Value) RB_TEAMCHECK = Value end })
     RagebotGroupBox:AddToggle("RagebotWallCheck", { Text = "Wall Check", Default = true, Callback = function(Value) RB_WALLCHECK = Value end })
     RagebotGroupBox:AddSlider("RagebotFOV", { Text = "Ragebot FOV Radius", Default = 300, Min = 1, Max = 2000, Rounding = 0, Callback = function(Value) RB_FOV = Value end })
-    
-    -- Postshot 슬라이더: 100%가 기본 속도, 1%가 가장 빠른 속도
-    RagebotGroupBox:AddSlider("PostshotSpeed", {
-        Text = "Postshot (1% Fast, 100% Normal)",
-        Default = 100,
-        Min = 1,
-        Max = 100,
-        Rounding = 0,
-        Callback = function(Value) POSTSHOT_PERCENT = Value end
-    })
 
     task.spawn(function()
         while task.wait() do
@@ -456,16 +445,44 @@ local success, err = pcall(function()
                                         if math.abs(move.X) < 5000 and math.abs(move.Y) < 5000 then
                                             if mousemoverel then mousemoverel(move.X, move.Y) end
                                         end
-                                        
-                                        -- Postshot 연사 속도 계산 및 자동 사격
-                                        -- 1%일 때 0.01초(매우 빠름), 100%일 때 0.1초(기본 속도)
-                                        local actualDelay = 0.1 - (POSTSHOT_PERCENT / 100) * 0.09
-                                        if mouse1click then mouse1click() task.wait(actualDelay) end
                                     end
                                 end
                             end
                         end
                     end
+                end
+            end)
+        end
+    end)
+
+    -- ==========================================
+    -- POSTSHOT (RAPID FIRE) 독립 설정
+    -- ==========================================
+    local PS_ENABLED = false
+    local PS_DELAY = 0.01 -- 1% (매우 빠름)
+
+    local PostshotGroupBox = Tabs.Main:AddRightGroupbox("Postshot (Rapid Fire)")
+    PostshotGroupBox:AddToggle("PostshotToggle", { Text = "Enable Postshot", Default = false, Callback = function(Value) PS_ENABLED = Value end })
+    PostshotGroupBox:AddLabel("Postshot Keybind"):AddKeyPicker("PostshotKeybind", { Default = "MB1", SyncToggleState = false, Mode = "Hold", Text = "Postshot Key", NoUI = false })
+    PostshotGroupBox:AddSlider("PostshotSpeed", {
+        Text = "Speed (1% Fast, 100% Slow)",
+        Default = 1,
+        Min = 1,
+        Max = 100,
+        Rounding = 0,
+        Callback = function(Value) 
+            -- 1% = 0.01초 (매우 빠름), 100% = 0.1초 (느림)
+            PS_DELAY = 0.01 + ((Value - 1) / 99) * 0.09
+        end
+    })
+
+    task.spawn(function()
+        while task.wait() do
+            pcall(function()
+                local isPSActive = Options.PostshotKeybind and Options.PostshotKeybind:GetState() or false
+                if PS_ENABLED and isPSActive then
+                    if mouse1click then mouse1click() end
+                    task.wait(PS_DELAY)
                 end
             end)
         end
