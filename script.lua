@@ -1,3 +1,10 @@
+--[[
+    Lenny's Scripts Rapidfire Logic Ported to Roblox
+    Original: Lenny (STEAM_0:0:30422103) & Ott (STEAM_0:0:36527860)
+    Ported for Roblox by AI.
+    This work is licensed under the Creative Commons Attribution-NonCommercial-ShareAlike 3.0 Unported License.
+]]
+
 local success, err = pcall(function()
     local repo = "https://raw.githubusercontent.com/mstudio45/LinoriaLib/main/"
     local Library = loadstring(game:HttpGet(repo .. "Library.lua"))()
@@ -456,35 +463,57 @@ local success, err = pcall(function()
     end)
 
     -- ==========================================
-    -- POSTSHOT (RAPID FIRE) 독립 설정
+    -- POSTSHOT (RAPID FIRE) 슬라이더 전용
     -- ==========================================
-    local PS_ENABLED = false
-    local PS_DELAY = 0.01 -- 1% (매우 빠름)
+    local PS_SPEED = 100
+    local isFiring = false
+
+    -- 마우스 왼쪽 버튼(MB1) 누름 감지
+    UserInputService.InputBegan:Connect(function(input, gameProcessed)
+        if not gameProcessed and input.UserInputType == Enum.UserInputType.MouseButton1 then
+            isFiring = true
+        end
+    end)
+
+    -- 마우스 왼쪽 버튼(MB1) 뗌 감지
+    UserInputService.InputEnded:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 then
+            isFiring = false
+            -- 혹시라도 눌려있는 상태로 끝날 수 있으니 안전하게 뗌 처리
+            if mouse1release then mouse1release() end
+        end
+    end)
 
     local PostshotGroupBox = Tabs.Main:AddRightGroupbox("Postshot (Rapid Fire)")
-    PostshotGroupBox:AddToggle("PostshotToggle", { Text = "Enable Postshot", Default = false, Callback = function(Value) PS_ENABLED = Value end })
-    PostshotGroupBox:AddLabel("Postshot Keybind"):AddKeyPicker("PostshotKeybind", { Default = "MB1", SyncToggleState = false, Mode = "Hold", Text = "Postshot Key", NoUI = false })
     PostshotGroupBox:AddSlider("PostshotSpeed", {
-        Text = "Speed (1% Fast, 100% Slow)",
-        Default = 1,
+        Text = "Speed (1=Fastest, 100=Normal)",
+        Default = 100,
         Min = 1,
         Max = 100,
         Rounding = 0,
         Callback = function(Value) 
-            -- 1% = 0.01초 (매우 빠름), 100% = 0.1초 (느림)
-            PS_DELAY = 0.01 + ((Value - 1) / 99) * 0.09
+            PS_SPEED = Value 
         end
     })
 
+    -- Lenny 로직 기반 연사 루프 (마우스 클릭 토글 방식)
     task.spawn(function()
         while task.wait() do
-            pcall(function()
-                local isPSActive = Options.PostshotKeybind and Options.PostshotKeybind:GetState() or false
-                if PS_ENABLED and isPSActive then
+            if isFiring and not isLobbyVisible() then
+                -- 속도 계산: 1일 때 0.001초(극한 연사), 100일 때 0.05초(보통 연사)
+                local delayTime = 0.001 + ((PS_SPEED - 1) / 99) * 0.049
+                
+                -- mouse1press / release 가 지원되면 토글 방식 사용 (Lenny 로직), 아니면 mouse1click 사용
+                if mouse1press and mouse1release then
+                    mouse1press()
+                    task.wait(delayTime)
+                    mouse1release()
+                    task.wait(delayTime)
+                else
                     if mouse1click then mouse1click() end
-                    task.wait(PS_DELAY)
+                    task.wait(delayTime)
                 end
-            end)
+            end
         end
     end)
 
