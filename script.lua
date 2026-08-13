@@ -456,58 +456,75 @@ local success, err = pcall(function()
     end)
 
     -- ==========================================
-    -- FULL AUTO (RAPID FIRE - Gun Cooldown Hack)
+    -- FULL AUTO & RAPID FIRE (분리됨)
     -- ==========================================
     local FullAutoEnabled = false
+    local RapidFireEnabled = false
     local isFiring = false
-    local originalGunUpdate = nil
 
-    -- 제공해주신 Rapid.txt 코드 통합
+    -- Gun 모듈 쿨다운 제거 (풀오토 또는 래피드파이어 켜져있을 때)
     pcall(function()
         local Gun = require(player.PlayerScripts.Modules.ItemTypes.Gun)
         if Gun and Gun.Update then
-            originalGunUpdate = Gun.Update
+            local oldUpdate = Gun.Update
             Gun.Update = function(self, dt, ...)
-                if FullAutoEnabled then
+                if FullAutoEnabled or RapidFireEnabled then
                     if self._shoot_cooldown then
                         self._shoot_cooldown = 0 -- 쿨다운 강제 제거
                     end
                 end
-                return originalGunUpdate(self, dt, ...)
+                return oldUpdate(self, dt, ...)
             end
         end
     end)
 
-    -- 마우스 왼쪽 버튼(MB1) 누름 감지
+    -- 마우스 왼쪽 버튼(MB1) 누름/뗌 감지
     UserInputService.InputBegan:Connect(function(input, gameProcessed)
         if not gameProcessed and input.UserInputType == Enum.UserInputType.MouseButton1 then
             isFiring = true
         end
     end)
-
-    -- 마우스 왼쪽 버튼(MB1) 뗌 감지
     UserInputService.InputEnded:Connect(function(input)
         if input.UserInputType == Enum.UserInputType.MouseButton1 then
             isFiring = false
         end
     end)
 
-    local FullAutoGroupBox = Tabs.Main:AddRightGroupbox("Full Auto (Rapid Fire)")
-    FullAutoGroupBox:AddToggle("FullAutoToggle", { 
+    local FireModesGroupBox = Tabs.Main:AddRightGroupbox("Fire Modes (Postshot)")
+    
+    -- 풀오토: 마우스를 꾹 누르고 있을 때 마우스 입력을 지속해서 보냄 (반자동 무기를 완전 자동화)
+    FireModesGroupBox:AddToggle("FullAutoToggle", { 
         Text = "Enable Full Auto (Hold MB1)", 
         Default = false, 
-        Callback = function(Value) 
-            FullAutoEnabled = Value 
-        end 
+        Callback = function(Value) FullAutoEnabled = Value end 
     })
 
-    -- 마우스 꾹 누르고 있을 때 연속으로 클릭 입력 발생 (반자동 무기도 풀오토화)
+    -- 래피드파이어: 미친 속도로 마우스 클릭을 반복
+    FireModesGroupBox:AddToggle("RapidFireToggle", { 
+        Text = "Enable Rapid Fire (Fastest)", 
+        Default = false, 
+        Callback = function(Value) RapidFireEnabled = Value end 
+    })
+
+    -- 마우스 꾹 누르고 있을 때 작동하는 루프
     task.spawn(function()
         while task.wait() do
-            if FullAutoEnabled and isFiring and not isLobbyVisible() then
-                if mouse1click then mouse1click() end
-                task.wait(0.01) -- 극한의 연사 속도
-            end
+            pcall(function()
+                if isFiring and not isLobbyVisible() then
+                    if FullAutoEnabled or RapidFireEnabled then
+                        -- mouse1press/release 가 지원되면 사용, 아니면 mouse1click 사용
+                        if mouse1press and mouse1release then
+                            mouse1press()
+                            task.wait(0.01)
+                            mouse1release()
+                            task.wait(0.01)
+                        elseif mouse1click then
+                            mouse1click()
+                            task.wait(0.01)
+                        end
+                    end
+                end
+            end)
         end
     end)
 
