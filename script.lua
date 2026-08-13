@@ -372,7 +372,107 @@ local success, err = pcall(function()
     TriggerbotGroupBox:AddSlider("TriggerbotDelay", { Text = "Fire Delay (sec)", Default = 0.05, Min = 0.01, Max = 1, Rounding = 2, Callback = function(Value) TB_DELAY = Value end })
 
     -- ==========================================
-    -- ESP 설정 (메인 토글, 색상 분리, 체력바, 미리보기 추가)
+    -- RAGEBOT & POSTSHOT 설정 (우측 그룹박스)
+    -- ==========================================
+    local RB_ENABLED = false
+    local RB_FOV = 300
+    local RB_HITBOX = "Head"
+    local RB_WALLCHECK = true
+    local RB_TEAMCHECK = true
+    local POSTSHOT_PERCENT = 100
+
+    local RagebotGroupBox = Tabs.Main:AddRightGroupbox("Ragebot & Postshot")
+    RagebotGroupBox:AddToggle("RagebotToggle", { Text = "Enable Ragebot", Default = false, Callback = function(Value) RB_ENABLED = Value end })
+    RagebotGroupBox:AddLabel("Ragebot Keybind"):AddKeyPicker("RagebotKeybind", { Default = "MB2", SyncToggleState = false, Mode = "Hold", Text = "Rage Key", NoUI = false })
+    RagebotGroupBox:AddDropdown("RagebotHitbox", {
+        Text = "Ragebot Hitbox",
+        Values = { "Head", "Torso", "Left Arm", "Right Arm", "Left Leg", "Right Leg" },
+        Default = 1,
+        Callback = function(Value) RB_HITBOX = Value end
+    })
+    RagebotGroupBox:AddToggle("RagebotTeamCheck", { Text = "Team Check", Default = true, Callback = function(Value) RB_TEAMCHECK = Value end })
+    RagebotGroupBox:AddToggle("RagebotWallCheck", { Text = "Wall Check", Default = true, Callback = function(Value) RB_WALLCHECK = Value end })
+    RagebotGroupBox:AddSlider("RagebotFOV", { Text = "Ragebot FOV Radius", Default = 300, Min = 1, Max = 2000, Rounding = 0, Callback = function(Value) RB_FOV = Value end })
+    
+    -- Postshot 슬라이더: 100%가 기본 속도, 1%가 가장 빠른 속도
+    RagebotGroupBox:AddSlider("PostshotSpeed", {
+        Text = "Postshot (1% Fast, 100% Normal)",
+        Default = 100,
+        Min = 1,
+        Max = 100,
+        Rounding = 0,
+        Callback = function(Value) POSTSHOT_PERCENT = Value end
+    })
+
+    task.spawn(function()
+        while task.wait() do
+            pcall(function()
+                if RB_ENABLED and not isLobbyVisible() then
+                    local isKeybindActive = Options.RagebotKeybind and Options.RagebotKeybind:GetState() or false
+                    if isKeybindActive and camera then
+                        local mousePos = UserInputService:GetMouseLocation()
+                        local localRoot = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
+                        if localRoot then
+                            local rayParams = RaycastParams.new()
+                            rayParams.FilterType = Enum.RaycastFilterType.Blacklist
+                            rayParams.FilterDescendantsInstances = {player.Character}
+                            rayParams.IgnoreWater = true
+                            local closest, dist = nil, RB_FOV
+                            
+                            for _, plr in pairs(Players:GetPlayers()) do
+                                if plr ~= player and plr.Character then
+                                    local isTeammate = RB_TEAMCHECK and player.Team and plr.Team == player.Team
+                                    if not isTeammate then
+                                        local char = plr.Character
+                                        local humanoid = char:FindFirstChildOfClass("Humanoid")
+                                        local targetPart = getHitboxPart(char, RB_HITBOX)
+                                        if targetPart and humanoid and humanoid.Health > 0 then
+                                            local pos, onScreen = camera:WorldToViewportPoint(targetPart.Position)
+                                            if onScreen and pos.Z > 0 then
+                                                local d = (Vector2.new(pos.X, pos.Y) - mousePos).Magnitude
+                                                if d < dist then
+                                                    local canSee = true
+                                                    if RB_WALLCHECK then
+                                                        local hit = workspace:Raycast(camera.CFrame.Position, (targetPart.Position - camera.CFrame.Position), rayParams)
+                                                        if hit and hit.Instance and not hit.Instance:IsDescendantOf(char) then canSee = false end
+                                                    end
+                                                    if canSee then dist = d closest = char end
+                                                end
+                                            end
+                                        end
+                                    end
+                                end
+                            end
+                            
+                            if closest then
+                                local targetPart = getHitboxPart(closest, RB_HITBOX)
+                                if targetPart and camera then
+                                    -- 래지봇 즉시 스냅 (마우스 강제 이동)
+                                    local screenPos = camera:WorldToViewportPoint(targetPart.Position)
+                                    if screenPos.Z > 0 then
+                                        local targetVec = Vector2.new(screenPos.X, screenPos.Y)
+                                        local screenCenter = Vector2.new(camera.ViewportSize.X / 2, camera.ViewportSize.Y / 2)
+                                        local move = targetVec - screenCenter
+                                        if math.abs(move.X) < 5000 and math.abs(move.Y) < 5000 then
+                                            if mousemoverel then mousemoverel(move.X, move.Y) end
+                                        end
+                                        
+                                        -- Postshot 연사 속도 계산 및 자동 사격
+                                        -- 1%일 때 0.01초(매우 빠름), 100%일 때 0.1초(기본 속도)
+                                        local actualDelay = 0.1 - (POSTSHOT_PERCENT / 100) * 0.09
+                                        if mouse1click then mouse1click() task.wait(actualDelay) end
+                                    end
+                                end
+                            end
+                        end
+                    end
+                end
+            end)
+        end
+    end)
+
+    -- ==========================================
+    -- ESP 설정
     -- ==========================================
     local ESPGroupBox = Tabs.ESP:AddLeftGroupbox("ESP Settings")
     local espBoxColor = Color3.fromRGB(0, 255, 127)
@@ -458,11 +558,10 @@ local success, err = pcall(function()
         end
     end
 
-    -- ESP UI 컨트롤
     ESPGroupBox:AddToggle("ESP_Enable", { Text = "Enable ESP", Default = false })
     ESPGroupBox:AddDropdown("ESP_BoxType", {
         Text = "Box ESP Type",
-        Values = { "Off", "Full Box", "Corner Box", "Highlight" },
+        Values = { "Full Box", "Corner Box", "Highlight" },
         Default = 1,
     })
     ESPGroupBox:AddToggle("ESP_Tracer", { Text = "Tracer ESP", Default = false })
@@ -476,7 +575,6 @@ local success, err = pcall(function()
 
     Players.PlayerRemoving:Connect(clearESP)
 
-    -- ESP 미리보기(Preview) UI 구성
     local PreviewGroupbox = Tabs.ESP:AddRightGroupbox("Preview")
     local previewFrame = Instance.new("ViewportFrame")
     previewFrame.Size = UDim2.new(1, 0, 0, 250)
@@ -485,196 +583,212 @@ local success, err = pcall(function()
     previewFrame.Parent = PreviewGroupbox.Container
 
     local previewCam = Instance.new("Camera")
-    previewCam.CFrame = CFrame.new(Vector3.new(0, 2, 5), Vector3.new(0, 0, 0))
+    previewCam.CFrame = CFrame.new(Vector3.new(0, 2, 6), Vector3.new(0, 1, 0))
     previewFrame.CurrentCamera = previewCam
     previewCam.Parent = previewFrame
 
-    -- 미리보기 더미 모델 생성
-    local dummy = Instance.new("Model")
-    dummy.Parent = previewFrame
+    local previewModel = nil
+    local previewHighlight = nil
+    local previewBillboard = nil
 
-    local dRoot = Instance.new("Part")
-    dRoot.Size = Vector3.new(2, 2, 1)
-    dRoot.CFrame = CFrame.new(0, 0, 0)
-    dRoot.Color = Color3.fromRGB(150, 150, 150)
-    dRoot.Anchored = true
-    dRoot.Parent = dummy
+    local function updatePreviewCharacter()
+        if not player.Character then return end
+        if previewModel then previewModel:Destroy() end
+        local clone = player.Character:Clone()
+        clone.Name = "PreviewDummy"
+        for _, desc in ipairs(clone:GetDescendants()) do
+            if desc:IsA("Script") or desc:IsA("LocalScript") or desc:IsA("ModuleScript") then
+                desc:Destroy()
+            elseif desc:IsA("BasePart") then
+                desc.Anchored = true
+                desc.CanCollide = false
+            end
+        end
+        if clone.PrimaryPart then
+            clone:PivotTo(CFrame.new(0, 0, 0))
+        else
+            local hrp = clone:FindFirstChild("HumanoidRootPart") or clone:FindFirstChild("Torso")
+            if hrp then clone:PivotTo(CFrame.new(0, 0, 0)) end
+        end
+        clone.Parent = previewFrame
+        previewModel = clone
+        
+        if previewHighlight then previewHighlight:Destroy() end
+        previewHighlight = Instance.new("Highlight")
+        previewHighlight.Parent = previewModel
+        
+        if previewBillboard then previewBillboard:Destroy() end
+        local head = previewModel:FindFirstChild("Head")
+        if head then
+            previewBillboard = Instance.new("BillboardGui")
+            previewBillboard.Size = UDim2.new(0, 100, 0, 20)
+            previewBillboard.StudsOffset = Vector3.new(0, 2, 0)
+            previewBillboard.Parent = head
+            
+            local text = Instance.new("TextLabel")
+            text.BackgroundTransparency = 1
+            text.Text = player.Name
+            text.TextColor3 = Color3.new(1, 1, 1)
+            text.Size = UDim2.new(1, 0, 1, 0)
+            text.Font = Enum.Font.GothamBold
+            text.TextStrokeTransparency = 0
+            text.Parent = previewBillboard
+        end
+    end
 
-    local dHead = Instance.new("Part")
-    dHead.Size = Vector3.new(1, 1, 1)
-    dHead.CFrame = CFrame.new(0, 1.5, 0)
-    dHead.Color = Color3.fromRGB(200, 200, 200)
-    dHead.Anchored = true
-    dHead.Parent = dummy
-
-    local dHum = Instance.new("Humanoid")
-    dHum.Parent = dummy
-
-    local previewHighlight = Instance.new("Highlight")
-    previewHighlight.Parent = dummy
-
-    local previewBillboard = Instance.new("BillboardGui")
-    previewBillboard.Size = UDim2.new(0, 100, 0, 20)
-    previewBillboard.StudsOffset = Vector3.new(0, 2, 0)
-    previewBillboard.Parent = dHead
-
-    local previewText = Instance.new("TextLabel")
-    previewText.BackgroundTransparency = 1
-    previewText.Text = "Preview"
-    previewText.TextColor3 = Color3.new(1, 1, 1)
-    previewText.Size = UDim2.new(1, 0, 1, 0)
-    previewText.Font = Enum.Font.GothamBold
-    previewText.TextStrokeTransparency = 0
-    previewText.Parent = previewBillboard
+    player.CharacterAdded:Connect(function()
+        task.wait(1)
+        updatePreviewCharacter()
+    end)
+    if player.Character then
+        task.spawn(function()
+            task.wait(1)
+            updatePreviewCharacter()
+        end)
+    end
 
     RunService.RenderStepped:Connect(function()
         pcall(function()
-            -- 미리보기 회전 및 업데이트
-            dummy:SetPrimaryPartCFrame(CFrame.Angles(0, tick() * 0.5, 0))
-            
-            if Toggles.ESP_Enable.Value and Options.ESP_BoxType.Value == "Highlight" then
-                previewHighlight.Enabled = true
-                previewHighlight.OutlineColor = espBoxColor
-            else
-                previewHighlight.Enabled = false
+            if previewModel and previewModel.PrimaryPart then
+                previewModel:PivotTo(CFrame.new(0, 0, 0) * CFrame.Angles(0, tick() * 0.5, 0))
             end
             
-            if Toggles.ESP_Enable.Value and Toggles.ESP_Name.Value then
-                previewBillboard.Enabled = true
-                previewText.TextColor3 = espNameColor
+            if Toggles.ESP_Enable and Toggles.ESP_Enable.Value and Options.ESP_BoxType.Value == "Highlight" then
+                if previewHighlight then previewHighlight.Enabled = true; previewHighlight.OutlineColor = espBoxColor end
             else
-                previewBillboard.Enabled = false
+                if previewHighlight then previewHighlight.Enabled = false end
+            end
+            
+            if Toggles.ESP_Enable and Toggles.ESP_Enable.Value and Toggles.ESP_Name and Toggles.ESP_Name.Value then
+                if previewBillboard then previewBillboard.Enabled = true end
+                if previewBillboard and previewBillboard:FindFirstChild("TextLabel") then 
+                    previewBillboard.TextLabel.TextColor3 = espNameColor 
+                end
+            else
+                if previewBillboard then previewBillboard.Enabled = false end
             end
 
-            -- 실제 게임 플레이어 ESP 로직
             for _, p in pairs(Players:GetPlayers()) do
                 if p ~= player then
                     if not Toggles.ESP_Enable.Value or not p.Character or not p.Character:FindFirstChild("HumanoidRootPart") or not p.Character:FindFirstChild("Humanoid") or not p.Character:FindFirstChild("Head") or p.Character.Humanoid.Health <= 0 then
                         hideESP(p)
-                        continue
-                    end
-
-                    local char = p.Character
-                    local root = char.HumanoidRootPart
-                    local head = char.Head
-                    
-                    if not ESPObjects[p] then ESPObjects[p] = createESPObject() end
-                    local obj = ESPObjects[p]
-                    
-                    local rootPos, rootVis = camera:WorldToViewportPoint(root.Position)
-                    local headPos = camera:WorldToViewportPoint(head.Position + Vector3.new(0, 0.5, 0))
-                    local legPos = camera:WorldToViewportPoint(root.Position - Vector3.new(0, 3, 0))
-                    
-                    if not rootVis then
-                        hideESP(p)
-                        continue
-                    end
-
-                    local height = math.abs(headPos.Y - legPos.Y) * 1.2
-                    local width = height / 2.2
-                    
-                    local boxTop = headPos.Y - (height * 0.1)
-                    local boxBottom = boxTop + height
-                    local boxLeft = rootPos.X - width / 2
-                    local boxRight = rootPos.X + width / 2
-                    
-                    -- 색상 업데이트
-                    for _, c in ipairs(obj.GlowLines) do c.Color = espBoxColor end
-                    for _, c in ipairs(obj.Lines) do c.Color = espBoxColor end
-                    for _, c in ipairs(obj.GlowCorners) do c.Color = espBoxColor end
-                    for _, c in ipairs(obj.Corners) do c.Color = espBoxColor end
-                    obj.Tracer.Color = espTracerColor
-                    obj.NameText.Color = espNameColor
-                    obj.HealthBarFill.Color = espHealthColor
-                    obj.HealthBarBg.Color = Color3.fromRGB(0, 0, 0)
-                    
-                    -- Tracer
-                    if Toggles.ESP_Tracer.Value then
-                        obj.Tracer.Visible = true
-                        obj.Tracer.From = Vector2.new(camera.ViewportSize.X/2, camera.ViewportSize.Y)
-                        obj.Tracer.To = Vector2.new(rootPos.X, boxBottom)
                     else
-                        obj.Tracer.Visible = false
-                    end
-                    
-                    -- Name
-                    obj.NameText.Visible = Toggles.ESP_Name.Value
-                    if Toggles.ESP_Name.Value then
-                        obj.NameText.Text = p.Name
-                        obj.NameText.Position = Vector2.new(rootPos.X, boxTop - 16)
-                    end
-                    
-                    -- Health Bar
-                    if Toggles.ESP_HealthBar.Value then
-                        local hp = char.Humanoid.Health
-                        local maxHp = char.Humanoid.MaxHealth
-                        local ratio = hp / maxHp
+                        local char = p.Character
+                        local root = char.HumanoidRootPart
+                        local head = char.Head
                         
-                        local barX = boxLeft - 6
-                        local barY = boxTop
-                        local barW = 3
-                        local barH = height
+                        if not ESPObjects[p] then ESPObjects[p] = createESPObject() end
+                        local obj = ESPObjects[p]
                         
-                        obj.HealthBarBg.Visible = true
-                        obj.HealthBarBg.Position = Vector2.new(barX, barY)
-                        obj.HealthBarBg.Size = Vector2.new(barW, barH)
+                        local rootPos, rootVis = camera:WorldToViewportPoint(root.Position)
+                        local headPos = camera:WorldToViewportPoint(head.Position + Vector3.new(0, 0.5, 0))
+                        local legPos = camera:WorldToViewportPoint(root.Position - Vector3.new(0, 3, 0))
                         
-                        obj.HealthBarFill.Visible = true
-                        obj.HealthBarFill.Position = Vector2.new(barX, barY + (barH * (1 - ratio)))
-                        obj.HealthBarFill.Size = Vector2.new(barW, barH * ratio)
-                    else
-                        obj.HealthBarBg.Visible = false
-                        obj.HealthBarFill.Visible = false
-                    end
-                    
-                    -- Box 초기화
-                    for _, c in ipairs(obj.GlowLines) do c.Visible = false end
-                    for _, c in ipairs(obj.Lines) do c.Visible = false end
-                    for _, c in ipairs(obj.GlowCorners) do c.Visible = false end
-                    for _, c in ipairs(obj.Corners) do c.Visible = false end
-                    if obj.Highlight then obj.Highlight.Enabled = false end
-                    
-                    local boxType = Options.ESP_BoxType.Value
-                    if boxType == "Full Box" then
-                        obj.GlowLines[1].Visible = true; obj.GlowLines[1].From = Vector2.new(boxLeft, boxTop); obj.GlowLines[1].To = Vector2.new(boxRight, boxTop)
-                        obj.GlowLines[2].Visible = true; obj.GlowLines[2].From = Vector2.new(boxLeft, boxBottom); obj.GlowLines[2].To = Vector2.new(boxRight, boxBottom)
-                        obj.GlowLines[3].Visible = true; obj.GlowLines[3].From = Vector2.new(boxLeft, boxTop); obj.GlowLines[3].To = Vector2.new(boxLeft, boxBottom)
-                        obj.GlowLines[4].Visible = true; obj.GlowLines[4].From = Vector2.new(boxRight, boxTop); obj.GlowLines[4].To = Vector2.new(boxRight, boxBottom)
-                        
-                        obj.Lines[1].Visible = true; obj.Lines[1].From = Vector2.new(boxLeft, boxTop); obj.Lines[1].To = Vector2.new(boxRight, boxTop)
-                        obj.Lines[2].Visible = true; obj.Lines[2].From = Vector2.new(boxLeft, boxBottom); obj.Lines[2].To = Vector2.new(boxRight, boxBottom)
-                        obj.Lines[3].Visible = true; obj.Lines[3].From = Vector2.new(boxLeft, boxTop); obj.Lines[3].To = Vector2.new(boxLeft, boxBottom)
-                        obj.Lines[4].Visible = true; obj.Lines[4].From = Vector2.new(boxRight, boxTop); obj.Lines[4].To = Vector2.new(boxRight, boxBottom)
-                        
-                    elseif boxType == "Corner Box" then
-                        local cornerLen = height * 0.3
-                        
-                        obj.GlowCorners[1].Visible = true; obj.GlowCorners[1].From = Vector2.new(boxLeft, boxTop); obj.GlowCorners[1].To = Vector2.new(boxLeft + cornerLen, boxTop)
-                        obj.GlowCorners[2].Visible = true; obj.GlowCorners[2].From = Vector2.new(boxLeft, boxTop); obj.GlowCorners[2].To = Vector2.new(boxLeft, boxTop + cornerLen)
-                        obj.GlowCorners[3].Visible = true; obj.GlowCorners[3].From = Vector2.new(boxRight, boxTop); obj.GlowCorners[3].To = Vector2.new(boxRight - cornerLen, boxTop)
-                        obj.GlowCorners[4].Visible = true; obj.GlowCorners[4].From = Vector2.new(boxRight, boxTop); obj.GlowCorners[4].To = Vector2.new(boxRight, boxTop + cornerLen)
-                        obj.GlowCorners[5].Visible = true; obj.GlowCorners[5].From = Vector2.new(boxLeft, boxBottom); obj.GlowCorners[5].To = Vector2.new(boxLeft + cornerLen, boxBottom)
-                        obj.GlowCorners[6].Visible = true; obj.GlowCorners[6].From = Vector2.new(boxLeft, boxBottom); obj.GlowCorners[6].To = Vector2.new(boxLeft, boxBottom - cornerLen)
-                        obj.GlowCorners[7].Visible = true; obj.GlowCorners[7].From = Vector2.new(boxRight, boxBottom); obj.GlowCorners[7].To = Vector2.new(boxRight - cornerLen, boxBottom)
-                        obj.GlowCorners[8].Visible = true; obj.GlowCorners[8].From = Vector2.new(boxRight, boxBottom); obj.GlowCorners[8].To = Vector2.new(boxRight, boxBottom - cornerLen)
-                        
-                        obj.Corners[1].Visible = true; obj.Corners[1].From = Vector2.new(boxLeft, boxTop); obj.Corners[1].To = Vector2.new(boxLeft + cornerLen, boxTop)
-                        obj.Corners[2].Visible = true; obj.Corners[2].From = Vector2.new(boxLeft, boxTop); obj.Corners[2].To = Vector2.new(boxLeft, boxTop + cornerLen)
-                        obj.Corners[3].Visible = true; obj.Corners[3].From = Vector2.new(boxRight, boxTop); obj.Corners[3].To = Vector2.new(boxRight - cornerLen, boxTop)
-                        obj.Corners[4].Visible = true; obj.Corners[4].From = Vector2.new(boxRight, boxTop); obj.Corners[4].To = Vector2.new(boxRight, boxTop + cornerLen)
-                        obj.Corners[5].Visible = true; obj.Corners[5].From = Vector2.new(boxLeft, boxBottom); obj.Corners[5].To = Vector2.new(boxLeft + cornerLen, boxBottom)
-                        obj.Corners[6].Visible = true; obj.Corners[6].From = Vector2.new(boxLeft, boxBottom); obj.Corners[6].To = Vector2.new(boxLeft, boxBottom - cornerLen)
-                        obj.Corners[7].Visible = true; obj.Corners[7].From = Vector2.new(boxRight, boxBottom); obj.Corners[7].To = Vector2.new(boxRight - cornerLen, boxBottom)
-                        obj.Corners[8].Visible = true; obj.Corners[8].From = Vector2.new(boxRight, boxBottom); obj.Corners[8].To = Vector2.new(boxRight, boxBottom - cornerLen)
-                        
-                    elseif boxType == "Highlight" then
-                        if not obj.Highlight then 
-                            obj.Highlight = Instance.new("Highlight")
-                            obj.Highlight.Parent = char 
+                        if not rootVis then
+                            hideESP(p)
+                        else
+                            local height = math.abs(headPos.Y - legPos.Y) * 1.2
+                            local width = height / 2.2
+                            
+                            local boxTop = headPos.Y - (height * 0.1)
+                            local boxBottom = boxTop + height
+                            local boxLeft = rootPos.X - width / 2
+                            local boxRight = rootPos.X + width / 2
+                            
+                            for _, c in ipairs(obj.GlowLines) do c.Color = espBoxColor end
+                            for _, c in ipairs(obj.Lines) do c.Color = espBoxColor end
+                            for _, c in ipairs(obj.GlowCorners) do c.Color = espBoxColor end
+                            for _, c in ipairs(obj.Corners) do c.Color = espBoxColor end
+                            obj.Tracer.Color = espTracerColor
+                            obj.NameText.Color = espNameColor
+                            obj.HealthBarFill.Color = espHealthColor
+                            obj.HealthBarBg.Color = Color3.fromRGB(0, 0, 0)
+                            
+                            if Toggles.ESP_Tracer.Value then
+                                obj.Tracer.Visible = true
+                                obj.Tracer.From = Vector2.new(camera.ViewportSize.X/2, camera.ViewportSize.Y)
+                                obj.Tracer.To = Vector2.new(rootPos.X, boxBottom)
+                            else
+                                obj.Tracer.Visible = false
+                            end
+                            
+                            obj.NameText.Visible = Toggles.ESP_Name.Value
+                            if Toggles.ESP_Name.Value then
+                                obj.NameText.Text = p.Name
+                                obj.NameText.Position = Vector2.new(rootPos.X, boxTop - 16)
+                            end
+                            
+                            if Toggles.ESP_HealthBar.Value then
+                                local hp = char.Humanoid.Health
+                                local maxHp = char.Humanoid.MaxHealth
+                                local ratio = hp / maxHp
+                                
+                                local barX = boxLeft - 6
+                                local barY = boxTop
+                                local barW = 3
+                                local barH = height
+                                
+                                obj.HealthBarBg.Visible = true
+                                obj.HealthBarBg.Position = Vector2.new(barX, barY)
+                                obj.HealthBarBg.Size = Vector2.new(barW, barH)
+                                
+                                obj.HealthBarFill.Visible = true
+                                obj.HealthBarFill.Position = Vector2.new(barX, barY + (barH * (1 - ratio)))
+                                obj.HealthBarFill.Size = Vector2.new(barW, barH * ratio)
+                            else
+                                obj.HealthBarBg.Visible = false
+                                obj.HealthBarFill.Visible = false
+                            end
+                            
+                            for _, c in ipairs(obj.GlowLines) do c.Visible = false end
+                            for _, c in ipairs(obj.Lines) do c.Visible = false end
+                            for _, c in ipairs(obj.GlowCorners) do c.Visible = false end
+                            for _, c in ipairs(obj.Corners) do c.Visible = false end
+                            if obj.Highlight then obj.Highlight.Enabled = false end
+                            
+                            local boxType = Options.ESP_BoxType.Value
+                            if boxType == "Full Box" then
+                                obj.GlowLines[1].Visible = true; obj.GlowLines[1].From = Vector2.new(boxLeft, boxTop); obj.GlowLines[1].To = Vector2.new(boxRight, boxTop)
+                                obj.GlowLines[2].Visible = true; obj.GlowLines[2].From = Vector2.new(boxLeft, boxBottom); obj.GlowLines[2].To = Vector2.new(boxRight, boxBottom)
+                                obj.GlowLines[3].Visible = true; obj.GlowLines[3].From = Vector2.new(boxLeft, boxTop); obj.GlowLines[3].To = Vector2.new(boxLeft, boxBottom)
+                                obj.GlowLines[4].Visible = true; obj.GlowLines[4].From = Vector2.new(boxRight, boxTop); obj.GlowLines[4].To = Vector2.new(boxRight, boxBottom)
+                                
+                                obj.Lines[1].Visible = true; obj.Lines[1].From = Vector2.new(boxLeft, boxTop); obj.Lines[1].To = Vector2.new(boxRight, boxTop)
+                                obj.Lines[2].Visible = true; obj.Lines[2].From = Vector2.new(boxLeft, boxBottom); obj.Lines[2].To = Vector2.new(boxRight, boxBottom)
+                                obj.Lines[3].Visible = true; obj.Lines[3].From = Vector2.new(boxLeft, boxTop); obj.Lines[3].To = Vector2.new(boxLeft, boxBottom)
+                                obj.Lines[4].Visible = true; obj.Lines[4].From = Vector2.new(boxRight, boxTop); obj.Lines[4].To = Vector2.new(boxRight, boxBottom)
+                                
+                            elseif boxType == "Corner Box" then
+                                local cornerLen = height * 0.3
+                                
+                                obj.GlowCorners[1].Visible = true; obj.GlowCorners[1].From = Vector2.new(boxLeft, boxTop); obj.GlowCorners[1].To = Vector2.new(boxLeft + cornerLen, boxTop)
+                                obj.GlowCorners[2].Visible = true; obj.GlowCorners[2].From = Vector2.new(boxLeft, boxTop); obj.GlowCorners[2].To = Vector2.new(boxLeft, boxTop + cornerLen)
+                                obj.GlowCorners[3].Visible = true; obj.GlowCorners[3].From = Vector2.new(boxRight, boxTop); obj.GlowCorners[3].To = Vector2.new(boxRight - cornerLen, boxTop)
+                                obj.GlowCorners[4].Visible = true; obj.GlowCorners[4].From = Vector2.new(boxRight, boxTop); obj.GlowCorners[4].To = Vector2.new(boxRight, boxTop + cornerLen)
+                                obj.GlowCorners[5].Visible = true; obj.GlowCorners[5].From = Vector2.new(boxLeft, boxBottom); obj.GlowCorners[5].To = Vector2.new(boxLeft + cornerLen, boxBottom)
+                                obj.GlowCorners[6].Visible = true; obj.GlowCorners[6].From = Vector2.new(boxLeft, boxBottom); obj.GlowCorners[6].To = Vector2.new(boxLeft, boxBottom - cornerLen)
+                                obj.GlowCorners[7].Visible = true; obj.GlowCorners[7].From = Vector2.new(boxRight, boxBottom); obj.GlowCorners[7].To = Vector2.new(boxRight - cornerLen, boxBottom)
+                                obj.GlowCorners[8].Visible = true; obj.GlowCorners[8].From = Vector2.new(boxRight, boxBottom); obj.GlowCorners[8].To = Vector2.new(boxRight, boxBottom - cornerLen)
+                                
+                                obj.Corners[1].Visible = true; obj.Corners[1].From = Vector2.new(boxLeft, boxTop); obj.Corners[1].To = Vector2.new(boxLeft + cornerLen, boxTop)
+                                obj.Corners[2].Visible = true; obj.Corners[2].From = Vector2.new(boxLeft, boxTop); obj.Corners[2].To = Vector2.new(boxLeft, boxTop + cornerLen)
+                                obj.Corners[3].Visible = true; obj.Corners[3].From = Vector2.new(boxRight, boxTop); obj.Corners[3].To = Vector2.new(boxRight - cornerLen, boxTop)
+                                obj.Corners[4].Visible = true; obj.Corners[4].From = Vector2.new(boxRight, boxTop); obj.Corners[4].To = Vector2.new(boxRight, boxTop + cornerLen)
+                                obj.Corners[5].Visible = true; obj.Corners[5].From = Vector2.new(boxLeft, boxBottom); obj.Corners[5].To = Vector2.new(boxLeft + cornerLen, boxBottom)
+                                obj.Corners[6].Visible = true; obj.Corners[6].From = Vector2.new(boxLeft, boxBottom); obj.Corners[6].To = Vector2.new(boxLeft, boxBottom - cornerLen)
+                                obj.Corners[7].Visible = true; obj.Corners[7].From = Vector2.new(boxRight, boxBottom); obj.Corners[7].To = Vector2.new(boxRight - cornerLen, boxBottom)
+                                obj.Corners[8].Visible = true; obj.Corners[8].From = Vector2.new(boxRight, boxBottom); obj.Corners[8].To = Vector2.new(boxRight, boxBottom - cornerLen)
+                                
+                            elseif boxType == "Highlight" then
+                                if not obj.Highlight then 
+                                    obj.Highlight = Instance.new("Highlight")
+                                    obj.Highlight.Parent = char 
+                                end
+                                obj.Highlight.Enabled = true
+                                obj.Highlight.FillTransparency = 1
+                                obj.Highlight.OutlineColor = espBoxColor
+                            end
                         end
-                        obj.Highlight.Enabled = true
-                        obj.Highlight.FillTransparency = 1
-                        obj.Highlight.OutlineColor = espBoxColor
                     end
                 end
             end
