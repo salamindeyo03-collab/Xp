@@ -456,10 +456,9 @@ local success, err = pcall(function()
     end)
 
     -- ==========================================
-    -- RAPID FIRE (래피드파이어 단일 기능)
+    -- RAPID FIRE (Rapid.txt 코드 단일 적용)
     -- ==========================================
     local RapidFireEnabled = false
-    local isFiring = false
 
     -- 제공해주신 Rapid.txt 코드 통합
     pcall(function()
@@ -469,7 +468,7 @@ local success, err = pcall(function()
             Gun.Update = function(self, dt, ...)
                 if RapidFireEnabled then
                     if self._shoot_cooldown then
-                        self._shoot_cooldown = 0 -- 쿨다운 강제 제거
+                        self._shoot_cooldown = 0 -- 쿨다운 강제 제거 (마우스를 꾹 누르고 있으면 게임이 알아서 연사함)
                     end
                 end
                 return oldUpdate(self, dt, ...)
@@ -477,44 +476,14 @@ local success, err = pcall(function()
         end
     end)
 
-    -- 마우스 왼쪽 버튼(MB1) 누름/뗌 감지
-    UserInputService.InputBegan:Connect(function(input, gameProcessed)
-        if not gameProcessed and input.UserInputType == Enum.UserInputType.MouseButton1 then
-            isFiring = true
-        end
-    end)
-    UserInputService.InputEnded:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.MouseButton1 then
-            isFiring = false
-        end
-    end)
-
     local RapidFireGroupBox = Tabs.Main:AddRightGroupbox("Rapid Fire (Postshot)")
     RapidFireGroupBox:AddToggle("RapidFireToggle", { 
-        Text = "Enable Rapid Fire (Hold MB1)", 
+        Text = "Enable Rapid Fire", 
         Default = false, 
-        Callback = function(Value) RapidFireEnabled = Value end 
+        Callback = function(Value) 
+            RapidFireEnabled = Value 
+        end 
     })
-
-    -- 마우스 꾹 누르고 있을 때 작동하는 루프
-    task.spawn(function()
-        while task.wait() do
-            pcall(function()
-                if RapidFireEnabled and isFiring and not isLobbyVisible() then
-                    -- mouse1press/release 가 지원되면 사용, 아니면 mouse1click 사용
-                    if mouse1press and mouse1release then
-                        mouse1press()
-                        task.wait(0.01)
-                        mouse1release()
-                        task.wait(0.01)
-                    elseif mouse1click then
-                        mouse1click()
-                        task.wait(0.01)
-                    end
-                end
-            end)
-        end
-    end)
 
     -- ==========================================
     -- ESP 설정
