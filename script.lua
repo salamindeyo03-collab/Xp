@@ -1,10 +1,3 @@
---[[
-    Lenny's Scripts Rapidfire Logic Ported to Roblox
-    Original: Lenny (STEAM_0:0:30422103) & Ott (STEAM_0:0:36527860)
-    Ported for Roblox by AI.
-    This work is licensed under the Creative Commons Attribution-NonCommercial-ShareAlike 3.0 Unported License.
-]]
-
 local success, err = pcall(function()
     local repo = "https://raw.githubusercontent.com/mstudio45/LinoriaLib/main/"
     local Library = loadstring(game:HttpGet(repo .. "Library.lua"))()
@@ -463,10 +456,27 @@ local success, err = pcall(function()
     end)
 
     -- ==========================================
-    -- POSTSHOT (RAPID FIRE) 슬라이더 전용
+    -- FULL AUTO (RAPID FIRE - Gun Cooldown Hack)
     -- ==========================================
-    local PS_SPEED = 100
+    local FullAutoEnabled = false
     local isFiring = false
+    local originalGunUpdate = nil
+
+    -- 제공해주신 Rapid.txt 코드 통합
+    pcall(function()
+        local Gun = require(player.PlayerScripts.Modules.ItemTypes.Gun)
+        if Gun and Gun.Update then
+            originalGunUpdate = Gun.Update
+            Gun.Update = function(self, dt, ...)
+                if FullAutoEnabled then
+                    if self._shoot_cooldown then
+                        self._shoot_cooldown = 0 -- 쿨다운 강제 제거
+                    end
+                end
+                return originalGunUpdate(self, dt, ...)
+            end
+        end
+    end)
 
     -- 마우스 왼쪽 버튼(MB1) 누름 감지
     UserInputService.InputBegan:Connect(function(input, gameProcessed)
@@ -479,40 +489,24 @@ local success, err = pcall(function()
     UserInputService.InputEnded:Connect(function(input)
         if input.UserInputType == Enum.UserInputType.MouseButton1 then
             isFiring = false
-            -- 혹시라도 눌려있는 상태로 끝날 수 있으니 안전하게 뗌 처리
-            if mouse1release then mouse1release() end
         end
     end)
 
-    local PostshotGroupBox = Tabs.Main:AddRightGroupbox("Postshot (Rapid Fire)")
-    PostshotGroupBox:AddSlider("PostshotSpeed", {
-        Text = "Speed (1=Fastest, 100=Normal)",
-        Default = 100,
-        Min = 1,
-        Max = 100,
-        Rounding = 0,
+    local FullAutoGroupBox = Tabs.Main:AddRightGroupbox("Full Auto (Rapid Fire)")
+    FullAutoGroupBox:AddToggle("FullAutoToggle", { 
+        Text = "Enable Full Auto (Hold MB1)", 
+        Default = false, 
         Callback = function(Value) 
-            PS_SPEED = Value 
-        end
+            FullAutoEnabled = Value 
+        end 
     })
 
-    -- Lenny 로직 기반 연사 루프 (마우스 클릭 토글 방식)
+    -- 마우스 꾹 누르고 있을 때 연속으로 클릭 입력 발생 (반자동 무기도 풀오토화)
     task.spawn(function()
         while task.wait() do
-            if isFiring and not isLobbyVisible() then
-                -- 속도 계산: 1일 때 0.001초(극한 연사), 100일 때 0.05초(보통 연사)
-                local delayTime = 0.001 + ((PS_SPEED - 1) / 99) * 0.049
-                
-                -- mouse1press / release 가 지원되면 토글 방식 사용 (Lenny 로직), 아니면 mouse1click 사용
-                if mouse1press and mouse1release then
-                    mouse1press()
-                    task.wait(delayTime)
-                    mouse1release()
-                    task.wait(delayTime)
-                else
-                    if mouse1click then mouse1click() end
-                    task.wait(delayTime)
-                end
+            if FullAutoEnabled and isFiring and not isLobbyVisible() then
+                if mouse1click then mouse1click() end
+                task.wait(0.01) -- 극한의 연사 속도
             end
         end
     end)
