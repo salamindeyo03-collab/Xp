@@ -95,7 +95,8 @@ local success, err = pcall(function()
                 local targetPart = getHitboxPart(char, aimbotHitbox)
                 
                 if targetPart and humanoid and humanoid.Health > 0 and char:FindFirstChild("HumanoidRootPart") then
-                    local isTeammate = teamCheck and player.Team and plr.Team == player.Team
+                    -- 팀 체크 로직 수정: 둘 다 팀이 있고 같을 때만 팀원으로 인식
+                    local isTeammate = teamCheck and player.Team ~= nil and plr.Team ~= nil and player.Team == plr.Team
                     if not isTeammate then
                         local distance3D = (char.HumanoidRootPart.Position - localRoot.Position).Magnitude
                         if distance3D <= MAX_DISTANCE then
@@ -238,7 +239,8 @@ local success, err = pcall(function()
 
             for _, plr in pairs(Players:GetPlayers()) do
                 if plr ~= player and plr.Character then
-                    local isTeammate = SA_TEAMCHECK and player.Team and plr.Team == player.Team
+                    -- 팀 체크 로직 수정
+                    local isTeammate = SA_TEAMCHECK and player.Team ~= nil and plr.Team ~= nil and player.Team == plr.Team
                     if not isTeammate then
                         local humanoid = plr.Character:FindFirstChildOfClass("Humanoid")
                         local targetPart = getHitboxPart(plr.Character, saHitbox)
@@ -319,6 +321,7 @@ local success, err = pcall(function()
     local TB_ENABLED = false
     local TB_FOV = 50
     local TB_WALLCHECK = true
+    local TB_TEAMCHECK = true -- 트리거봇 팀체크 추가
     local TB_DELAY = 0.05
 
     local function isLobbyVisible()
@@ -342,16 +345,20 @@ local success, err = pcall(function()
                             local closest, dist = nil, TB_FOV
                             for _, plr in pairs(Players:GetPlayers()) do
                                 if plr ~= player and plr.Character and plr.Character:FindFirstChild("Head") and plr.Character:FindFirstChild("Humanoid") and plr.Character.Humanoid.Health > 0 then
-                                    local pos, onScreen = camera:WorldToViewportPoint(plr.Character.Head.Position)
-                                    if onScreen and pos.Z > 0 then
-                                        local d = (Vector2.new(pos.X, pos.Y) - mousePos).Magnitude
-                                        if d < dist then
-                                            local canSee = true
-                                            if TB_WALLCHECK then
-                                                local hit = workspace:Raycast(camera.CFrame.Position, (plr.Character.Head.Position - camera.CFrame.Position), rayParams)
-                                                if hit and hit.Instance and not hit.Instance:IsDescendantOf(plr.Character) then canSee = false end
+                                    -- 트리거봇 팀 체크 로직 추가
+                                    local isTeammate = TB_TEAMCHECK and player.Team ~= nil and plr.Team ~= nil and player.Team == plr.Team
+                                    if not isTeammate then
+                                        local pos, onScreen = camera:WorldToViewportPoint(plr.Character.Head.Position)
+                                        if onScreen and pos.Z > 0 then
+                                            local d = (Vector2.new(pos.X, pos.Y) - mousePos).Magnitude
+                                            if d < dist then
+                                                local canSee = true
+                                                if TB_WALLCHECK then
+                                                    local hit = workspace:Raycast(camera.CFrame.Position, (plr.Character.Head.Position - camera.CFrame.Position), rayParams)
+                                                    if hit and hit.Instance and not hit.Instance:IsDescendantOf(plr.Character) then canSee = false end
+                                                end
+                                                if canSee then dist = d closest = plr.Character end
                                             end
-                                            if canSee then dist = d closest = plr.Character end
                                         end
                                     end
                                 end
@@ -367,6 +374,7 @@ local success, err = pcall(function()
     local TriggerbotGroupBox = Tabs.Main:AddLeftGroupbox("Triggerbot")
     TriggerbotGroupBox:AddToggle("TriggerbotToggle", { Text = "Enable Triggerbot", Default = false, Callback = function(Value) TB_ENABLED = Value end })
     TriggerbotGroupBox:AddLabel("Trigger Keybind"):AddKeyPicker("TriggerbotKeybind", { Default = "MB2", SyncToggleState = false, Mode = "Hold", Text = "Trigger Key", NoUI = false })
+    TriggerbotGroupBox:AddToggle("TriggerbotTeamCheck", { Text = "Team Check", Default = true, Callback = function(Value) TB_TEAMCHECK = Value end })
     TriggerbotGroupBox:AddToggle("TriggerbotWallCheck", { Text = "Wall Check", Default = true, Callback = function(Value) TB_WALLCHECK = Value end })
     TriggerbotGroupBox:AddSlider("TriggerbotFOV", { Text = "Trigger FOV Radius", Default = 50, Min = 1, Max = 1000, Rounding = 0, Callback = function(Value) TB_FOV = Value end })
     TriggerbotGroupBox:AddSlider("TriggerbotDelay", { Text = "Fire Delay (sec)", Default = 0.05, Min = 0.01, Max = 1, Rounding = 2, Callback = function(Value) TB_DELAY = Value end })
@@ -410,7 +418,8 @@ local success, err = pcall(function()
                             
                             for _, plr in pairs(Players:GetPlayers()) do
                                 if plr ~= player and plr.Character then
-                                    local isTeammate = RB_TEAMCHECK and player.Team and plr.Team == player.Team
+                                    -- 래지봇 팀 체크 로직 수정
+                                    local isTeammate = RB_TEAMCHECK and player.Team ~= nil and plr.Team ~= nil and player.Team == plr.Team
                                     if not isTeammate then
                                         local char = plr.Character
                                         local humanoid = char:FindFirstChildOfClass("Humanoid")
@@ -546,52 +555,30 @@ local success, err = pcall(function()
         Callback = function(v) charmColor = v end 
     })
 
-    -- Charm 프리뷰용 하얀색 더미 모델 생성
+    -- Charm 프리뷰용 하얀색 더미 모델 생성 (개선됨)
     local dummyModel = Instance.new("Model")
     dummyModel.Name = "WhiteDummy"
-    local dummyHead = Instance.new("Part")
-    dummyHead.Size = Vector3.new(2, 1, 1)
-    dummyHead.Color = Color3.new(1, 1, 1)
-    dummyHead.Anchored = true
-    dummyHead.Parent = dummyModel
-    dummyHead.CFrame = CFrame.new(0, 3, 0)
     
-    local dummyTorso = Instance.new("Part")
-    dummyTorso.Size = Vector3.new(2, 2, 1)
-    dummyTorso.Color = Color3.new(1, 1, 1)
-    dummyTorso.Anchored = true
-    dummyTorso.Parent = dummyModel
-    dummyTorso.CFrame = CFrame.new(0, 1.5, 0)
+    local function createDummyPart(name, size, offset)
+        local part = Instance.new("Part")
+        part.Name = name
+        part.Size = size
+        part.Color = Color3.new(1, 1, 1) -- 하얀색
+        part.Material = Enum.Material.SmoothPlastic
+        part.Anchored = true
+        part.CanCollide = false
+        part.CFrame = CFrame.new(offset)
+        part.Parent = dummyModel
+        return part
+    end
     
-    local dummyLArm = Instance.new("Part")
-    dummyLArm.Size = Vector3.new(1, 2, 1)
-    dummyLArm.Color = Color3.new(1, 1, 1)
-    dummyLArm.Anchored = true
-    dummyLArm.Parent = dummyModel
-    dummyLArm.CFrame = CFrame.new(-1.5, 1.5, 0)
-    
-    local dummyRArm = Instance.new("Part")
-    dummyRArm.Size = Vector3.new(1, 2, 1)
-    dummyRArm.Color = Color3.new(1, 1, 1)
-    dummyRArm.Anchored = true
-    dummyRArm.Parent = dummyModel
-    dummyRArm.CFrame = CFrame.new(1.5, 1.5, 0)
-    
-    local dummyLLeg = Instance.new("Part")
-    dummyLLeg.Size = Vector3.new(1, 2, 1)
-    dummyLLeg.Color = Color3.new(1, 1, 1)
-    dummyLLeg.Anchored = true
-    dummyLLeg.Parent = dummyModel
-    dummyLLeg.CFrame = CFrame.new(-0.5, -0.5, 0)
-    
-    local dummyRLeg = Instance.new("Part")
-    dummyRLeg.Size = Vector3.new(1, 2, 1)
-    dummyRLeg.Color = Color3.new(1, 1, 1)
-    dummyRLeg.Anchored = true
-    dummyRLeg.Parent = dummyModel
-    dummyRLeg.CFrame = CFrame.new(0.5, -0.5, 0)
-    
-    dummyModel.PrimaryPart = dummyTorso
+    -- 캐릭터 형태 구성 (Torso를 PrimaryPart로 설정)
+    dummyModel.PrimaryPart = createDummyPart("Torso", Vector3.new(2, 2, 1), Vector3.new(0, 0, 0))
+    createDummyPart("Head", Vector3.new(2, 1, 1), Vector3.new(0, 1.5, 0))
+    createDummyPart("Left Arm", Vector3.new(1, 2, 1), Vector3.new(-1.5, 0, 0))
+    createDummyPart("Right Arm", Vector3.new(1, 2, 1), Vector3.new(1.5, 0, 0))
+    createDummyPart("Left Leg", Vector3.new(1, 2, 1), Vector3.new(-0.5, -2, 0))
+    createDummyPart("Right Leg", Vector3.new(1, 2, 1), Vector3.new(0.5, -2, 0))
 
     -- Charm 프리뷰 UI
     local CharmPreviewGroupbox = Tabs.ESP:AddLeftGroupbox("Charm Preview")
@@ -601,8 +588,10 @@ local success, err = pcall(function()
     charmPreviewFrame.BorderSizePixel = 0
     charmPreviewFrame.Parent = CharmPreviewGroupbox.Container
 
+    -- 카메라 설정 (더미를 정면에서 비추도록 설정)
     local charmPreviewCam = Instance.new("Camera")
-    charmPreviewCam.CFrame = CFrame.new(Vector3.new(0, 2, 10), Vector3.new(0, 1, 0))
+    charmPreviewCam.FieldOfView = 25 -- 화각을 좁혀서 왜곡 방지
+    charmPreviewCam.CFrame = CFrame.new(Vector3.new(0, 0, 10), Vector3.new(0, 0, 0))
     charmPreviewFrame.CurrentCamera = charmPreviewCam
     charmPreviewCam.Parent = charmPreviewFrame
 
@@ -720,9 +709,9 @@ local success, err = pcall(function()
 
     RunService.RenderStepped:Connect(function()
         pcall(function()
-            -- Charm 프리뷰 더미 회전
+            -- Charm 프리뷰 더미 회전 (위치 고정, Y축 회전만)
             if previewDummy and previewDummy.PrimaryPart then
-                previewDummy:PivotTo(CFrame.new(0, 1, 0) * CFrame.Angles(0, tick() * 0.5, 0))
+                previewDummy:PivotTo(CFrame.new(0, 0, 0) * CFrame.Angles(0, tick() * 0.5, 0))
             end
             
             -- Charm 프리뷰 Highlight 업데이트
