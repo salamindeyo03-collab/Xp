@@ -31,17 +31,6 @@ local success, err = pcall(function()
     local player = Players.LocalPlayer
     local camera = workspace.CurrentCamera
 
-    local function isTeammate(plr)
-        if not plr then return false end
-        if player.Team and plr.Team and player.Team == plr.Team then 
-            return true 
-        end
-        if player.TeamColor and plr.TeamColor and player.TeamColor == plr.TeamColor then 
-            return true 
-        end
-        return false
-    end
-
     local function getHitboxPart(character, hitboxName)
         if not character then return nil end
         if hitboxName == "Head" then
@@ -106,8 +95,8 @@ local success, err = pcall(function()
                 local targetPart = getHitboxPart(char, aimbotHitbox)
                 
                 if targetPart and humanoid and humanoid.Health > 0 and char:FindFirstChild("HumanoidRootPart") then
-                    local isTeammateVar = teamCheck and isTeammate(plr)
-                    if not isTeammateVar then
+                    local isTeammate = teamCheck and player.Team and plr.Team == player.Team
+                    if not isTeammate then
                         local distance3D = (char.HumanoidRootPart.Position - localRoot.Position).Magnitude
                         if distance3D <= MAX_DISTANCE then
                             local screenPos, onScreen = camera:WorldToViewportPoint(targetPart.Position)
@@ -162,7 +151,7 @@ local success, err = pcall(function()
                             local smooth = math.max(1, SMOOTH_FACTOR)
                             local moveX = move.X / smooth
                             local moveY = move.Y / smooth
-                            if math.abs(moveX) < 5000 and math.abs(move.Y) < 5000 then
+                            if math.abs(moveX) < 5000 and math.abs(moveY) < 5000 then
                                 if mousemoverel then mousemoverel(moveX, moveY) end
                             end
                         end
@@ -191,10 +180,10 @@ local success, err = pcall(function()
     AimbotGroupBox:AddSlider("AimbotDistance", { Text = "Max Distance", Default = 1000, Min = 1, Max = 5000, Rounding = 0, Callback = function(Value) MAX_DISTANCE = Value end })
 
     -- ==========================================
-    -- SILENT AIM 설정 (완벽하게 수정됨)
+    -- SILENT AIM 설정
     -- ==========================================
     local SA_ENABLED = false
-    local SA_FOV = 100 -- 기본 FOV 100으로 상향
+    local SA_FOV = 50
     local SA_SHOW_FOV = true
     local SA_TEAMCHECK = true
     local SA_WALLCHECK = true
@@ -249,8 +238,8 @@ local success, err = pcall(function()
 
             for _, plr in pairs(Players:GetPlayers()) do
                 if plr ~= player and plr.Character then
-                    local isTeammateVar = SA_TEAMCHECK and isTeammate(plr)
-                    if not isTeammateVar then
+                    local isTeammate = SA_TEAMCHECK and player.Team and plr.Team == player.Team
+                    if not isTeammate then
                         local humanoid = plr.Character:FindFirstChildOfClass("Humanoid")
                         local targetPart = getHitboxPart(plr.Character, saHitbox)
                         if targetPart and humanoid and humanoid.Health > 0 then
@@ -273,46 +262,18 @@ local success, err = pcall(function()
             return closestPart
         end
 
-        local function hookedRaycast(...)
-            local args = {...}
-            local isMethodCall = (type(args[1]) == "table" and args[1] == UtilityModule)
-            
-            local origin, direction, distance, params, ignoreWater, debug
-            if isMethodCall then
-                origin, direction, distance, params, ignoreWater, debug = args[2], args[3], args[4], args[5], args[6], args[7]
-            else
-                origin, direction, distance, params, ignoreWater, debug = args[1], args[2], args[3], args[4], args[5], args[6]
-            end
-            
+        UtilityModule.Raycast = function(self, origin, direction, distance, params, ignoreWater, debug)
             local isKeybindActive = Options.SilentAimKeybind and Options.SilentAimKeybind:GetState() or false
-            
-            -- 거리 제한(distance < 100)을 없애고 키바인드 및 토글만 체크
-            if not SA_ENABLED or not isKeybindActive then
-                return originalRaycast(...)
+            if not SA_ENABLED or not isKeybindActive or type(distance) ~= "number" or distance < 100 then
+                return originalRaycast(self, origin, direction, distance, params, ignoreWater, debug)
             end
-            
             local targetPart = getSilentTargetPart()
-            if not targetPart then 
-                return originalRaycast(...) 
-            end
-            
+            if not targetPart then return originalRaycast(self, origin, direction, distance, params, ignoreWater, debug) end
             local targetPos = targetPart.Position
             local newDir = (targetPos - origin).Unit
             local newDist = (targetPos - origin).Magnitude
-            
-            if type(distance) == "number" and newDist > distance then 
-                newDist = distance 
-                targetPos = origin + (newDir * distance) 
-            end
-            
+            if newDist > distance then newDist = distance targetPos = origin + (newDir * distance) end
             return { Position = targetPos, Distance = newDist, Instance = targetPart, Material = targetPart.Material, Normal = -newDir }
-        end
-
-        -- hookfunction를 사용하여 안전하게 후킹
-        if hookfunction then
-            hookfunction(originalRaycast, hookedRaycast)
-        else
-            UtilityModule.Raycast = hookedRaycast
         end
     end
 
@@ -350,7 +311,7 @@ local success, err = pcall(function()
     SilentAimGroupBox:AddToggle("SilentAimShowFOV", { Text = "Show Silent FOV", Default = true, Callback = function(Value) SA_SHOW_FOV = Value end })
     SilentAimGroupBox:AddLabel("SA FOV Color"):AddColorPicker("SilentAimFOVColorPicker", { Default = Color3.fromRGB(255, 0, 0), Title = "Silent Aim FOV Color", Transparency = 0, Callback = function(Value) saFOVColor = Value end })
     SilentAimGroupBox:AddToggle("SilentAimFOVRainbow", { Text = "Rainbow FOV", Default = false, Callback = function(Value) saFOVRainbow = Value end })
-    SilentAimGroupBox:AddSlider("SilentAimFOV", { Text = "Silent FOV Radius", Default = 100, Min = 10, Max = 1000, Rounding = 0, Callback = function(Value) SA_FOV = Value end })
+    SilentAimGroupBox:AddSlider("SilentAimFOV", { Text = "Silent FOV Radius", Default = 50, Min = 10, Max = 1000, Rounding = 0, Callback = function(Value) SA_FOV = Value end })
 
     -- ==========================================
     -- TRIGGERBOT 설정
@@ -358,7 +319,6 @@ local success, err = pcall(function()
     local TB_ENABLED = false
     local TB_FOV = 50
     local TB_WALLCHECK = true
-    local TB_TEAMCHECK = true 
     local TB_DELAY = 0.05
 
     local function isLobbyVisible()
@@ -382,19 +342,16 @@ local success, err = pcall(function()
                             local closest, dist = nil, TB_FOV
                             for _, plr in pairs(Players:GetPlayers()) do
                                 if plr ~= player and plr.Character and plr.Character:FindFirstChild("Head") and plr.Character:FindFirstChild("Humanoid") and plr.Character.Humanoid.Health > 0 then
-                                    local isTeammateVar = TB_TEAMCHECK and isTeammate(plr)
-                                    if not isTeammateVar then
-                                        local pos, onScreen = camera:WorldToViewportPoint(plr.Character.Head.Position)
-                                        if onScreen and pos.Z > 0 then
-                                            local d = (Vector2.new(pos.X, pos.Y) - mousePos).Magnitude
-                                            if d < dist then
-                                                local canSee = true
-                                                if TB_WALLCHECK then
-                                                    local hit = workspace:Raycast(camera.CFrame.Position, (plr.Character.Head.Position - camera.CFrame.Position), rayParams)
-                                                    if hit and hit.Instance and not hit.Instance:IsDescendantOf(plr.Character) then canSee = false end
-                                                end
-                                                if canSee then dist = d closest = plr.Character end
+                                    local pos, onScreen = camera:WorldToViewportPoint(plr.Character.Head.Position)
+                                    if onScreen and pos.Z > 0 then
+                                        local d = (Vector2.new(pos.X, pos.Y) - mousePos).Magnitude
+                                        if d < dist then
+                                            local canSee = true
+                                            if TB_WALLCHECK then
+                                                local hit = workspace:Raycast(camera.CFrame.Position, (plr.Character.Head.Position - camera.CFrame.Position), rayParams)
+                                                if hit and hit.Instance and not hit.Instance:IsDescendantOf(plr.Character) then canSee = false end
                                             end
+                                            if canSee then dist = d closest = plr.Character end
                                         end
                                     end
                                 end
@@ -410,13 +367,12 @@ local success, err = pcall(function()
     local TriggerbotGroupBox = Tabs.Main:AddLeftGroupbox("Triggerbot")
     TriggerbotGroupBox:AddToggle("TriggerbotToggle", { Text = "Enable Triggerbot", Default = false, Callback = function(Value) TB_ENABLED = Value end })
     TriggerbotGroupBox:AddLabel("Trigger Keybind"):AddKeyPicker("TriggerbotKeybind", { Default = "MB2", SyncToggleState = false, Mode = "Hold", Text = "Trigger Key", NoUI = false })
-    TriggerbotGroupBox:AddToggle("TriggerbotTeamCheck", { Text = "Team Check", Default = true, Callback = function(Value) TB_TEAMCHECK = Value end })
     TriggerbotGroupBox:AddToggle("TriggerbotWallCheck", { Text = "Wall Check", Default = true, Callback = function(Value) TB_WALLCHECK = Value end })
     TriggerbotGroupBox:AddSlider("TriggerbotFOV", { Text = "Trigger FOV Radius", Default = 50, Min = 1, Max = 1000, Rounding = 0, Callback = function(Value) TB_FOV = Value end })
     TriggerbotGroupBox:AddSlider("TriggerbotDelay", { Text = "Fire Delay (sec)", Default = 0.05, Min = 0.01, Max = 1, Rounding = 2, Callback = function(Value) TB_DELAY = Value end })
 
     -- ==========================================
-    -- RAGEBOT 설정 
+    -- RAGEBOT 설정 (우측 그룹박스)
     -- ==========================================
     local RB_ENABLED = false
     local RB_FOV = 300
@@ -454,8 +410,8 @@ local success, err = pcall(function()
                             
                             for _, plr in pairs(Players:GetPlayers()) do
                                 if plr ~= player and plr.Character then
-                                    local isTeammateVar = RB_TEAMCHECK and isTeammate(plr)
-                                    if not isTeammateVar then
+                                    local isTeammate = RB_TEAMCHECK and player.Team and plr.Team == player.Team
+                                    if not isTeammate then
                                         local char = plr.Character
                                         local humanoid = char:FindFirstChildOfClass("Humanoid")
                                         local targetPart = getHitboxPart(char, RB_HITBOX)
@@ -480,6 +436,7 @@ local success, err = pcall(function()
                             if closest then
                                 local targetPart = getHitboxPart(closest, RB_HITBOX)
                                 if targetPart and camera then
+                                    -- 래지봇 즉시 스냅 (마우스 강제 이동)
                                     local screenPos = camera:WorldToViewportPoint(targetPart.Position)
                                     if screenPos.Z > 0 then
                                         local targetVec = Vector2.new(screenPos.X, screenPos.Y)
@@ -499,11 +456,11 @@ local success, err = pcall(function()
     end)
 
     -- ==========================================
-    -- RAPID FIRE & FULL AUTO
+    -- RAPID FIRE (Rapid.txt 코드 단일 적용)
     -- ==========================================
     local RapidFireEnabled = false
-    local FullAutoEnabled = false
 
+    -- 제공해주신 Rapid.txt 코드 통합
     pcall(function()
         local Gun = require(player.PlayerScripts.Modules.ItemTypes.Gun)
         if Gun and Gun.Update then
@@ -511,65 +468,44 @@ local success, err = pcall(function()
             Gun.Update = function(self, dt, ...)
                 if RapidFireEnabled then
                     if self._shoot_cooldown then
-                        self._shoot_cooldown = 0 
+                        self._shoot_cooldown = 0 -- 쿨다운 강제 제거 (마우스를 꾹 누르고 있으면 게임이 알아서 연사함)
                     end
                 end
                 return oldUpdate(self, dt, ...)
             end
         end
-        
-        if Gun and Gun.StartShooting then
-            local originalStartShooting = Gun.StartShooting 
-            Gun.StartShooting = function(self, ...)
-                if FullAutoEnabled then
-                    pcall(function()
-                        self.Automatic = true
-                        self.FullAuto = true
-                        if self.WeaponData then self.WeaponData.Automatic = true self.WeaponData.FullAuto = true end
-                        if self.WeaponStats then self.WeaponStats.Automatic = true self.WeaponStats.FullAuto = true end
-                        if self._weaponData then self._weaponData.Automatic = true self._weaponData.FullAuto = true end
-                    end)
-                end
-                return originalStartShooting(self, ...)
-            end
-        end
     end)
 
-    local RapidFireGroupBox = Tabs.Main:AddRightGroupbox("Rapid Fire & Auto")
+    local RapidFireGroupBox = Tabs.Main:AddRightGroupbox("Rapid Fire (Postshot)")
     RapidFireGroupBox:AddToggle("RapidFireToggle", { 
-        Text = "Enable Rapid Fire (Postshot)", 
+        Text = "Enable Rapid Fire", 
         Default = false, 
         Callback = function(Value) 
             RapidFireEnabled = Value 
         end 
     })
-    RapidFireGroupBox:AddToggle("FullAutoToggle", { 
-        Text = "Enable Full Auto", 
-        Default = false, 
-        Callback = function(Value) 
-            FullAutoEnabled = Value 
-        end 
-    })
 
     -- ==========================================
-    -- RECOIL & SPREAD 
+    -- RECOIL & SPREAD (노리코일 & 탄퍼짐)
     -- ==========================================
     local NoRecoilEnabled = false
     local NoSpreadEnabled = false
 
+    -- 노리코일 (Recoil.txt)
     pcall(function()
         local ClientItem = require(player.PlayerScripts.Modules.ClientReplicatedClasses.ClientFighter.ClientItem)
         if ClientItem and ClientItem._Recoil then
             local originalRecoil = ClientItem._Recoil
             ClientItem._Recoil = function(...)
                 if NoRecoilEnabled then
-                    return 
+                    return -- 반동 함수 자체를 무시
                 end
                 return originalRecoil(...)
             end
         end
     end)
 
+    -- 탄퍼짐 (Nosped.txt)
     pcall(function()
         local GunItem = require(player.PlayerScripts.Modules.ItemTypes.Gun)
         if GunItem and GunItem.StartShooting then
@@ -577,7 +513,7 @@ local success, err = pcall(function()
             GunItem.StartShooting = function(self, ...)
                 local res = {originalStartShooting(self, ...)}
                 if NoSpreadEnabled and self.ClientFighter and self.ClientFighter.IsLocalPlayer then 
-                    res[4] = true 
+                    res[4] = true -- 탄퍼짐 없음 설정
                 end 
                 return unpack(res)
             end
@@ -597,7 +533,7 @@ local success, err = pcall(function()
     })
 
     -- ==========================================
-    -- CHARM (Highlight) 설정
+    -- CHARM (Highlight) 설정 (좌측 그룹박스)
     -- ==========================================
     local CharmGroupBox = Tabs.ESP:AddLeftGroupbox("Charm")
     local charmColor = Color3.fromRGB(0, 255, 127)
@@ -610,6 +546,7 @@ local success, err = pcall(function()
         Callback = function(v) charmColor = v end 
     })
 
+    -- Charm 프리뷰용 하얀색 더미 모델 생성 (개선됨)
     local dummyModel = Instance.new("Model")
     dummyModel.Name = "WhiteDummy"
     
@@ -617,7 +554,7 @@ local success, err = pcall(function()
         local part = Instance.new("Part")
         part.Name = name
         part.Size = size
-        part.Color = Color3.new(1, 1, 1) 
+        part.Color = Color3.new(1, 1, 1) -- 하얀색
         part.Material = Enum.Material.SmoothPlastic
         part.Anchored = true
         part.CanCollide = false
@@ -626,6 +563,7 @@ local success, err = pcall(function()
         return part
     end
     
+    -- 캐릭터 형태 구성 (Torso를 PrimaryPart로 설정)
     dummyModel.PrimaryPart = createDummyPart("Torso", Vector3.new(2, 2, 1), Vector3.new(0, 0, 0))
     createDummyPart("Head", Vector3.new(2, 1, 1), Vector3.new(0, 1.5, 0))
     createDummyPart("Left Arm", Vector3.new(1, 2, 1), Vector3.new(-1.5, 0, 0))
@@ -633,6 +571,7 @@ local success, err = pcall(function()
     createDummyPart("Left Leg", Vector3.new(1, 2, 1), Vector3.new(-0.5, -2, 0))
     createDummyPart("Right Leg", Vector3.new(1, 2, 1), Vector3.new(0.5, -2, 0))
 
+    -- Charm 프리뷰 UI
     local CharmPreviewGroupbox = Tabs.ESP:AddLeftGroupbox("Charm Preview")
     local charmPreviewFrame = Instance.new("ViewportFrame")
     charmPreviewFrame.Size = UDim2.new(1, 0, 0, 250)
@@ -640,12 +579,14 @@ local success, err = pcall(function()
     charmPreviewFrame.BorderSizePixel = 0
     charmPreviewFrame.Parent = CharmPreviewGroupbox.Container
 
+    -- 카메라 설정 (더미를 정면에서 비추도록 설정)
     local charmPreviewCam = Instance.new("Camera")
-    charmPreviewCam.FieldOfView = 25 
+    charmPreviewCam.FieldOfView = 25 -- 화각을 좁혀서 왜곡 방지
     charmPreviewCam.CFrame = CFrame.new(Vector3.new(0, 0, 10), Vector3.new(0, 0, 0))
     charmPreviewFrame.CurrentCamera = charmPreviewCam
     charmPreviewCam.Parent = charmPreviewFrame
 
+    -- 더미 모델을 프리뷰에 복사해서 넣음
     local previewDummy = dummyModel:Clone()
     previewDummy.Parent = charmPreviewFrame
     
@@ -653,7 +594,7 @@ local success, err = pcall(function()
     charmPreviewHighlight.Parent = previewDummy
 
     -- ==========================================
-    -- ESP 설정
+    -- ESP 설정 (우측 그룹박스로 이동)
     -- ==========================================
     local ESPGroupBox = Tabs.ESP:AddRightGroupbox("ESP Settings")
     local espBoxColor = Color3.fromRGB(0, 255, 127)
@@ -740,6 +681,7 @@ local success, err = pcall(function()
     end
 
     ESPGroupBox:AddToggle("ESP_Enable", { Text = "Enable ESP", Default = false })
+    -- Highlight 옵션 제거
     ESPGroupBox:AddDropdown("ESP_BoxType", {
         Text = "Box ESP Type",
         Values = { "Full Box", "Corner Box" },
@@ -758,10 +700,12 @@ local success, err = pcall(function()
 
     RunService.RenderStepped:Connect(function()
         pcall(function()
+            -- Charm 프리뷰 더미 회전 (위치 고정, Y축 회전만)
             if previewDummy and previewDummy.PrimaryPart then
                 previewDummy:PivotTo(CFrame.new(0, 0, 0) * CFrame.Angles(0, tick() * 0.5, 0))
             end
             
+            -- Charm 프리뷰 Highlight 업데이트
             if Toggles.Charm_Toggle and Toggles.Charm_Toggle.Value then
                 if charmPreviewHighlight then 
                     charmPreviewHighlight.Enabled = true
@@ -790,6 +734,7 @@ local success, err = pcall(function()
                         if not rootVis then
                             hideESP(p)
                         else
+                            -- 박스 크기를 캐릭터보다 더 크게 조정 (1.2 -> 1.6, 2.2 -> 1.8)
                             local height = math.abs(headPos.Y - legPos.Y) * 1.6
                             local width = height / 1.8
                             
@@ -887,13 +832,16 @@ local success, err = pcall(function()
                 end
             end
             
+            -- 실제 플레이어에게 Charm (Highlight) 적용
             for _, p in pairs(Players:GetPlayers()) do
                 if p ~= player and p.Character then
                     local char = p.Character
                     if not Toggles.Charm_Toggle or not Toggles.Charm_Toggle.Value or not char:FindFirstChild("HumanoidRootPart") or not char:FindFirstChild("Humanoid") or char.Humanoid.Health <= 0 then
+                        -- Charm이 꺼져있으면 기존 Highlight 제거
                         local hl = char:FindFirstChild("CharmHighlight")
                         if hl then hl:Destroy() end
                     else
+                        -- Charm이 켜져있으면 Highlight 적용
                         local hl = char:FindFirstChild("CharmHighlight")
                         if not hl then
                             hl = Instance.new("Highlight")
@@ -1384,6 +1332,7 @@ local success, err = pcall(function()
     SaveManager:BuildConfigSection(Tabs["UI Settings"])
     ThemeManager:ApplyToTab(Tabs["UI Settings"])
     
+    -- 다크 레드 테마 강제 적용
     ThemeManager.Theme = ThemeManager.Theme or {}
     ThemeManager.Theme.Main = Color3.fromRGB(25, 25, 25)
     ThemeManager.Theme.Background = Color3.fromRGB(20, 20, 20)
@@ -1395,6 +1344,7 @@ local success, err = pcall(function()
     ThemeManager.Theme.TabBackground = Color3.fromRGB(30, 30, 30)
     SaveManager:LoadAutoloadConfig()
 
+    -- UI 1회 세팅
     task.spawn(function()
         task.wait(1)
         local logoUrl = "https://raw.githubusercontent.com/salamindeyo03-collab/SLogo/main/RealLast.png"
