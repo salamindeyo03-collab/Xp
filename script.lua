@@ -31,6 +31,20 @@ local success, err = pcall(function()
     local player = Players.LocalPlayer
     local camera = workspace.CurrentCamera
 
+    -- 팀 체크 공통 함수 (Team과 TeamColor 모두 확인)
+    local function isTeammate(plr)
+        if not plr then return false end
+        -- Team 속성 확인
+        if player.Team and plr.Team and player.Team == plr.Team then 
+            return true 
+        end
+        -- TeamColor 속성 확인 (기본 Team이 없는 게임용)
+        if player.TeamColor and plr.TeamColor and player.TeamColor == plr.TeamColor then 
+            return true 
+        end
+        return false
+    end
+
     local function getHitboxPart(character, hitboxName)
         if not character then return nil end
         if hitboxName == "Head" then
@@ -95,9 +109,9 @@ local success, err = pcall(function()
                 local targetPart = getHitboxPart(char, aimbotHitbox)
                 
                 if targetPart and humanoid and humanoid.Health > 0 and char:FindFirstChild("HumanoidRootPart") then
-                    -- 팀 체크 로직 수정: 둘 다 팀이 있고 같을 때만 팀원으로 인식
-                    local isTeammate = teamCheck and player.Team ~= nil and plr.Team ~= nil and player.Team == plr.Team
-                    if not isTeammate then
+                    -- 개선된 팀 체크 로직 적용
+                    local isTeammateVar = teamCheck and isTeammate(plr)
+                    if not isTeammateVar then
                         local distance3D = (char.HumanoidRootPart.Position - localRoot.Position).Magnitude
                         if distance3D <= MAX_DISTANCE then
                             local screenPos, onScreen = camera:WorldToViewportPoint(targetPart.Position)
@@ -239,9 +253,9 @@ local success, err = pcall(function()
 
             for _, plr in pairs(Players:GetPlayers()) do
                 if plr ~= player and plr.Character then
-                    -- 팀 체크 로직 수정
-                    local isTeammate = SA_TEAMCHECK and player.Team ~= nil and plr.Team ~= nil and player.Team == plr.Team
-                    if not isTeammate then
+                    -- 개선된 팀 체크 로직 적용
+                    local isTeammateVar = SA_TEAMCHECK and isTeammate(plr)
+                    if not isTeammateVar then
                         local humanoid = plr.Character:FindFirstChildOfClass("Humanoid")
                         local targetPart = getHitboxPart(plr.Character, saHitbox)
                         if targetPart and humanoid and humanoid.Health > 0 then
@@ -321,7 +335,7 @@ local success, err = pcall(function()
     local TB_ENABLED = false
     local TB_FOV = 50
     local TB_WALLCHECK = true
-    local TB_TEAMCHECK = true -- 트리거봇 팀체크 추가
+    local TB_TEAMCHECK = true 
     local TB_DELAY = 0.05
 
     local function isLobbyVisible()
@@ -345,9 +359,9 @@ local success, err = pcall(function()
                             local closest, dist = nil, TB_FOV
                             for _, plr in pairs(Players:GetPlayers()) do
                                 if plr ~= player and plr.Character and plr.Character:FindFirstChild("Head") and plr.Character:FindFirstChild("Humanoid") and plr.Character.Humanoid.Health > 0 then
-                                    -- 트리거봇 팀 체크 로직 추가
-                                    local isTeammate = TB_TEAMCHECK and player.Team ~= nil and plr.Team ~= nil and player.Team == plr.Team
-                                    if not isTeammate then
+                                    -- 개선된 팀 체크 로직 적용
+                                    local isTeammateVar = TB_TEAMCHECK and isTeammate(plr)
+                                    if not isTeammateVar then
                                         local pos, onScreen = camera:WorldToViewportPoint(plr.Character.Head.Position)
                                         if onScreen and pos.Z > 0 then
                                             local d = (Vector2.new(pos.X, pos.Y) - mousePos).Magnitude
@@ -380,7 +394,7 @@ local success, err = pcall(function()
     TriggerbotGroupBox:AddSlider("TriggerbotDelay", { Text = "Fire Delay (sec)", Default = 0.05, Min = 0.01, Max = 1, Rounding = 2, Callback = function(Value) TB_DELAY = Value end })
 
     -- ==========================================
-    -- RAGEBOT 설정 (우측 그룹박스)
+    -- RAGEBOT 설정 
     -- ==========================================
     local RB_ENABLED = false
     local RB_FOV = 300
@@ -418,9 +432,9 @@ local success, err = pcall(function()
                             
                             for _, plr in pairs(Players:GetPlayers()) do
                                 if plr ~= player and plr.Character then
-                                    -- 래지봇 팀 체크 로직 수정
-                                    local isTeammate = RB_TEAMCHECK and player.Team ~= nil and plr.Team ~= nil and player.Team == plr.Team
-                                    if not isTeammate then
+                                    -- 개선된 팀 체크 로직 적용
+                                    local isTeammateVar = RB_TEAMCHECK and isTeammate(plr)
+                                    if not isTeammateVar then
                                         local char = plr.Character
                                         local humanoid = char:FindFirstChildOfClass("Humanoid")
                                         local targetPart = getHitboxPart(char, RB_HITBOX)
@@ -445,7 +459,6 @@ local success, err = pcall(function()
                             if closest then
                                 local targetPart = getHitboxPart(closest, RB_HITBOX)
                                 if targetPart and camera then
-                                    -- 래지봇 즉시 스냅 (마우스 강제 이동)
                                     local screenPos = camera:WorldToViewportPoint(targetPart.Position)
                                     if screenPos.Z > 0 then
                                         local targetVec = Vector2.new(screenPos.X, screenPos.Y)
@@ -465,11 +478,10 @@ local success, err = pcall(function()
     end)
 
     -- ==========================================
-    -- RAPID FIRE (Rapid.txt 코드 단일 적용)
+    -- RAPID FIRE 
     -- ==========================================
     local RapidFireEnabled = false
 
-    -- 제공해주신 Rapid.txt 코드 통합
     pcall(function()
         local Gun = require(player.PlayerScripts.Modules.ItemTypes.Gun)
         if Gun and Gun.Update then
@@ -477,7 +489,7 @@ local success, err = pcall(function()
             Gun.Update = function(self, dt, ...)
                 if RapidFireEnabled then
                     if self._shoot_cooldown then
-                        self._shoot_cooldown = 0 -- 쿨다운 강제 제거 (마우스를 꾹 누르고 있으면 게임이 알아서 연사함)
+                        self._shoot_cooldown = 0 
                     end
                 end
                 return oldUpdate(self, dt, ...)
@@ -495,26 +507,24 @@ local success, err = pcall(function()
     })
 
     -- ==========================================
-    -- RECOIL & SPREAD (노리코일 & 탄퍼짐)
+    -- RECOIL & SPREAD 
     -- ==========================================
     local NoRecoilEnabled = false
     local NoSpreadEnabled = false
 
-    -- 노리코일 (Recoil.txt)
     pcall(function()
         local ClientItem = require(player.PlayerScripts.Modules.ClientReplicatedClasses.ClientFighter.ClientItem)
         if ClientItem and ClientItem._Recoil then
             local originalRecoil = ClientItem._Recoil
             ClientItem._Recoil = function(...)
                 if NoRecoilEnabled then
-                    return -- 반동 함수 자체를 무시
+                    return 
                 end
                 return originalRecoil(...)
             end
         end
     end)
 
-    -- 탄퍼짐 (Nosped.txt)
     pcall(function()
         local GunItem = require(player.PlayerScripts.Modules.ItemTypes.Gun)
         if GunItem and GunItem.StartShooting then
@@ -522,7 +532,7 @@ local success, err = pcall(function()
             GunItem.StartShooting = function(self, ...)
                 local res = {originalStartShooting(self, ...)}
                 if NoSpreadEnabled and self.ClientFighter and self.ClientFighter.IsLocalPlayer then 
-                    res[4] = true -- 탄퍼짐 없음 설정
+                    res[4] = true 
                 end 
                 return unpack(res)
             end
@@ -542,7 +552,7 @@ local success, err = pcall(function()
     })
 
     -- ==========================================
-    -- CHARM (Highlight) 설정 (좌측 그룹박스)
+    -- CHARM (Highlight) 설정
     -- ==========================================
     local CharmGroupBox = Tabs.ESP:AddLeftGroupbox("Charm")
     local charmColor = Color3.fromRGB(0, 255, 127)
@@ -555,7 +565,6 @@ local success, err = pcall(function()
         Callback = function(v) charmColor = v end 
     })
 
-    -- Charm 프리뷰용 하얀색 더미 모델 생성 (개선됨)
     local dummyModel = Instance.new("Model")
     dummyModel.Name = "WhiteDummy"
     
@@ -563,7 +572,7 @@ local success, err = pcall(function()
         local part = Instance.new("Part")
         part.Name = name
         part.Size = size
-        part.Color = Color3.new(1, 1, 1) -- 하얀색
+        part.Color = Color3.new(1, 1, 1) 
         part.Material = Enum.Material.SmoothPlastic
         part.Anchored = true
         part.CanCollide = false
@@ -572,7 +581,6 @@ local success, err = pcall(function()
         return part
     end
     
-    -- 캐릭터 형태 구성 (Torso를 PrimaryPart로 설정)
     dummyModel.PrimaryPart = createDummyPart("Torso", Vector3.new(2, 2, 1), Vector3.new(0, 0, 0))
     createDummyPart("Head", Vector3.new(2, 1, 1), Vector3.new(0, 1.5, 0))
     createDummyPart("Left Arm", Vector3.new(1, 2, 1), Vector3.new(-1.5, 0, 0))
@@ -580,7 +588,6 @@ local success, err = pcall(function()
     createDummyPart("Left Leg", Vector3.new(1, 2, 1), Vector3.new(-0.5, -2, 0))
     createDummyPart("Right Leg", Vector3.new(1, 2, 1), Vector3.new(0.5, -2, 0))
 
-    -- Charm 프리뷰 UI
     local CharmPreviewGroupbox = Tabs.ESP:AddLeftGroupbox("Charm Preview")
     local charmPreviewFrame = Instance.new("ViewportFrame")
     charmPreviewFrame.Size = UDim2.new(1, 0, 0, 250)
@@ -588,14 +595,12 @@ local success, err = pcall(function()
     charmPreviewFrame.BorderSizePixel = 0
     charmPreviewFrame.Parent = CharmPreviewGroupbox.Container
 
-    -- 카메라 설정 (더미를 정면에서 비추도록 설정)
     local charmPreviewCam = Instance.new("Camera")
-    charmPreviewCam.FieldOfView = 25 -- 화각을 좁혀서 왜곡 방지
+    charmPreviewCam.FieldOfView = 25 
     charmPreviewCam.CFrame = CFrame.new(Vector3.new(0, 0, 10), Vector3.new(0, 0, 0))
     charmPreviewFrame.CurrentCamera = charmPreviewCam
     charmPreviewCam.Parent = charmPreviewFrame
 
-    -- 더미 모델을 프리뷰에 복사해서 넣음
     local previewDummy = dummyModel:Clone()
     previewDummy.Parent = charmPreviewFrame
     
@@ -603,7 +608,7 @@ local success, err = pcall(function()
     charmPreviewHighlight.Parent = previewDummy
 
     -- ==========================================
-    -- ESP 설정 (우측 그룹박스로 이동)
+    -- ESP 설정
     -- ==========================================
     local ESPGroupBox = Tabs.ESP:AddRightGroupbox("ESP Settings")
     local espBoxColor = Color3.fromRGB(0, 255, 127)
@@ -690,7 +695,6 @@ local success, err = pcall(function()
     end
 
     ESPGroupBox:AddToggle("ESP_Enable", { Text = "Enable ESP", Default = false })
-    -- Highlight 옵션 제거
     ESPGroupBox:AddDropdown("ESP_BoxType", {
         Text = "Box ESP Type",
         Values = { "Full Box", "Corner Box" },
@@ -709,12 +713,10 @@ local success, err = pcall(function()
 
     RunService.RenderStepped:Connect(function()
         pcall(function()
-            -- Charm 프리뷰 더미 회전 (위치 고정, Y축 회전만)
             if previewDummy and previewDummy.PrimaryPart then
                 previewDummy:PivotTo(CFrame.new(0, 0, 0) * CFrame.Angles(0, tick() * 0.5, 0))
             end
             
-            -- Charm 프리뷰 Highlight 업데이트
             if Toggles.Charm_Toggle and Toggles.Charm_Toggle.Value then
                 if charmPreviewHighlight then 
                     charmPreviewHighlight.Enabled = true
@@ -743,7 +745,6 @@ local success, err = pcall(function()
                         if not rootVis then
                             hideESP(p)
                         else
-                            -- 박스 크기를 캐릭터보다 더 크게 조정 (1.2 -> 1.6, 2.2 -> 1.8)
                             local height = math.abs(headPos.Y - legPos.Y) * 1.6
                             local width = height / 1.8
                             
@@ -841,16 +842,13 @@ local success, err = pcall(function()
                 end
             end
             
-            -- 실제 플레이어에게 Charm (Highlight) 적용
             for _, p in pairs(Players:GetPlayers()) do
                 if p ~= player and p.Character then
                     local char = p.Character
                     if not Toggles.Charm_Toggle or not Toggles.Charm_Toggle.Value or not char:FindFirstChild("HumanoidRootPart") or not char:FindFirstChild("Humanoid") or char.Humanoid.Health <= 0 then
-                        -- Charm이 꺼져있으면 기존 Highlight 제거
                         local hl = char:FindFirstChild("CharmHighlight")
                         if hl then hl:Destroy() end
                     else
-                        -- Charm이 켜져있으면 Highlight 적용
                         local hl = char:FindFirstChild("CharmHighlight")
                         if not hl then
                             hl = Instance.new("Highlight")
@@ -1341,7 +1339,6 @@ local success, err = pcall(function()
     SaveManager:BuildConfigSection(Tabs["UI Settings"])
     ThemeManager:ApplyToTab(Tabs["UI Settings"])
     
-    -- 다크 레드 테마 강제 적용
     ThemeManager.Theme = ThemeManager.Theme or {}
     ThemeManager.Theme.Main = Color3.fromRGB(25, 25, 25)
     ThemeManager.Theme.Background = Color3.fromRGB(20, 20, 20)
@@ -1353,7 +1350,6 @@ local success, err = pcall(function()
     ThemeManager.Theme.TabBackground = Color3.fromRGB(30, 30, 30)
     SaveManager:LoadAutoloadConfig()
 
-    -- UI 1회 세팅
     task.spawn(function()
         task.wait(1)
         local logoUrl = "https://raw.githubusercontent.com/salamindeyo03-collab/SLogo/main/RealLast.png"
