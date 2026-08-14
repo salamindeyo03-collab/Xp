@@ -486,6 +486,53 @@ local success, err = pcall(function()
     })
 
     -- ==========================================
+    -- RECOIL & SPREAD (노리코일 & 탄퍼짐)
+    -- ==========================================
+    local NoRecoilEnabled = false
+    local NoSpreadEnabled = false
+
+    -- 노리코일 (Recoil.txt)
+    pcall(function()
+        local ClientItem = require(player.PlayerScripts.Modules.ClientReplicatedClasses.ClientFighter.ClientItem)
+        if ClientItem and ClientItem._Recoil then
+            local originalRecoil = ClientItem._Recoil
+            ClientItem._Recoil = function(...)
+                if NoRecoilEnabled then
+                    return -- 반동 함수 자체를 무시
+                end
+                return originalRecoil(...)
+            end
+        end
+    end)
+
+    -- 탄퍼짐 (Nosped.txt)
+    pcall(function()
+        local GunItem = require(player.PlayerScripts.Modules.ItemTypes.Gun)
+        if GunItem and GunItem.StartShooting then
+            local originalStartShooting = GunItem.StartShooting 
+            GunItem.StartShooting = function(self, ...)
+                local res = {originalStartShooting(self, ...)}
+                if NoSpreadEnabled and self.ClientFighter and self.ClientFighter.IsLocalPlayer then 
+                    res[4] = true -- 탄퍼짐 없음 설정
+                end 
+                return unpack(res)
+            end
+        end
+    end)
+
+    local RecoilSpreadGroupBox = Tabs.Main:AddRightGroupbox("Recoil & Spread")
+    RecoilSpreadGroupBox:AddToggle("NoRecoilToggle", { 
+        Text = "Enable No Recoil", 
+        Default = false, 
+        Callback = function(Value) NoRecoilEnabled = Value end 
+    })
+    RecoilSpreadGroupBox:AddToggle("NoSpreadToggle", { 
+        Text = "Enable No Spread", 
+        Default = false, 
+        Callback = function(Value) NoSpreadEnabled = Value end 
+    })
+
+    -- ==========================================
     -- ESP 설정
     -- ==========================================
     local ESPGroupBox = Tabs.ESP:AddLeftGroupbox("ESP Settings")
