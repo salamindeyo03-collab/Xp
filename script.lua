@@ -533,9 +533,90 @@ local success, err = pcall(function()
     })
 
     -- ==========================================
-    -- ESP 설정
+    -- CHARM (Highlight) 설정 (좌측 그룹박스)
     -- ==========================================
-    local ESPGroupBox = Tabs.ESP:AddLeftGroupbox("ESP Settings")
+    local CharmGroupBox = Tabs.ESP:AddLeftGroupbox("Charm")
+    local charmColor = Color3.fromRGB(0, 255, 127)
+    
+    CharmGroupBox:AddToggle("Charm_Toggle", { Text = "Enable Charm (Highlight)", Default = false })
+    CharmGroupBox:AddLabel("Charm Color"):AddColorPicker("Charm_Color", { 
+        Default = charmColor, 
+        Title = "Charm Color", 
+        Transparency = 0, 
+        Callback = function(v) charmColor = v end 
+    })
+
+    -- Charm 프리뷰용 하얀색 더미 모델 생성
+    local dummyModel = Instance.new("Model")
+    dummyModel.Name = "WhiteDummy"
+    local dummyHead = Instance.new("Part")
+    dummyHead.Size = Vector3.new(2, 1, 1)
+    dummyHead.Color = Color3.new(1, 1, 1)
+    dummyHead.Anchored = true
+    dummyHead.Parent = dummyModel
+    dummyHead.CFrame = CFrame.new(0, 3, 0)
+    
+    local dummyTorso = Instance.new("Part")
+    dummyTorso.Size = Vector3.new(2, 2, 1)
+    dummyTorso.Color = Color3.new(1, 1, 1)
+    dummyTorso.Anchored = true
+    dummyTorso.Parent = dummyModel
+    dummyTorso.CFrame = CFrame.new(0, 1.5, 0)
+    
+    local dummyLArm = Instance.new("Part")
+    dummyLArm.Size = Vector3.new(1, 2, 1)
+    dummyLArm.Color = Color3.new(1, 1, 1)
+    dummyLArm.Anchored = true
+    dummyLArm.Parent = dummyModel
+    dummyLArm.CFrame = CFrame.new(-1.5, 1.5, 0)
+    
+    local dummyRArm = Instance.new("Part")
+    dummyRArm.Size = Vector3.new(1, 2, 1)
+    dummyRArm.Color = Color3.new(1, 1, 1)
+    dummyRArm.Anchored = true
+    dummyRArm.Parent = dummyModel
+    dummyRArm.CFrame = CFrame.new(1.5, 1.5, 0)
+    
+    local dummyLLeg = Instance.new("Part")
+    dummyLLeg.Size = Vector3.new(1, 2, 1)
+    dummyLLeg.Color = Color3.new(1, 1, 1)
+    dummyLLeg.Anchored = true
+    dummyLLeg.Parent = dummyModel
+    dummyLLeg.CFrame = CFrame.new(-0.5, -0.5, 0)
+    
+    local dummyRLeg = Instance.new("Part")
+    dummyRLeg.Size = Vector3.new(1, 2, 1)
+    dummyRLeg.Color = Color3.new(1, 1, 1)
+    dummyRLeg.Anchored = true
+    dummyRLeg.Parent = dummyModel
+    dummyRLeg.CFrame = CFrame.new(0.5, -0.5, 0)
+    
+    dummyModel.PrimaryPart = dummyTorso
+
+    -- Charm 프리뷰 UI
+    local CharmPreviewGroupbox = Tabs.ESP:AddLeftGroupbox("Charm Preview")
+    local charmPreviewFrame = Instance.new("ViewportFrame")
+    charmPreviewFrame.Size = UDim2.new(1, 0, 0, 250)
+    charmPreviewFrame.BackgroundColor3 = Color3.fromRGB(15, 15, 15)
+    charmPreviewFrame.BorderSizePixel = 0
+    charmPreviewFrame.Parent = CharmPreviewGroupbox.Container
+
+    local charmPreviewCam = Instance.new("Camera")
+    charmPreviewCam.CFrame = CFrame.new(Vector3.new(0, 2, 10), Vector3.new(0, 1, 0))
+    charmPreviewFrame.CurrentCamera = charmPreviewCam
+    charmPreviewCam.Parent = charmPreviewFrame
+
+    -- 더미 모델을 프리뷰에 복사해서 넣음
+    local previewDummy = dummyModel:Clone()
+    previewDummy.Parent = charmPreviewFrame
+    
+    local charmPreviewHighlight = Instance.new("Highlight")
+    charmPreviewHighlight.Parent = previewDummy
+
+    -- ==========================================
+    -- ESP 설정 (우측 그룹박스로 이동)
+    -- ==========================================
+    local ESPGroupBox = Tabs.ESP:AddRightGroupbox("ESP Settings")
     local espBoxColor = Color3.fromRGB(0, 255, 127)
     local espTracerColor = Color3.fromRGB(0, 255, 127)
     local espNameColor = Color3.fromRGB(255, 255, 255)
@@ -620,9 +701,10 @@ local success, err = pcall(function()
     end
 
     ESPGroupBox:AddToggle("ESP_Enable", { Text = "Enable ESP", Default = false })
+    -- Highlight 옵션 제거
     ESPGroupBox:AddDropdown("ESP_BoxType", {
         Text = "Box ESP Type",
-        Values = { "Full Box", "Corner Box", "Highlight" },
+        Values = { "Full Box", "Corner Box" },
         Default = 1,
     })
     ESPGroupBox:AddToggle("ESP_Tracer", { Text = "Tracer ESP", Default = false })
@@ -636,97 +718,21 @@ local success, err = pcall(function()
 
     Players.PlayerRemoving:Connect(clearESP)
 
-    local PreviewGroupbox = Tabs.ESP:AddRightGroupbox("Preview")
-    local previewFrame = Instance.new("ViewportFrame")
-    previewFrame.Size = UDim2.new(1, 0, 0, 250)
-    previewFrame.BackgroundColor3 = Color3.fromRGB(15, 15, 15)
-    previewFrame.BorderSizePixel = 0
-    previewFrame.Parent = PreviewGroupbox.Container
-
-    local previewCam = Instance.new("Camera")
-    previewCam.CFrame = CFrame.new(Vector3.new(0, 2, 6), Vector3.new(0, 1, 0))
-    previewFrame.CurrentCamera = previewCam
-    previewCam.Parent = previewFrame
-
-    local previewModel = nil
-    local previewHighlight = nil
-    local previewBillboard = nil
-
-    local function updatePreviewCharacter()
-        if not player.Character then return end
-        if previewModel then previewModel:Destroy() end
-        local clone = player.Character:Clone()
-        clone.Name = "PreviewDummy"
-        for _, desc in ipairs(clone:GetDescendants()) do
-            if desc:IsA("Script") or desc:IsA("LocalScript") or desc:IsA("ModuleScript") then
-                desc:Destroy()
-            elseif desc:IsA("BasePart") then
-                desc.Anchored = true
-                desc.CanCollide = false
-            end
-        end
-        if clone.PrimaryPart then
-            clone:PivotTo(CFrame.new(0, 0, 0))
-        else
-            local hrp = clone:FindFirstChild("HumanoidRootPart") or clone:FindFirstChild("Torso")
-            if hrp then clone:PivotTo(CFrame.new(0, 0, 0)) end
-        end
-        clone.Parent = previewFrame
-        previewModel = clone
-        
-        if previewHighlight then previewHighlight:Destroy() end
-        previewHighlight = Instance.new("Highlight")
-        previewHighlight.Parent = previewModel
-        
-        if previewBillboard then previewBillboard:Destroy() end
-        local head = previewModel:FindFirstChild("Head")
-        if head then
-            previewBillboard = Instance.new("BillboardGui")
-            previewBillboard.Size = UDim2.new(0, 100, 0, 20)
-            previewBillboard.StudsOffset = Vector3.new(0, 2, 0)
-            previewBillboard.Parent = head
-            
-            local text = Instance.new("TextLabel")
-            text.BackgroundTransparency = 1
-            text.Text = player.Name
-            text.TextColor3 = Color3.new(1, 1, 1)
-            text.Size = UDim2.new(1, 0, 1, 0)
-            text.Font = Enum.Font.GothamBold
-            text.TextStrokeTransparency = 0
-            text.Parent = previewBillboard
-        end
-    end
-
-    player.CharacterAdded:Connect(function()
-        task.wait(1)
-        updatePreviewCharacter()
-    end)
-    if player.Character then
-        task.spawn(function()
-            task.wait(1)
-            updatePreviewCharacter()
-        end)
-    end
-
     RunService.RenderStepped:Connect(function()
         pcall(function()
-            if previewModel and previewModel.PrimaryPart then
-                previewModel:PivotTo(CFrame.new(0, 0, 0) * CFrame.Angles(0, tick() * 0.5, 0))
+            -- Charm 프리뷰 더미 회전
+            if previewDummy and previewDummy.PrimaryPart then
+                previewDummy:PivotTo(CFrame.new(0, 1, 0) * CFrame.Angles(0, tick() * 0.5, 0))
             end
             
-            if Toggles.ESP_Enable and Toggles.ESP_Enable.Value and Options.ESP_BoxType.Value == "Highlight" then
-                if previewHighlight then previewHighlight.Enabled = true; previewHighlight.OutlineColor = espBoxColor end
-            else
-                if previewHighlight then previewHighlight.Enabled = false end
-            end
-            
-            if Toggles.ESP_Enable and Toggles.ESP_Enable.Value and Toggles.ESP_Name and Toggles.ESP_Name.Value then
-                if previewBillboard then previewBillboard.Enabled = true end
-                if previewBillboard and previewBillboard:FindFirstChild("TextLabel") then 
-                    previewBillboard.TextLabel.TextColor3 = espNameColor 
+            -- Charm 프리뷰 Highlight 업데이트
+            if Toggles.Charm_Toggle and Toggles.Charm_Toggle.Value then
+                if charmPreviewHighlight then 
+                    charmPreviewHighlight.Enabled = true
+                    charmPreviewHighlight.OutlineColor = charmColor
                 end
             else
-                if previewBillboard then previewBillboard.Enabled = false end
+                if charmPreviewHighlight then charmPreviewHighlight.Enabled = false end
             end
 
             for _, p in pairs(Players:GetPlayers()) do
@@ -748,10 +754,11 @@ local success, err = pcall(function()
                         if not rootVis then
                             hideESP(p)
                         else
-                            local height = math.abs(headPos.Y - legPos.Y) * 1.2
-                            local width = height / 2.2
+                            -- 박스 크기를 캐릭터보다 더 크게 조정 (1.2 -> 1.6, 2.2 -> 1.8)
+                            local height = math.abs(headPos.Y - legPos.Y) * 1.6
+                            local width = height / 1.8
                             
-                            local boxTop = headPos.Y - (height * 0.1)
+                            local boxTop = headPos.Y - (height * 0.15)
                             local boxBottom = boxTop + height
                             local boxLeft = rootPos.X - width / 2
                             local boxRight = rootPos.X + width / 2
@@ -839,17 +846,30 @@ local success, err = pcall(function()
                                 obj.Corners[6].Visible = true; obj.Corners[6].From = Vector2.new(boxLeft, boxBottom); obj.Corners[6].To = Vector2.new(boxLeft, boxBottom - cornerLen)
                                 obj.Corners[7].Visible = true; obj.Corners[7].From = Vector2.new(boxRight, boxBottom); obj.Corners[7].To = Vector2.new(boxRight - cornerLen, boxBottom)
                                 obj.Corners[8].Visible = true; obj.Corners[8].From = Vector2.new(boxRight, boxBottom); obj.Corners[8].To = Vector2.new(boxRight, boxBottom - cornerLen)
-                                
-                            elseif boxType == "Highlight" then
-                                if not obj.Highlight then 
-                                    obj.Highlight = Instance.new("Highlight")
-                                    obj.Highlight.Parent = char 
-                                end
-                                obj.Highlight.Enabled = true
-                                obj.Highlight.FillTransparency = 1
-                                obj.Highlight.OutlineColor = espBoxColor
                             end
                         end
+                    end
+                end
+            end
+            
+            -- 실제 플레이어에게 Charm (Highlight) 적용
+            for _, p in pairs(Players:GetPlayers()) do
+                if p ~= player and p.Character then
+                    local char = p.Character
+                    if not Toggles.Charm_Toggle or not Toggles.Charm_Toggle.Value or not char:FindFirstChild("HumanoidRootPart") or not char:FindFirstChild("Humanoid") or char.Humanoid.Health <= 0 then
+                        -- Charm이 꺼져있으면 기존 Highlight 제거
+                        local hl = char:FindFirstChild("CharmHighlight")
+                        if hl then hl:Destroy() end
+                    else
+                        -- Charm이 켜져있으면 Highlight 적용
+                        local hl = char:FindFirstChild("CharmHighlight")
+                        if not hl then
+                            hl = Instance.new("Highlight")
+                            hl.Name = "CharmHighlight"
+                            hl.Parent = char
+                        end
+                        hl.FillTransparency = 1
+                        hl.OutlineColor = charmColor
                     end
                 end
             end
