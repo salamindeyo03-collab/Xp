@@ -31,14 +31,11 @@ local success, err = pcall(function()
     local player = Players.LocalPlayer
     local camera = workspace.CurrentCamera
 
-    -- 팀 체크 공통 함수 (Team과 TeamColor 모두 확인)
     local function isTeammate(plr)
         if not plr then return false end
-        -- Team 속성 확인
         if player.Team and plr.Team and player.Team == plr.Team then 
             return true 
         end
-        -- TeamColor 속성 확인 (기본 Team이 없는 게임용)
         if player.TeamColor and plr.TeamColor and player.TeamColor == plr.TeamColor then 
             return true 
         end
@@ -109,7 +106,6 @@ local success, err = pcall(function()
                 local targetPart = getHitboxPart(char, aimbotHitbox)
                 
                 if targetPart and humanoid and humanoid.Health > 0 and char:FindFirstChild("HumanoidRootPart") then
-                    -- 개선된 팀 체크 로직 적용
                     local isTeammateVar = teamCheck and isTeammate(plr)
                     if not isTeammateVar then
                         local distance3D = (char.HumanoidRootPart.Position - localRoot.Position).Magnitude
@@ -166,7 +162,7 @@ local success, err = pcall(function()
                             local smooth = math.max(1, SMOOTH_FACTOR)
                             local moveX = move.X / smooth
                             local moveY = move.Y / smooth
-                            if math.abs(moveX) < 5000 and math.abs(moveY) < 5000 then
+                            if math.abs(moveX) < 5000 and math.abs(move.Y) < 5000 then
                                 if mousemoverel then mousemoverel(moveX, moveY) end
                             end
                         end
@@ -195,10 +191,10 @@ local success, err = pcall(function()
     AimbotGroupBox:AddSlider("AimbotDistance", { Text = "Max Distance", Default = 1000, Min = 1, Max = 5000, Rounding = 0, Callback = function(Value) MAX_DISTANCE = Value end })
 
     -- ==========================================
-    -- SILENT AIM 설정
+    -- SILENT AIM 설정 (완벽하게 수정됨)
     -- ==========================================
     local SA_ENABLED = false
-    local SA_FOV = 50
+    local SA_FOV = 100 -- 기본 FOV 100으로 상향
     local SA_SHOW_FOV = true
     local SA_TEAMCHECK = true
     local SA_WALLCHECK = true
@@ -253,7 +249,6 @@ local success, err = pcall(function()
 
             for _, plr in pairs(Players:GetPlayers()) do
                 if plr ~= player and plr.Character then
-                    -- 개선된 팀 체크 로직 적용
                     local isTeammateVar = SA_TEAMCHECK and isTeammate(plr)
                     if not isTeammateVar then
                         local humanoid = plr.Character:FindFirstChildOfClass("Humanoid")
@@ -278,18 +273,46 @@ local success, err = pcall(function()
             return closestPart
         end
 
-        UtilityModule.Raycast = function(self, origin, direction, distance, params, ignoreWater, debug)
-            local isKeybindActive = Options.SilentAimKeybind and Options.SilentAimKeybind:GetState() or false
-            if not SA_ENABLED or not isKeybindActive or type(distance) ~= "number" or distance < 100 then
-                return originalRaycast(self, origin, direction, distance, params, ignoreWater, debug)
+        local function hookedRaycast(...)
+            local args = {...}
+            local isMethodCall = (type(args[1]) == "table" and args[1] == UtilityModule)
+            
+            local origin, direction, distance, params, ignoreWater, debug
+            if isMethodCall then
+                origin, direction, distance, params, ignoreWater, debug = args[2], args[3], args[4], args[5], args[6], args[7]
+            else
+                origin, direction, distance, params, ignoreWater, debug = args[1], args[2], args[3], args[4], args[5], args[6]
             end
+            
+            local isKeybindActive = Options.SilentAimKeybind and Options.SilentAimKeybind:GetState() or false
+            
+            -- 거리 제한(distance < 100)을 없애고 키바인드 및 토글만 체크
+            if not SA_ENABLED or not isKeybindActive then
+                return originalRaycast(...)
+            end
+            
             local targetPart = getSilentTargetPart()
-            if not targetPart then return originalRaycast(self, origin, direction, distance, params, ignoreWater, debug) end
+            if not targetPart then 
+                return originalRaycast(...) 
+            end
+            
             local targetPos = targetPart.Position
             local newDir = (targetPos - origin).Unit
             local newDist = (targetPos - origin).Magnitude
-            if newDist > distance then newDist = distance targetPos = origin + (newDir * distance) end
+            
+            if type(distance) == "number" and newDist > distance then 
+                newDist = distance 
+                targetPos = origin + (newDir * distance) 
+            end
+            
             return { Position = targetPos, Distance = newDist, Instance = targetPart, Material = targetPart.Material, Normal = -newDir }
+        end
+
+        -- hookfunction를 사용하여 안전하게 후킹
+        if hookfunction then
+            hookfunction(originalRaycast, hookedRaycast)
+        else
+            UtilityModule.Raycast = hookedRaycast
         end
     end
 
@@ -327,7 +350,7 @@ local success, err = pcall(function()
     SilentAimGroupBox:AddToggle("SilentAimShowFOV", { Text = "Show Silent FOV", Default = true, Callback = function(Value) SA_SHOW_FOV = Value end })
     SilentAimGroupBox:AddLabel("SA FOV Color"):AddColorPicker("SilentAimFOVColorPicker", { Default = Color3.fromRGB(255, 0, 0), Title = "Silent Aim FOV Color", Transparency = 0, Callback = function(Value) saFOVColor = Value end })
     SilentAimGroupBox:AddToggle("SilentAimFOVRainbow", { Text = "Rainbow FOV", Default = false, Callback = function(Value) saFOVRainbow = Value end })
-    SilentAimGroupBox:AddSlider("SilentAimFOV", { Text = "Silent FOV Radius", Default = 50, Min = 10, Max = 1000, Rounding = 0, Callback = function(Value) SA_FOV = Value end })
+    SilentAimGroupBox:AddSlider("SilentAimFOV", { Text = "Silent FOV Radius", Default = 100, Min = 10, Max = 1000, Rounding = 0, Callback = function(Value) SA_FOV = Value end })
 
     -- ==========================================
     -- TRIGGERBOT 설정
@@ -359,7 +382,6 @@ local success, err = pcall(function()
                             local closest, dist = nil, TB_FOV
                             for _, plr in pairs(Players:GetPlayers()) do
                                 if plr ~= player and plr.Character and plr.Character:FindFirstChild("Head") and plr.Character:FindFirstChild("Humanoid") and plr.Character.Humanoid.Health > 0 then
-                                    -- 개선된 팀 체크 로직 적용
                                     local isTeammateVar = TB_TEAMCHECK and isTeammate(plr)
                                     if not isTeammateVar then
                                         local pos, onScreen = camera:WorldToViewportPoint(plr.Character.Head.Position)
@@ -432,7 +454,6 @@ local success, err = pcall(function()
                             
                             for _, plr in pairs(Players:GetPlayers()) do
                                 if plr ~= player and plr.Character then
-                                    -- 개선된 팀 체크 로직 적용
                                     local isTeammateVar = RB_TEAMCHECK and isTeammate(plr)
                                     if not isTeammateVar then
                                         local char = plr.Character
@@ -478,9 +499,10 @@ local success, err = pcall(function()
     end)
 
     -- ==========================================
-    -- RAPID FIRE 
+    -- RAPID FIRE & FULL AUTO
     -- ==========================================
     local RapidFireEnabled = false
+    local FullAutoEnabled = false
 
     pcall(function()
         local Gun = require(player.PlayerScripts.Modules.ItemTypes.Gun)
@@ -495,14 +517,37 @@ local success, err = pcall(function()
                 return oldUpdate(self, dt, ...)
             end
         end
+        
+        if Gun and Gun.StartShooting then
+            local originalStartShooting = Gun.StartShooting 
+            Gun.StartShooting = function(self, ...)
+                if FullAutoEnabled then
+                    pcall(function()
+                        self.Automatic = true
+                        self.FullAuto = true
+                        if self.WeaponData then self.WeaponData.Automatic = true self.WeaponData.FullAuto = true end
+                        if self.WeaponStats then self.WeaponStats.Automatic = true self.WeaponStats.FullAuto = true end
+                        if self._weaponData then self._weaponData.Automatic = true self._weaponData.FullAuto = true end
+                    end)
+                end
+                return originalStartShooting(self, ...)
+            end
+        end
     end)
 
-    local RapidFireGroupBox = Tabs.Main:AddRightGroupbox("Rapid Fire (Postshot)")
+    local RapidFireGroupBox = Tabs.Main:AddRightGroupbox("Rapid Fire & Auto")
     RapidFireGroupBox:AddToggle("RapidFireToggle", { 
-        Text = "Enable Rapid Fire", 
+        Text = "Enable Rapid Fire (Postshot)", 
         Default = false, 
         Callback = function(Value) 
             RapidFireEnabled = Value 
+        end 
+    })
+    RapidFireGroupBox:AddToggle("FullAutoToggle", { 
+        Text = "Enable Full Auto", 
+        Default = false, 
+        Callback = function(Value) 
+            FullAutoEnabled = Value 
         end 
     })
 
