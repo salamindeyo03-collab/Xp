@@ -30,6 +30,7 @@ local success, err = pcall(function()
     local ReplicatedStorage = game:GetService("ReplicatedStorage")
     local player = Players.LocalPlayer
     local camera = workspace.CurrentCamera
+    local isUnloaded = false
 
     local function getHitboxPart(character, hitboxName)
         if not character then return nil end
@@ -121,6 +122,7 @@ local success, err = pcall(function()
 
     local AimbotRenderConnection
     AimbotRenderConnection = RunService.RenderStepped:Connect(function()
+        if isUnloaded then return end
         pcall(function()
             if showFOV and fovCircle then
                 local mousePos = UserInputService:GetMouseLocation()
@@ -271,6 +273,7 @@ local success, err = pcall(function()
     end
 
     RunService.RenderStepped:Connect(function()
+        if isUnloaded then return end
         pcall(function()
             local isKeybindActive = Options.SilentAimKeybind and Options.SilentAimKeybind:GetState() or false
             if saFovCircle then
@@ -315,7 +318,8 @@ local success, err = pcall(function()
     end
 
     task.spawn(function()
-        while task.wait() do
+        while not isUnloaded do
+            task.wait()
             pcall(function()
                 if TB_ENABLED and not isLobbyVisible() then
                     local isKeybindActive = Options.TriggerbotKeybind and Options.TriggerbotKeybind:GetState() or false
@@ -360,11 +364,10 @@ local success, err = pcall(function()
     TriggerbotGroupBox:AddSlider("TriggerbotDelay", { Text = "Fire Delay (sec)", Default = 0.05, Min = 0.01, Max = 1, Rounding = 2, Callback = function(Value) TB_DELAY = Value end })
 
     -- ==========================================
-    -- RAGEBOT (보이드 스팸 및 텔레포트) 설정
+    -- RAGEBOT (KH RAGE Free 로직 완벽 이식)
     -- ==========================================
     local RagebotGroupBox = Tabs.Main:AddRightGroupbox("Ragebot (Void Spam)")
     
-    -- Toggle 모드 키바인드 (상태가 UI에 보이도록 SyncToggleState = true)
     local rageToggle = RagebotGroupBox:AddToggle("RagebotToggle", { Text = "Enable Void Spam", Default = false })
     rageToggle:AddKeyPicker("RagebotKeybind", { 
         Default = "E", 
@@ -374,129 +377,132 @@ local success, err = pcall(function()
         NoUI = false 
     })
     
-    -- 공격 지속 시간 설정
-    RagebotGroupBox:AddSlider("RagebotDuration", { Text = "Attack Duration (sec)", Default = 3, Min = 1, Max = 15, Rounding = 0 })
-    -- 보이드 스팸 세부 설정
-    RagebotGroupBox:AddSlider("VoidSpam_Below", { Text = "Void Depth (studs)", Default = 3, Min = 1, Max = 10, Rounding = 0 })
-    RagebotGroupBox:AddSlider("VoidSpam_Delay", { Text = "Spam Delay (ms)", Default = 50, Min = 10, Max = 200, Rounding = 0 })
-    
-    -- 종료 후 텔레포트 설정
-    RagebotGroupBox:AddToggle("RagebotTeleport", { Text = "Teleport After Attack", Default = true })
-    RagebotGroupBox:AddSlider("Teleport_Distance", { Text = "Teleport Distance", Default = 100, Min = 10, Max = 500, Rounding = 0 })
-    RagebotGroupBox:AddSlider("Teleport_Height", { Text = "Teleport Height", Default = 10, Min = 0, Max = 50, Rounding = 0 })
+    -- KH RAGE Free 원본 세부 설정 슬라이더 (거리 최대 10000까지 확장)
+    RagebotGroupBox:AddSlider("Ragebot_MinBelow", { Text = "Below Enemy (Min)", Default = -3, Min = -10000, Max = -1, Rounding = 1 })
+    RagebotGroupBox:AddSlider("Ragebot_MaxBelow", { Text = "Below Enemy (Max)", Default = -2, Min = -10000, Max = -1, Rounding = 1 })
+    RagebotGroupBox:AddSlider("Ragebot_MinOffset", { Text = "H. Offset (Min)", Default = 1, Min = 0.5, Max = 10, Rounding = 1 })
+    RagebotGroupBox:AddSlider("Ragebot_MaxOffset", { Text = "H. Offset (Max)", Default = 2, Min = 0.5, Max = 10, Rounding = 1 })
+    RagebotGroupBox:AddSlider("Ragebot_ChangeRate", { Text = "Change Rate (s)", Default = 0.01, Min = 0.001, Max = 0.1, Rounding = 3 })
+    RagebotGroupBox:AddSlider("Ragebot_MinDelay", { Text = "Loop Speed Min (s)", Default = 0.053, Min = 0.01, Max = 1, Rounding = 3 })
+    RagebotGroupBox:AddSlider("Ragebot_MaxDelay", { Text = "Loop Speed Max (s)", Default = 0.127, Min = 0.01, Max = 1, Rounding = 3 })
 
-    local RB_ACTIVE = false
-    local RB_START_TIME = 0
-    local RB_ORIGINAL_POS = nil
-    local voidSpamState = { offset = Vector3.new(0,0,0), timer = 0, changeTimer = 0 }
+    local RB_ENABLED = false
+    local RB_STATE = {
+        MainPosition = nil,
+        TargetName = "None",
+        VoidTimer = 0,
+        ChangeTimer = 0,
+        CurrentOffset = Vector3.new(0,0,0),
+        CurrentDelay = 0.09
+    }
+
+    Options.RagebotKeybind:OnChanged(function()
+        RB_ENABLED = Options.RagebotKeybind:GetState()
+        if not RB_ENABLED then
+            RB_STATE.MainPosition = nil
+            RB_STATE.VoidTimer = 0
+            RB_STATE.ChangeTimer = 0
+        end
+    end)
 
     local function getClosestPlayer()
         local localRoot = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
-        if not localRoot then return nil end
-        local closest, dist = nil, math.huge
+        if not localRoot then return nil, "None" end
+        local closestPlayer = nil
+        local closestDistance = math.huge
+        local playerName = "None"
         for _, plr in pairs(Players:GetPlayers()) do
             if plr ~= player and plr.Character then
                 local targetRoot = plr.Character:FindFirstChild("HumanoidRootPart")
                 local targetHumanoid = plr.Character:FindFirstChildOfClass("Humanoid")
                 if targetRoot and targetHumanoid and targetHumanoid.Health > 0 then
                     local distance = (localRoot.Position - targetRoot.Position).Magnitude
-                    if distance < dist then
-                        dist = distance
-                        closest = plr
+                    if distance < closestDistance then
+                        closestDistance = distance
+                        closestPlayer = plr
+                        playerName = plr.Name
                     end
                 end
             end
         end
-        return closest
+        return closestPlayer, playerName
     end
 
-    local RagebotRenderConnection
-    RagebotRenderConnection = RunService.RenderStepped:Connect(function(dt)
-        if not Toggles.RagebotToggle.Value then
-            if RB_ACTIVE then
-                RB_ACTIVE = false
-                -- 종료 처리 (원위치 또는 랜덤 텔레포트)
+    task.spawn(function()
+        while not isUnloaded do
+            local dt = task.wait()
+            if dt and RB_ENABLED then
                 local char = player.Character
-                if char and char:FindFirstChild("HumanoidRootPart") and RB_ORIGINAL_POS then
-                    local hrp = char.HumanoidRootPart
-                    if Toggles.RagebotTeleport.Value then
-                        local dist = Options.Teleport_Distance.Value
-                        local height = Options.Teleport_Height.Value
-                        local angle = math.random() * math.pi * 2
-                        local offset = Vector3.new(math.cos(angle), 0, math.sin(angle)) * dist
-                        hrp.CFrame = CFrame.new(RB_ORIGINAL_POS + offset + Vector3.new(0, height, 0))
-                    else
-                        hrp.CFrame = CFrame.new(RB_ORIGINAL_POS)
+                if char then
+                    local hrp = char:FindFirstChild("HumanoidRootPart")
+                    local humanoid = char:FindFirstChildOfClass("Humanoid")
+                    if hrp and humanoid and humanoid.Health > 0 then
+                        if not RB_STATE.MainPosition then
+                            RB_STATE.MainPosition = hrp.Position
+                        end
+
+                        RB_STATE.VoidTimer += dt
+                        RB_STATE.ChangeTimer += dt
+
+                        if RB_STATE.ChangeTimer >= Options.Ragebot_ChangeRate.Value then
+                            RB_STATE.ChangeTimer = 0
+                            local minDist = Options.Ragebot_MinOffset.Value
+                            local maxDist = Options.Ragebot_MaxOffset.Value
+                            local dist = minDist + math.random() * (maxDist - minDist)
+                            local angle = math.random() * math.pi * 2
+                            RB_STATE.CurrentOffset = Vector3.new(math.cos(angle) * dist, 0, math.sin(angle) * dist)
+                        end
+
+                        if RB_STATE.VoidTimer >= RB_STATE.CurrentDelay then
+                            RB_STATE.VoidTimer = 0
+                            local minD = Options.Ragebot_MinDelay.Value
+                            local maxD = Options.Ragebot_MaxDelay.Value
+                            RB_STATE.CurrentDelay = math.random() * (maxD - minD) + minD
+
+                            local targetPlayer, targetName = getClosestPlayer()
+                            RB_STATE.TargetName = targetName
+
+                            if targetPlayer and targetPlayer.Character then
+                                local targetRoot = targetPlayer.Character:FindFirstChild("HumanoidRootPart")
+                                if targetRoot then
+                                    -- TeleportToVoid
+                                    local minY = Options.Ragebot_MinBelow.Value
+                                    local maxY = Options.Ragebot_MaxBelow.Value
+                                    local belowY = minY + math.random() * (maxY - minY)
+                                    
+                                    local voidPosition = Vector3.new(
+                                        targetRoot.Position.X + RB_STATE.CurrentOffset.X,
+                                        targetRoot.Position.Y + belowY,
+                                        targetRoot.Position.Z + RB_STATE.CurrentOffset.Z
+                                    )
+                                    hrp.CFrame = CFrame.new(voidPosition)
+                                    task.wait(0.01)
+                                    
+                                    -- TeleportToMain
+                                    if RB_STATE.MainPosition then
+                                        hrp.CFrame = CFrame.new(RB_STATE.MainPosition)
+                                    end
+                                    task.wait(0.01)
+                                    
+                                    -- TeleportToTarget
+                                    local targetPosition = Vector3.new(
+                                        targetRoot.Position.X + RB_STATE.CurrentOffset.X,
+                                        targetRoot.Position.Y + 1,
+                                        targetRoot.Position.Z + RB_STATE.CurrentOffset.Z
+                                    )
+                                    hrp.CFrame = CFrame.new(targetPosition)
+                                end
+                            end
+                        end
                     end
                 end
-                RB_ORIGINAL_POS = nil
+            else
+                if RB_STATE.MainPosition then
+                    RB_STATE.MainPosition = nil
+                    RB_STATE.VoidTimer = 0
+                    RB_STATE.ChangeTimer = 0
+                end
             end
-            return
-        end
-
-        if not RB_ACTIVE then
-            RB_ACTIVE = true
-            RB_START_TIME = tick()
-            local char = player.Character
-            if char and char:FindFirstChild("HumanoidRootPart") then
-                RB_ORIGINAL_POS = char.HumanoidRootPart.Position
-            end
-        end
-
-        -- 설정된 공격 시간 초과 시 자동 종료
-        if (tick() - RB_START_TIME) >= Options.RagebotDuration.Value then
-            Toggles.RagebotToggle:SetValue(false) -- 자동으로 토글 끄기
-            return
-        end
-
-        local char = player.Character
-        if not char then return end
-        local hrp = char:FindFirstChild("HumanoidRootPart")
-        if not hrp then return end
-
-        local targetPlayer = getClosestPlayer()
-        if not targetPlayer or not targetPlayer.Character then return end
-        local targetRoot = targetPlayer.Character:FindFirstChild("HumanoidRootPart")
-        if not targetRoot then return end
-
-        voidSpamState.timer += dt
-        voidSpamState.changeTimer += dt
-
-        -- 10ms마다 랜덤 위치 오프셋 갱신
-        if voidSpamState.changeTimer >= 0.01 then
-            voidSpamState.changeTimer = 0
-            local dist = math.random() * (2 - 1) + 1
-            local angle = math.random() * math.pi * 2
-            voidSpamState.offset = Vector3.new(math.cos(angle) * dist, 0, math.sin(angle) * dist)
-        end
-
-        -- 설정된 딜레이마다 보이드 스팸 실행
-        if voidSpamState.timer >= (Options.VoidSpam_Delay.Value / 1000) then
-            voidSpamState.timer = 0
-            local belowY = math.random() * (Options.VoidSpam_Below.Value - 1) + 1
-            
-            -- 보이드(땅 밑)로 이동
-            local voidPos = Vector3.new(
-                targetRoot.Position.X + voidSpamState.offset.X,
-                targetRoot.Position.Y - belowY,
-                targetRoot.Position.Z + voidSpamState.offset.Z
-            )
-            hrp.CFrame = CFrame.new(voidPos)
-            task.wait(0.01)
-            
-            -- 원래 위치로 복귀
-            if RB_ORIGINAL_POS then
-                hrp.CFrame = CFrame.new(RB_ORIGINAL_POS)
-            end
-            task.wait(0.01)
-            
-            -- 타겟 바로 옆으로 이동
-            local targetPos = Vector3.new(
-                targetRoot.Position.X + voidSpamState.offset.X,
-                targetRoot.Position.Y + 1,
-                targetRoot.Position.Z + voidSpamState.offset.Z
-            )
-            hrp.CFrame = CFrame.new(targetPos)
         end
     end)
 
@@ -729,6 +735,7 @@ local success, err = pcall(function()
     Players.PlayerRemoving:Connect(clearESP)
 
     RunService:BindToRenderStep("ESPRender", Enum.RenderPriority.Camera.Value + 1, function()
+        if isUnloaded then return end
         pcall(function()
             for _, p in pairs(Players:GetPlayers()) do
                 if p ~= player then
@@ -1285,6 +1292,7 @@ local success, err = pcall(function()
         return ok and result or 0
     end
     local WatermarkConnection = game:GetService("RunService").RenderStepped:Connect(function()
+        if isUnloaded then return end
         pcall(function()
             FrameCounter += 1;
             if (tick() - FrameTimer) >= 1 then FPS = FrameCounter; FrameTimer = tick(); FrameCounter = 0; end;
@@ -1295,9 +1303,9 @@ local success, err = pcall(function()
 
     -- 완벽한 언로드 처리
     Library:OnUnload(function()
+        isUnloaded = true
         RunService:UnbindFromRenderStep("ESPRender")
         if AimbotRenderConnection then AimbotRenderConnection:Disconnect() end
-        if RagebotRenderConnection then RagebotRenderConnection:Disconnect() end
         if WatermarkConnection then WatermarkConnection:Disconnect() end
         
         pcall(function() if fovCircle then fovCircle.Visible = false fovCircle:Remove() end end)
