@@ -364,11 +364,11 @@ local success, err = pcall(function()
     TriggerbotGroupBox:AddSlider("TriggerbotDelay", { Text = "Fire Delay (sec)", Default = 0.05, Min = 0.01, Max = 1, Rounding = 2, Callback = function(Value) TB_DELAY = Value end })
 
     -- ==========================================
-    -- RAGEBOT (KH RAGE Free 로직 완벽 이식)
+    -- RAGEBOT (랜덤 텔레포트 방식)
     -- ==========================================
-    local RagebotGroupBox = Tabs.Main:AddRightGroupbox("Ragebot (Void Spam)")
+    local RagebotGroupBox = Tabs.Main:AddRightGroupbox("Ragebot (Teleport)")
     
-    local rageToggle = RagebotGroupBox:AddToggle("RagebotToggle", { Text = "Enable Void Spam", Default = false })
+    local rageToggle = RagebotGroupBox:AddToggle("RagebotToggle", { Text = "Enable Teleport", Default = false })
     rageToggle:AddKeyPicker("RagebotKeybind", { 
         Default = "E", 
         SyncToggleState = true, 
@@ -377,131 +377,48 @@ local success, err = pcall(function()
         NoUI = false 
     })
     
-    -- KH RAGE Free 원본 세부 설정 슬라이더 (거리 최대 10000까지 확장)
-    RagebotGroupBox:AddSlider("Ragebot_MinBelow", { Text = "Below Enemy (Min)", Default = -3, Min = -10000, Max = -1, Rounding = 1 })
-    RagebotGroupBox:AddSlider("Ragebot_MaxBelow", { Text = "Below Enemy (Max)", Default = -2, Min = -10000, Max = -1, Rounding = 1 })
-    RagebotGroupBox:AddSlider("Ragebot_MinOffset", { Text = "H. Offset (Min)", Default = 1, Min = 0.5, Max = 10, Rounding = 1 })
-    RagebotGroupBox:AddSlider("Ragebot_MaxOffset", { Text = "H. Offset (Max)", Default = 2, Min = 0.5, Max = 10, Rounding = 1 })
-    RagebotGroupBox:AddSlider("Ragebot_ChangeRate", { Text = "Change Rate (s)", Default = 0.01, Min = 0.001, Max = 0.1, Rounding = 3 })
-    RagebotGroupBox:AddSlider("Ragebot_MinDelay", { Text = "Loop Speed Min (s)", Default = 0.053, Min = 0.01, Max = 1, Rounding = 3 })
-    RagebotGroupBox:AddSlider("Ragebot_MaxDelay", { Text = "Loop Speed Max (s)", Default = 0.127, Min = 0.01, Max = 1, Rounding = 3 })
+    -- 텔레포트 관련 슬라이더 (거리 최대 10000)
+    RagebotGroupBox:AddSlider("Ragebot_TeleportDistance", { Text = "Teleport Distance", Default = 100, Min = 50, Max = 10000, Rounding = 0 })
+    RagebotGroupBox:AddSlider("Ragebot_TeleportHeight", { Text = "Teleport Height", Default = 10, Min = 0, Max = 100, Rounding = 0 })
+    RagebotGroupBox:AddSlider("Ragebot_StayTime", { Text = "Stay Time (s)", Default = 0.3, Min = 0.01, Max = 5, Rounding = 2 })
 
-    local RB_ENABLED = false
-    local RB_STATE = {
-        MainPosition = nil,
-        TargetName = "None",
-        VoidTimer = 0,
-        ChangeTimer = 0,
-        CurrentOffset = Vector3.new(0,0,0),
-        CurrentDelay = 0.09
-    }
-
-    Options.RagebotKeybind:OnChanged(function()
-        RB_ENABLED = Options.RagebotKeybind:GetState()
-        if not RB_ENABLED then
-            RB_STATE.MainPosition = nil
-            RB_STATE.VoidTimer = 0
-            RB_STATE.ChangeTimer = 0
-        end
-    end)
-
-    local function getClosestPlayer()
-        local localRoot = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
-        if not localRoot then return nil, "None" end
-        local closestPlayer = nil
-        local closestDistance = math.huge
-        local playerName = "None"
-        for _, plr in pairs(Players:GetPlayers()) do
-            if plr ~= player and plr.Character then
-                local targetRoot = plr.Character:FindFirstChild("HumanoidRootPart")
-                local targetHumanoid = plr.Character:FindFirstChildOfClass("Humanoid")
-                if targetRoot and targetHumanoid and targetHumanoid.Health > 0 then
-                    local distance = (localRoot.Position - targetRoot.Position).Magnitude
-                    if distance < closestDistance then
-                        closestDistance = distance
-                        closestPlayer = plr
-                        playerName = plr.Name
-                    end
-                end
-            end
-        end
-        return closestPlayer, playerName
-    end
+    local RB_TELEPORT_TIMER = 0
 
     task.spawn(function()
         while not isUnloaded do
             local dt = task.wait()
-            if dt and RB_ENABLED then
+            if dt and Toggles.RagebotToggle and Toggles.RagebotToggle.Value then
                 local char = player.Character
                 if char then
                     local hrp = char:FindFirstChild("HumanoidRootPart")
                     local humanoid = char:FindFirstChildOfClass("Humanoid")
                     if hrp and humanoid and humanoid.Health > 0 then
-                        if not RB_STATE.MainPosition then
-                            RB_STATE.MainPosition = hrp.Position
-                        end
-
-                        RB_STATE.VoidTimer += dt
-                        RB_STATE.ChangeTimer += dt
-
-                        if RB_STATE.ChangeTimer >= Options.Ragebot_ChangeRate.Value then
-                            RB_STATE.ChangeTimer = 0
-                            local minDist = Options.Ragebot_MinOffset.Value
-                            local maxDist = Options.Ragebot_MaxOffset.Value
-                            local dist = minDist + math.random() * (maxDist - minDist)
-                            local angle = math.random() * math.pi * 2
-                            RB_STATE.CurrentOffset = Vector3.new(math.cos(angle) * dist, 0, math.sin(angle) * dist)
-                        end
-
-                        if RB_STATE.VoidTimer >= RB_STATE.CurrentDelay then
-                            RB_STATE.VoidTimer = 0
-                            local minD = Options.Ragebot_MinDelay.Value
-                            local maxD = Options.Ragebot_MaxDelay.Value
-                            RB_STATE.CurrentDelay = math.random() * (maxD - minD) + minD
-
-                            local targetPlayer, targetName = getClosestPlayer()
-                            RB_STATE.TargetName = targetName
-
-                            if targetPlayer and targetPlayer.Character then
-                                local targetRoot = targetPlayer.Character:FindFirstChild("HumanoidRootPart")
-                                if targetRoot then
-                                    -- TeleportToVoid
-                                    local minY = Options.Ragebot_MinBelow.Value
-                                    local maxY = Options.Ragebot_MaxBelow.Value
-                                    local belowY = minY + math.random() * (maxY - minY)
-                                    
-                                    local voidPosition = Vector3.new(
-                                        targetRoot.Position.X + RB_STATE.CurrentOffset.X,
-                                        targetRoot.Position.Y + belowY,
-                                        targetRoot.Position.Z + RB_STATE.CurrentOffset.Z
-                                    )
-                                    hrp.CFrame = CFrame.new(voidPosition)
-                                    task.wait(0.01)
-                                    
-                                    -- TeleportToMain
-                                    if RB_STATE.MainPosition then
-                                        hrp.CFrame = CFrame.new(RB_STATE.MainPosition)
-                                    end
-                                    task.wait(0.01)
-                                    
-                                    -- TeleportToTarget
-                                    local targetPosition = Vector3.new(
-                                        targetRoot.Position.X + RB_STATE.CurrentOffset.X,
-                                        targetRoot.Position.Y + 1,
-                                        targetRoot.Position.Z + RB_STATE.CurrentOffset.Z
-                                    )
-                                    hrp.CFrame = CFrame.new(targetPosition)
-                                end
-                            end
+                        RB_TELEPORT_TIMER += dt
+                        if RB_TELEPORT_TIMER >= Options.Ragebot_StayTime.Value then
+                            RB_TELEPORT_TIMER = 0
+                            
+                            local dist = Options.Ragebot_TeleportDistance.Value
+                            local height = Options.Ragebot_TeleportHeight.Value
+                            
+                            local randomDir = Vector3.new(
+                                math.random(-100, 100) / 100,
+                                0,
+                                math.random(-100, 100) / 100
+                            ).Unit
+                            
+                            local newPosition = hrp.Position + randomDir * dist
+                            newPosition = Vector3.new(
+                                newPosition.X,
+                                newPosition.Y + height,
+                                newPosition.Z
+                            )
+                            
+                            hrp.CFrame = CFrame.new(newPosition)
                         end
                     end
                 end
             else
-                if RB_STATE.MainPosition then
-                    RB_STATE.MainPosition = nil
-                    RB_STATE.VoidTimer = 0
-                    RB_STATE.ChangeTimer = 0
-                end
+                RB_TELEPORT_TIMER = 0
             end
         end
     end)
