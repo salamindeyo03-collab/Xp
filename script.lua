@@ -60,7 +60,6 @@ local success, err = pcall(function()
     local wallCheck = true
     local showFOV = false
     local aimbotFOVColor = Color3.fromRGB(255, 255, 255)
-    local aimbotFOVRainbow = false
     local aimbotHitbox = "Head"
 
     local fovCircle = nil
@@ -127,11 +126,7 @@ local success, err = pcall(function()
                 local mousePos = UserInputService:GetMouseLocation()
                 fovCircle.Position = Vector2.new(mousePos.X, mousePos.Y)
                 fovCircle.Radius = AIM_RADIUS
-                if aimbotFOVRainbow then
-                    fovCircle.Color = Color3.fromHSV(tick() % 5 / 5, 1, 1)
-                else
-                    fovCircle.Color = aimbotFOVColor
-                end
+                fovCircle.Color = aimbotFOVColor
                 fovCircle.Visible = true
             elseif fovCircle then
                 fovCircle.Visible = false
@@ -172,7 +167,6 @@ local success, err = pcall(function()
     })
     AimbotGroupBox:AddToggle("AimbotShowFOV", { Text = "Show FOV Circle", Default = false, Callback = function(Value) showFOV = Value end })
     AimbotGroupBox:AddLabel("FOV Color"):AddColorPicker("AimbotFOVColorPicker", { Default = Color3.fromRGB(255, 255, 255), Title = "Aimbot FOV Color", Transparency = 0, Callback = function(Value) aimbotFOVColor = Value end })
-    AimbotGroupBox:AddToggle("AimbotFOVRainbow", { Text = "Rainbow FOV", Default = false, Callback = function(Value) aimbotFOVRainbow = Value end })
     AimbotGroupBox:AddToggle("AimbotTeamCheck", { Text = "Team Check", Default = true, Callback = function(Value) teamCheck = Value end })
     AimbotGroupBox:AddToggle("AimbotWallCheck", { Text = "Wall Check", Default = true, Callback = function(Value) wallCheck = Value end })
     AimbotGroupBox:AddSlider("AimbotSmoothness", { Text = "Smoothness", Default = 1, Min = 1, Max = 10, Rounding = 0, Callback = function(Value) SMOOTH_FACTOR = Value end })
@@ -180,7 +174,7 @@ local success, err = pcall(function()
     AimbotGroupBox:AddSlider("AimbotDistance", { Text = "Max Distance", Default = 1000, Min = 1, Max = 5000, Rounding = 0, Callback = function(Value) MAX_DISTANCE = Value end })
 
     -- ==========================================
-    -- SILENT AIM 설정
+    -- SILENT AIM 설정 (레인보우 삭제)
     -- ==========================================
     local SA_ENABLED = false
     local SA_FOV = 50
@@ -188,7 +182,6 @@ local success, err = pcall(function()
     local SA_TEAMCHECK = true
     local SA_WALLCHECK = true
     local saFOVColor = Color3.fromRGB(255, 0, 0)
-    local saFOVRainbow = false
     local saHitbox = "Head"
 
     local saFovCircle = nil
@@ -284,11 +277,7 @@ local success, err = pcall(function()
                 if SA_ENABLED and SA_SHOW_FOV and isKeybindActive then
                     saFovCircle.Position = camera.ViewportSize / 2
                     saFovCircle.Radius = SA_FOV
-                    if saFOVRainbow then
-                        saFovCircle.Color = Color3.fromHSV(tick() % 5 / 5, 1, 1)
-                    else
-                        saFovCircle.Color = saFOVColor
-                    end
+                    saFovCircle.Color = saFOVColor
                     saFovCircle.Visible = true
                 else
                     saFovCircle.Visible = false
@@ -310,7 +299,6 @@ local success, err = pcall(function()
     SilentAimGroupBox:AddToggle("SilentAimWallCheck", { Text = "Wall Check", Default = true, Callback = function(Value) SA_WALLCHECK = Value end })
     SilentAimGroupBox:AddToggle("SilentAimShowFOV", { Text = "Show Silent FOV", Default = true, Callback = function(Value) SA_SHOW_FOV = Value end })
     SilentAimGroupBox:AddLabel("SA FOV Color"):AddColorPicker("SilentAimFOVColorPicker", { Default = Color3.fromRGB(255, 0, 0), Title = "Silent Aim FOV Color", Transparency = 0, Callback = function(Value) saFOVColor = Value end })
-    SilentAimGroupBox:AddToggle("SilentAimFOVRainbow", { Text = "Rainbow FOV", Default = false, Callback = function(Value) saFOVRainbow = Value end })
     SilentAimGroupBox:AddSlider("SilentAimFOV", { Text = "Silent FOV Radius", Default = 50, Min = 10, Max = 1000, Rounding = 0, Callback = function(Value) SA_FOV = Value end })
 
     -- ==========================================
@@ -372,86 +360,83 @@ local success, err = pcall(function()
     TriggerbotGroupBox:AddSlider("TriggerbotDelay", { Text = "Fire Delay (sec)", Default = 0.05, Min = 0.01, Max = 1, Rounding = 2, Callback = function(Value) TB_DELAY = Value end })
 
     -- ==========================================
-    -- RAGEBOT 설정 
+    -- RAGEBOT 설정 (화면 유지 및 내 몸통 강제 회전, 항상 헤드샷)
     -- ==========================================
     local RB_ENABLED = false
     local RB_FOV = 300
-    local RB_HITBOX = "Head"
+    local RB_HITBOX = "Head" -- 래지봇은 항상 머리 고정
     local RB_WALLCHECK = true
     local RB_TEAMCHECK = true
 
     local RagebotGroupBox = Tabs.Main:AddRightGroupbox("Ragebot")
     RagebotGroupBox:AddToggle("RagebotToggle", { Text = "Enable Ragebot", Default = false, Callback = function(Value) RB_ENABLED = Value end })
     RagebotGroupBox:AddLabel("Ragebot Keybind"):AddKeyPicker("RagebotKeybind", { Default = "MB2", SyncToggleState = false, Mode = "Hold", Text = "Rage Key", NoUI = false })
-    RagebotGroupBox:AddDropdown("RagebotHitbox", {
-        Text = "Ragebot Hitbox",
-        Values = { "Head", "Torso", "Left Arm", "Right Arm", "Left Leg", "Right Leg" },
-        Default = 1,
-        Callback = function(Value) RB_HITBOX = Value end
-    })
     RagebotGroupBox:AddToggle("RagebotTeamCheck", { Text = "Team Check", Default = true, Callback = function(Value) RB_TEAMCHECK = Value end })
     RagebotGroupBox:AddToggle("RagebotWallCheck", { Text = "Wall Check", Default = true, Callback = function(Value) RB_WALLCHECK = Value end })
-    RagebotGroupBox:AddSlider("RagebotFOV", { Text = "Ragebot FOV Radius", Default = 300, Min = 1, Max = 2000, Rounding = 0, Callback = function(Value) RB_FOV = Value end })
+    RagebotGroupBox:AddSlider("RagebotFOV", { Text = "Ragebot FOV Radius", Default = 300, Min = 1, Max = 5000, Rounding = 0, Callback = function(Value) RB_FOV = Value end })
 
-    task.spawn(function()
-        while task.wait() do
-            pcall(function()
-                if RB_ENABLED and not isLobbyVisible() then
-                    local isKeybindActive = Options.RagebotKeybind and Options.RagebotKeybind:GetState() or false
-                    if isKeybindActive and camera then
+    -- 래지봇은 마우스 이동 대신 캐릭터의 CFrame을 직접 돌리기 때문에 RenderStepped에서 실행해야 반응이 가장 빠릅니다.
+    RunService.RenderStepped:Connect(function()
+        pcall(function()
+            if RB_ENABLED and not isLobbyVisible() then
+                local isKeybindActive = Options.RagebotKeybind and Options.RagebotKeybind:GetState() or false
+                if isKeybindActive and camera then
+                    local localRoot = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
+                    if localRoot then
+                        local rayParams = RaycastParams.new()
+                        rayParams.FilterType = Enum.RaycastFilterType.Blacklist
+                        rayParams.FilterDescendantsInstances = {player.Character}
+                        rayParams.IgnoreWater = true
+                        
+                        local closest, closestDist3D = nil, math.huge
                         local mousePos = UserInputService:GetMouseLocation()
-                        local localRoot = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
-                        if localRoot then
-                            local rayParams = RaycastParams.new()
-                            rayParams.FilterType = Enum.RaycastFilterType.Blacklist
-                            rayParams.FilterDescendantsInstances = {player.Character}
-                            rayParams.IgnoreWater = true
-                            local closest, dist = nil, RB_FOV
-                            
-                            for _, plr in pairs(Players:GetPlayers()) do
-                                if plr ~= player and plr.Character then
-                                    local isTeammate = RB_TEAMCHECK and player.Team and plr.Team == player.Team
-                                    if not isTeammate then
-                                        local char = plr.Character
-                                        local humanoid = char:FindFirstChildOfClass("Humanoid")
-                                        local targetPart = getHitboxPart(char, RB_HITBOX)
-                                        if targetPart and humanoid and humanoid.Health > 0 then
-                                            local pos, onScreen = camera:WorldToViewportPoint(targetPart.Position)
-                                            if onScreen and pos.Z > 0 then
-                                                local d = (Vector2.new(pos.X, pos.Y) - mousePos).Magnitude
-                                                if d < dist then
-                                                    local canSee = true
-                                                    if RB_WALLCHECK then
-                                                        local hit = workspace:Raycast(camera.CFrame.Position, (targetPart.Position - camera.CFrame.Position), rayParams)
-                                                        if hit and hit.Instance and not hit.Instance:IsDescendantOf(char) then canSee = false end
-                                                    end
-                                                    if canSee then dist = d closest = char end
+                        
+                        for _, plr in pairs(Players:GetPlayers()) do
+                            if plr ~= player and plr.Character then
+                                local isTeammate = RB_TEAMCHECK and player.Team and plr.Team == player.Team
+                                if not isTeammate then
+                                    local char = plr.Character
+                                    local humanoid = char:FindFirstChildOfClass("Humanoid")
+                                    local targetPart = getHitboxPart(char, RB_HITBOX)
+                                    if targetPart and humanoid and humanoid.Health > 0 and char:FindFirstChild("HumanoidRootPart") then
+                                        local dist3D = (char.HumanoidRootPart.Position - localRoot.Position).Magnitude
+                                        
+                                        local pos, onScreen = camera:WorldToViewportPoint(targetPart.Position)
+                                        if onScreen and pos.Z > 0 then
+                                            local d = (Vector2.new(pos.X, pos.Y) - mousePos).Magnitude
+                                            -- 화면상 FOV 안에 있고, 벽에 막혀있지 않으며, 3D 거리가 가장 가까운 적 선택
+                                            if d < RB_FOV then
+                                                local canSee = true
+                                                if RB_WALLCHECK then
+                                                    local hit = workspace:Raycast(camera.CFrame.Position, (targetPart.Position - camera.CFrame.Position), rayParams)
+                                                    if hit and hit.Instance and not hit.Instance:IsDescendantOf(char) then canSee = false end
+                                                end
+                                                if canSee and dist3D < closestDist3D then 
+                                                    closestDist3D = dist3D 
+                                                    closest = char 
                                                 end
                                             end
                                         end
                                     end
                                 end
                             end
-                            
-                            if closest then
-                                local targetPart = getHitboxPart(closest, RB_HITBOX)
-                                if targetPart and camera then
-                                    local screenPos = camera:WorldToViewportPoint(targetPart.Position)
-                                    if screenPos.Z > 0 then
-                                        local targetVec = Vector2.new(screenPos.X, screenPos.Y)
-                                        local screenCenter = Vector2.new(camera.ViewportSize.X / 2, camera.ViewportSize.Y / 2)
-                                        local move = targetVec - screenCenter
-                                        if math.abs(move.X) < 5000 and math.abs(move.Y) < 5000 then
-                                            if mousemoverel then mousemoverel(move.X, move.Y) end
-                                        end
-                                    end
-                                end
+                        end
+                        
+                        if closest then
+                            local targetPart = getHitboxPart(closest, RB_HITBOX)
+                            if targetPart and localRoot then
+                                -- 화면(카메라)은 그대로 두고, 내 몸통(HumanoidRootPart)만 상대의 머리를 향해 강제 회전
+                                local targetPos = targetPart.Position
+                                local currentPos = localRoot.Position
+                                
+                                -- 캐릭터가 타겟을 정확히 바라보게 하는 CFrame 생성 (이 게임에서 몸이 정확히 머리를 향해야 헤드샷이 들어감)
+                                localRoot.CFrame = CFrame.new(currentPos, targetPos)
                             end
                         end
                     end
                 end
-            end)
-        end
+            end
+        end)
     end)
 
     -- ==========================================
@@ -553,67 +538,24 @@ local success, err = pcall(function()
     })
 
     -- ==========================================
-    -- CHARM (Highlight) 설정
+    -- CHARM (Highlight) 설정 (프리뷰 삭제)
     -- ==========================================
     local CharmGroupBox = Tabs.ESP:AddLeftGroupbox("Charm")
     local charmColor = Color3.fromRGB(0, 255, 127)
     
-    CharmGroupBox:AddToggle("Charm_Toggle", { Text = "Enable Charm (Highlight)", Default = false })
-    CharmGroupBox:AddLabel("Charm Color"):AddColorPicker("Charm_Color", { 
+    local charmToggle = CharmGroupBox:AddToggle("Charm_Toggle", { Text = "Enable Charm (Highlight)", Default = false })
+    charmToggle:AddColorPicker("Charm_Color", { 
         Default = charmColor, 
         Title = "Charm Color", 
         Transparency = 0, 
         Callback = function(v) charmColor = v end 
     })
 
-    local dummyModel = Instance.new("Model")
-    dummyModel.Name = "WhiteDummy"
-    
-    local function createDummyPart(name, size, offset)
-        local part = Instance.new("Part")
-        part.Name = name
-        part.Size = size
-        part.Color = Color3.new(1, 1, 1) 
-        part.Material = Enum.Material.SmoothPlastic
-        part.Anchored = true
-        part.CanCollide = false
-        part.CFrame = CFrame.new(offset)
-        part.Parent = dummyModel
-        return part
-    end
-    
-    dummyModel.PrimaryPart = createDummyPart("Torso", Vector3.new(2, 2, 1), Vector3.new(0, 0, 0))
-    createDummyPart("Head", Vector3.new(2, 1, 1), Vector3.new(0, 1.5, 0))
-    createDummyPart("Left Arm", Vector3.new(1, 2, 1), Vector3.new(-1.5, 0, 0))
-    createDummyPart("Right Arm", Vector3.new(1, 2, 1), Vector3.new(1.5, 0, 0))
-    createDummyPart("Left Leg", Vector3.new(1, 2, 1), Vector3.new(-0.5, -2, 0))
-    createDummyPart("Right Leg", Vector3.new(1, 2, 1), Vector3.new(0.5, -2, 0))
-
-    local CharmPreviewGroupbox = Tabs.ESP:AddLeftGroupbox("Charm Preview")
-    local charmPreviewFrame = Instance.new("ViewportFrame")
-    charmPreviewFrame.Size = UDim2.new(1, 0, 0, 250)
-    charmPreviewFrame.BackgroundColor3 = Color3.fromRGB(15, 15, 15)
-    charmPreviewFrame.BorderSizePixel = 0
-    charmPreviewFrame.Parent = CharmPreviewGroupbox.Container
-
-    local charmPreviewCam = Instance.new("Camera")
-    charmPreviewCam.FieldOfView = 25 
-    charmPreviewCam.CFrame = CFrame.new(Vector3.new(0, 0, 10), Vector3.new(0, 0, 0))
-    charmPreviewFrame.CurrentCamera = charmPreviewCam
-    charmPreviewCam.Parent = charmPreviewFrame
-
-    local previewDummy = dummyModel:Clone()
-    previewDummy.Parent = charmPreviewFrame
-    
-    local charmPreviewHighlight = Instance.new("Highlight")
-    charmPreviewHighlight.Parent = previewDummy
-
     -- ==========================================
-    -- ESP 설정 (기능 옆 색상 버튼, 기본 하얀색)
+    -- ESP 설정 (기능 옆 색상 버튼, 기본 하얀색, 얇은 선)
     -- ==========================================
     local ESPGroupBox = Tabs.ESP:AddRightGroupbox("ESP Settings")
     
-    -- 기본 색상 모두 하얀색으로 변경
     local espBoxColor = Color3.fromRGB(255, 255, 255)
     local espTracerColor = Color3.fromRGB(255, 255, 255)
     local espNameColor = Color3.fromRGB(255, 255, 255)
@@ -627,7 +569,7 @@ local success, err = pcall(function()
         obj.Lines = {}
         for i = 1, 4 do
             obj.GlowLines[i] = Drawing.new("Line")
-            obj.GlowLines[i].Thickness = 3
+            obj.GlowLines[i].Thickness = 2 -- 얇게 조정 (기존 3)
             obj.GlowLines[i].Transparency = 0.6
             
             obj.Lines[i] = Drawing.new("Line")
@@ -638,14 +580,12 @@ local success, err = pcall(function()
         obj.Corners = {}
         for i = 1, 8 do
             obj.GlowCorners[i] = Drawing.new("Line")
-            obj.GlowCorners[i].Thickness = 3
+            obj.GlowCorners[i].Thickness = 2 -- 얇게 조정 (기존 3)
             obj.GlowCorners[i].Transparency = 0.6
             
             obj.Corners[i] = Drawing.new("Line")
             obj.Corners[i].Thickness = 1
         end
-        
-        obj.Highlight = nil 
         
         obj.Tracer = Drawing.new("Line")
         obj.Tracer.Thickness = 1
@@ -674,7 +614,6 @@ local success, err = pcall(function()
         for _, c in ipairs(obj.Lines) do c.Visible = false end
         for _, c in ipairs(obj.GlowCorners) do c.Visible = false end
         for _, c in ipairs(obj.Corners) do c.Visible = false end
-        if obj.Highlight then obj.Highlight.Enabled = false end
         obj.Tracer.Visible = false
         obj.NameText.Visible = false
         obj.HealthBarBg.Visible = false
@@ -688,7 +627,6 @@ local success, err = pcall(function()
             for _, c in ipairs(obj.Lines) do pcall(function() c:Remove() end) end
             for _, c in ipairs(obj.GlowCorners) do pcall(function() c:Remove() end) end
             for _, c in ipairs(obj.Corners) do pcall(function() c:Remove() end) end
-            if obj.Highlight then pcall(function() obj.Highlight:Destroy() end) end
             pcall(function() obj.Tracer:Remove() end)
             pcall(function() obj.NameText:Remove() end)
             pcall(function() obj.HealthBarBg:Remove() end)
@@ -730,21 +668,9 @@ local success, err = pcall(function()
 
     Players.PlayerRemoving:Connect(clearESP)
 
-    RunService.RenderStepped:Connect(function()
+    -- 튕김 방지를 위해 BindToRenderStep 사용 (카메라 렌더링 동기화)
+    RunService:BindToRenderStep("ESPRender", Enum.RenderPriority.Camera.Value + 1, function()
         pcall(function()
-            if previewDummy and previewDummy.PrimaryPart then
-                previewDummy:PivotTo(CFrame.new(0, 0, 0) * CFrame.Angles(0, tick() * 0.5, 0))
-            end
-            
-            if Toggles.Charm_Toggle and Toggles.Charm_Toggle.Value then
-                if charmPreviewHighlight then 
-                    charmPreviewHighlight.Enabled = true
-                    charmPreviewHighlight.OutlineColor = charmColor
-                end
-            else
-                if charmPreviewHighlight then charmPreviewHighlight.Enabled = false end
-            end
-
             for _, p in pairs(Players:GetPlayers()) do
                 if p ~= player then
                     if not Toggles.ESP_Enable.Value or not p.Character or not p.Character:FindFirstChild("HumanoidRootPart") or not p.Character:FindFirstChild("Humanoid") or not p.Character:FindFirstChild("Head") or p.Character.Humanoid.Health <= 0 then
@@ -821,7 +747,6 @@ local success, err = pcall(function()
                             for _, c in ipairs(obj.Lines) do c.Visible = false end
                             for _, c in ipairs(obj.GlowCorners) do c.Visible = false end
                             for _, c in ipairs(obj.Corners) do c.Visible = false end
-                            if obj.Highlight then obj.Highlight.Enabled = false end
                             
                             if Toggles.ESP_BoxType.Value then -- Box ESP 토글이 켜져있을 때만 렌더링
                                 obj.GlowLines[1].Visible = true; obj.GlowLines[1].From = Vector2.new(boxLeft, boxTop); obj.GlowLines[1].To = Vector2.new(boxRight, boxTop)
@@ -839,6 +764,7 @@ local success, err = pcall(function()
                 end
             end
             
+            -- 실제 플레이어에게 Charm (Highlight) 적용
             for _, p in pairs(Players:GetPlayers()) do
                 if p ~= player and p.Character then
                     local char = p.Character
@@ -1310,6 +1236,7 @@ local success, err = pcall(function()
     end)
 
     Library:OnUnload(function()
+        RunService:UnbindFromRenderStep("ESPRender")
         WatermarkConnection:Disconnect()
         if AimbotRenderConnection then AimbotRenderConnection:Disconnect() end
         pcall(function() if fovCircle then fovCircle.Visible = false fovCircle:Remove() end end)
@@ -1336,6 +1263,7 @@ local success, err = pcall(function()
     SaveManager:BuildConfigSection(Tabs["UI Settings"])
     ThemeManager:ApplyToTab(Tabs["UI Settings"])
     
+    -- 다크 레드 테마 강제 적용
     ThemeManager.Theme = ThemeManager.Theme or {}
     ThemeManager.Theme.Main = Color3.fromRGB(25, 25, 25)
     ThemeManager.Theme.Background = Color3.fromRGB(20, 20, 20)
@@ -1347,6 +1275,7 @@ local success, err = pcall(function()
     ThemeManager.Theme.TabBackground = Color3.fromRGB(30, 30, 30)
     SaveManager:LoadAutoloadConfig()
 
+    -- UI 1회 세팅
     task.spawn(function()
         task.wait(1)
         local logoUrl = "https://raw.githubusercontent.com/salamindeyo03-collab/SLogo/main/RealLast.png"
