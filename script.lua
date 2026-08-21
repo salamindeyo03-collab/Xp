@@ -372,7 +372,7 @@ local success, err = pcall(function()
     TriggerbotGroupBox:AddSlider("TriggerbotDelay", { Text = "Fire Delay (sec)", Default = 0.05, Min = 0.01, Max = 1, Rounding = 2, Callback = function(Value) TB_DELAY = Value end })
 
     -- ==========================================
-    -- RAGEBOT 설정 (우측 그룹박스)
+    -- RAGEBOT 설정 
     -- ==========================================
     local RB_ENABLED = false
     local RB_FOV = 300
@@ -436,7 +436,6 @@ local success, err = pcall(function()
                             if closest then
                                 local targetPart = getHitboxPart(closest, RB_HITBOX)
                                 if targetPart and camera then
-                                    -- 래지봇 즉시 스냅 (마우스 강제 이동)
                                     local screenPos = camera:WorldToViewportPoint(targetPart.Position)
                                     if screenPos.Z > 0 then
                                         local targetVec = Vector2.new(screenPos.X, screenPos.Y)
@@ -456,11 +455,11 @@ local success, err = pcall(function()
     end)
 
     -- ==========================================
-    -- RAPID FIRE (Rapid.txt 코드 단일 적용)
+    -- RAPID FIRE & FULL AUTO
     -- ==========================================
     local RapidFireEnabled = false
+    local FullAutoEnabled = false
 
-    -- 제공해주신 Rapid.txt 코드 통합
     pcall(function()
         local Gun = require(player.PlayerScripts.Modules.ItemTypes.Gun)
         if Gun and Gun.Update then
@@ -468,44 +467,65 @@ local success, err = pcall(function()
             Gun.Update = function(self, dt, ...)
                 if RapidFireEnabled then
                     if self._shoot_cooldown then
-                        self._shoot_cooldown = 0 -- 쿨다운 강제 제거 (마우스를 꾹 누르고 있으면 게임이 알아서 연사함)
+                        self._shoot_cooldown = 0 
                     end
                 end
                 return oldUpdate(self, dt, ...)
             end
         end
+        
+        if Gun and Gun.StartShooting then
+            local originalStartShooting = Gun.StartShooting 
+            Gun.StartShooting = function(self, ...)
+                if FullAutoEnabled then
+                    pcall(function()
+                        self.Automatic = true
+                        self.FullAuto = true
+                        if self.WeaponData then self.WeaponData.Automatic = true self.WeaponData.FullAuto = true end
+                        if self.WeaponStats then self.WeaponStats.Automatic = true self.WeaponStats.FullAuto = true end
+                        if self._weaponData then self._weaponData.Automatic = true self._weaponData.FullAuto = true end
+                    end)
+                end
+                return originalStartShooting(self, ...)
+            end
+        end
     end)
 
-    local RapidFireGroupBox = Tabs.Main:AddRightGroupbox("Rapid Fire (Postshot)")
+    local RapidFireGroupBox = Tabs.Main:AddRightGroupbox("Rapid Fire & Auto")
     RapidFireGroupBox:AddToggle("RapidFireToggle", { 
-        Text = "Enable Rapid Fire", 
+        Text = "Enable Rapid Fire (Postshot)", 
         Default = false, 
         Callback = function(Value) 
             RapidFireEnabled = Value 
         end 
     })
+    RapidFireGroupBox:AddToggle("FullAutoToggle", { 
+        Text = "Enable Full Auto", 
+        Default = false, 
+        Callback = function(Value) 
+            FullAutoEnabled = Value 
+        end 
+    })
 
     -- ==========================================
-    -- RECOIL & SPREAD (노리코일 & 탄퍼짐)
+    -- RECOIL & SPREAD 
     -- ==========================================
     local NoRecoilEnabled = false
     local NoSpreadEnabled = false
 
-    -- 노리코일 (Recoil.txt)
     pcall(function()
         local ClientItem = require(player.PlayerScripts.Modules.ClientReplicatedClasses.ClientFighter.ClientItem)
         if ClientItem and ClientItem._Recoil then
             local originalRecoil = ClientItem._Recoil
             ClientItem._Recoil = function(...)
                 if NoRecoilEnabled then
-                    return -- 반동 함수 자체를 무시
+                    return 
                 end
                 return originalRecoil(...)
             end
         end
     end)
 
-    -- 탄퍼짐 (Nosped.txt)
     pcall(function()
         local GunItem = require(player.PlayerScripts.Modules.ItemTypes.Gun)
         if GunItem and GunItem.StartShooting then
@@ -513,7 +533,7 @@ local success, err = pcall(function()
             GunItem.StartShooting = function(self, ...)
                 local res = {originalStartShooting(self, ...)}
                 if NoSpreadEnabled and self.ClientFighter and self.ClientFighter.IsLocalPlayer then 
-                    res[4] = true -- 탄퍼짐 없음 설정
+                    res[4] = true 
                 end 
                 return unpack(res)
             end
@@ -533,7 +553,7 @@ local success, err = pcall(function()
     })
 
     -- ==========================================
-    -- CHARM (Highlight) 설정 (좌측 그룹박스)
+    -- CHARM (Highlight) 설정
     -- ==========================================
     local CharmGroupBox = Tabs.ESP:AddLeftGroupbox("Charm")
     local charmColor = Color3.fromRGB(0, 255, 127)
@@ -546,7 +566,6 @@ local success, err = pcall(function()
         Callback = function(v) charmColor = v end 
     })
 
-    -- Charm 프리뷰용 하얀색 더미 모델 생성 (개선됨)
     local dummyModel = Instance.new("Model")
     dummyModel.Name = "WhiteDummy"
     
@@ -554,7 +573,7 @@ local success, err = pcall(function()
         local part = Instance.new("Part")
         part.Name = name
         part.Size = size
-        part.Color = Color3.new(1, 1, 1) -- 하얀색
+        part.Color = Color3.new(1, 1, 1) 
         part.Material = Enum.Material.SmoothPlastic
         part.Anchored = true
         part.CanCollide = false
@@ -563,7 +582,6 @@ local success, err = pcall(function()
         return part
     end
     
-    -- 캐릭터 형태 구성 (Torso를 PrimaryPart로 설정)
     dummyModel.PrimaryPart = createDummyPart("Torso", Vector3.new(2, 2, 1), Vector3.new(0, 0, 0))
     createDummyPart("Head", Vector3.new(2, 1, 1), Vector3.new(0, 1.5, 0))
     createDummyPart("Left Arm", Vector3.new(1, 2, 1), Vector3.new(-1.5, 0, 0))
@@ -571,7 +589,6 @@ local success, err = pcall(function()
     createDummyPart("Left Leg", Vector3.new(1, 2, 1), Vector3.new(-0.5, -2, 0))
     createDummyPart("Right Leg", Vector3.new(1, 2, 1), Vector3.new(0.5, -2, 0))
 
-    -- Charm 프리뷰 UI
     local CharmPreviewGroupbox = Tabs.ESP:AddLeftGroupbox("Charm Preview")
     local charmPreviewFrame = Instance.new("ViewportFrame")
     charmPreviewFrame.Size = UDim2.new(1, 0, 0, 250)
@@ -579,14 +596,12 @@ local success, err = pcall(function()
     charmPreviewFrame.BorderSizePixel = 0
     charmPreviewFrame.Parent = CharmPreviewGroupbox.Container
 
-    -- 카메라 설정 (더미를 정면에서 비추도록 설정)
     local charmPreviewCam = Instance.new("Camera")
-    charmPreviewCam.FieldOfView = 25 -- 화각을 좁혀서 왜곡 방지
+    charmPreviewCam.FieldOfView = 25 
     charmPreviewCam.CFrame = CFrame.new(Vector3.new(0, 0, 10), Vector3.new(0, 0, 0))
     charmPreviewFrame.CurrentCamera = charmPreviewCam
     charmPreviewCam.Parent = charmPreviewFrame
 
-    -- 더미 모델을 프리뷰에 복사해서 넣음
     local previewDummy = dummyModel:Clone()
     previewDummy.Parent = charmPreviewFrame
     
@@ -594,13 +609,15 @@ local success, err = pcall(function()
     charmPreviewHighlight.Parent = previewDummy
 
     -- ==========================================
-    -- ESP 설정 (우측 그룹박스로 이동)
+    -- ESP 설정 (기능 옆 색상 버튼, 기본 하얀색)
     -- ==========================================
     local ESPGroupBox = Tabs.ESP:AddRightGroupbox("ESP Settings")
-    local espBoxColor = Color3.fromRGB(0, 255, 127)
-    local espTracerColor = Color3.fromRGB(0, 255, 127)
+    
+    -- 기본 색상 모두 하얀색으로 변경
+    local espBoxColor = Color3.fromRGB(255, 255, 255)
+    local espTracerColor = Color3.fromRGB(255, 255, 255)
     local espNameColor = Color3.fromRGB(255, 255, 255)
-    local espHealthColor = Color3.fromRGB(0, 255, 0)
+    local espHealthColor = Color3.fromRGB(255, 255, 255)
     
     local ESPObjects = {}
 
@@ -680,32 +697,45 @@ local success, err = pcall(function()
         end
     end
 
+    -- 토글(기능) 생성 후 바로 옆에 :AddColorPicker를 붙임
     ESPGroupBox:AddToggle("ESP_Enable", { Text = "Enable ESP", Default = false })
-    -- Highlight 옵션 제거
-    ESPGroupBox:AddDropdown("ESP_BoxType", {
-        Text = "Box ESP Type",
-        Values = { "Full Box", "Corner Box" },
-        Default = 1,
-    })
-    ESPGroupBox:AddToggle("ESP_Tracer", { Text = "Tracer ESP", Default = false })
-    ESPGroupBox:AddToggle("ESP_Name", { Text = "Name ESP", Default = false })
-    ESPGroupBox:AddToggle("ESP_HealthBar", { Text = "Health Bar ESP", Default = false })
     
-    ESPGroupBox:AddLabel("Box Color"):AddColorPicker("ESP_BoxColor", { Default = espBoxColor, Title = "Box Color", Callback = function(v) espBoxColor = v end })
-    ESPGroupBox:AddLabel("Tracer Color"):AddColorPicker("ESP_TracerColor", { Default = espTracerColor, Title = "Tracer Color", Callback = function(v) espTracerColor = v end })
-    ESPGroupBox:AddLabel("Name Color"):AddColorPicker("ESP_NameColor", { Default = espNameColor, Title = "Name Color", Callback = function(v) espNameColor = v end })
-    ESPGroupBox:AddLabel("Health Color"):AddColorPicker("ESP_HealthColor", { Default = espHealthColor, Title = "Health Color", Callback = function(v) espHealthColor = v end })
+    local boxToggle = ESPGroupBox:AddToggle("ESP_BoxType", { Text = "Box ESP", Default = true })
+    boxToggle:AddColorPicker("ESP_BoxColor", { 
+        Default = Color3.fromRGB(255, 255, 255), 
+        Title = "Box Color", 
+        Callback = function(v) espBoxColor = v end 
+    })
+
+    local tracerToggle = ESPGroupBox:AddToggle("ESP_Tracer", { Text = "Tracer ESP", Default = false })
+    tracerToggle:AddColorPicker("ESP_TracerColor", { 
+        Default = Color3.fromRGB(255, 255, 255), 
+        Title = "Tracer Color", 
+        Callback = function(v) espTracerColor = v end 
+    })
+
+    local nameToggle = ESPGroupBox:AddToggle("ESP_Name", { Text = "Name ESP", Default = false })
+    nameToggle:AddColorPicker("ESP_NameColor", { 
+        Default = Color3.fromRGB(255, 255, 255), 
+        Title = "Name Color", 
+        Callback = function(v) espNameColor = v end 
+    })
+
+    local healthToggle = ESPGroupBox:AddToggle("ESP_HealthBar", { Text = "Health Bar ESP", Default = false })
+    healthToggle:AddColorPicker("ESP_HealthColor", { 
+        Default = Color3.fromRGB(255, 255, 255), 
+        Title = "Health Color", 
+        Callback = function(v) espHealthColor = v end 
+    })
 
     Players.PlayerRemoving:Connect(clearESP)
 
     RunService.RenderStepped:Connect(function()
         pcall(function()
-            -- Charm 프리뷰 더미 회전 (위치 고정, Y축 회전만)
             if previewDummy and previewDummy.PrimaryPart then
                 previewDummy:PivotTo(CFrame.new(0, 0, 0) * CFrame.Angles(0, tick() * 0.5, 0))
             end
             
-            -- Charm 프리뷰 Highlight 업데이트
             if Toggles.Charm_Toggle and Toggles.Charm_Toggle.Value then
                 if charmPreviewHighlight then 
                     charmPreviewHighlight.Enabled = true
@@ -734,7 +764,6 @@ local success, err = pcall(function()
                         if not rootVis then
                             hideESP(p)
                         else
-                            -- 박스 크기를 캐릭터보다 더 크게 조정 (1.2 -> 1.6, 2.2 -> 1.8)
                             local height = math.abs(headPos.Y - legPos.Y) * 1.6
                             local width = height / 1.8
                             
@@ -794,8 +823,7 @@ local success, err = pcall(function()
                             for _, c in ipairs(obj.Corners) do c.Visible = false end
                             if obj.Highlight then obj.Highlight.Enabled = false end
                             
-                            local boxType = Options.ESP_BoxType.Value
-                            if boxType == "Full Box" then
+                            if Toggles.ESP_BoxType.Value then -- Box ESP 토글이 켜져있을 때만 렌더링
                                 obj.GlowLines[1].Visible = true; obj.GlowLines[1].From = Vector2.new(boxLeft, boxTop); obj.GlowLines[1].To = Vector2.new(boxRight, boxTop)
                                 obj.GlowLines[2].Visible = true; obj.GlowLines[2].From = Vector2.new(boxLeft, boxBottom); obj.GlowLines[2].To = Vector2.new(boxRight, boxBottom)
                                 obj.GlowLines[3].Visible = true; obj.GlowLines[3].From = Vector2.new(boxLeft, boxTop); obj.GlowLines[3].To = Vector2.new(boxLeft, boxBottom)
@@ -805,43 +833,19 @@ local success, err = pcall(function()
                                 obj.Lines[2].Visible = true; obj.Lines[2].From = Vector2.new(boxLeft, boxBottom); obj.Lines[2].To = Vector2.new(boxRight, boxBottom)
                                 obj.Lines[3].Visible = true; obj.Lines[3].From = Vector2.new(boxLeft, boxTop); obj.Lines[3].To = Vector2.new(boxLeft, boxBottom)
                                 obj.Lines[4].Visible = true; obj.Lines[4].From = Vector2.new(boxRight, boxTop); obj.Lines[4].To = Vector2.new(boxRight, boxBottom)
-                                
-                            elseif boxType == "Corner Box" then
-                                local cornerLen = height * 0.3
-                                
-                                obj.GlowCorners[1].Visible = true; obj.GlowCorners[1].From = Vector2.new(boxLeft, boxTop); obj.GlowCorners[1].To = Vector2.new(boxLeft + cornerLen, boxTop)
-                                obj.GlowCorners[2].Visible = true; obj.GlowCorners[2].From = Vector2.new(boxLeft, boxTop); obj.GlowCorners[2].To = Vector2.new(boxLeft, boxTop + cornerLen)
-                                obj.GlowCorners[3].Visible = true; obj.GlowCorners[3].From = Vector2.new(boxRight, boxTop); obj.GlowCorners[3].To = Vector2.new(boxRight - cornerLen, boxTop)
-                                obj.GlowCorners[4].Visible = true; obj.GlowCorners[4].From = Vector2.new(boxRight, boxTop); obj.GlowCorners[4].To = Vector2.new(boxRight, boxTop + cornerLen)
-                                obj.GlowCorners[5].Visible = true; obj.GlowCorners[5].From = Vector2.new(boxLeft, boxBottom); obj.GlowCorners[5].To = Vector2.new(boxLeft + cornerLen, boxBottom)
-                                obj.GlowCorners[6].Visible = true; obj.GlowCorners[6].From = Vector2.new(boxLeft, boxBottom); obj.GlowCorners[6].To = Vector2.new(boxLeft, boxBottom - cornerLen)
-                                obj.GlowCorners[7].Visible = true; obj.GlowCorners[7].From = Vector2.new(boxRight, boxBottom); obj.GlowCorners[7].To = Vector2.new(boxRight - cornerLen, boxBottom)
-                                obj.GlowCorners[8].Visible = true; obj.GlowCorners[8].From = Vector2.new(boxRight, boxBottom); obj.GlowCorners[8].To = Vector2.new(boxRight, boxBottom - cornerLen)
-                                
-                                obj.Corners[1].Visible = true; obj.Corners[1].From = Vector2.new(boxLeft, boxTop); obj.Corners[1].To = Vector2.new(boxLeft + cornerLen, boxTop)
-                                obj.Corners[2].Visible = true; obj.Corners[2].From = Vector2.new(boxLeft, boxTop); obj.Corners[2].To = Vector2.new(boxLeft, boxTop + cornerLen)
-                                obj.Corners[3].Visible = true; obj.Corners[3].From = Vector2.new(boxRight, boxTop); obj.Corners[3].To = Vector2.new(boxRight - cornerLen, boxTop)
-                                obj.Corners[4].Visible = true; obj.Corners[4].From = Vector2.new(boxRight, boxTop); obj.Corners[4].To = Vector2.new(boxRight, boxTop + cornerLen)
-                                obj.Corners[5].Visible = true; obj.Corners[5].From = Vector2.new(boxLeft, boxBottom); obj.Corners[5].To = Vector2.new(boxLeft + cornerLen, boxBottom)
-                                obj.Corners[6].Visible = true; obj.Corners[6].From = Vector2.new(boxLeft, boxBottom); obj.Corners[6].To = Vector2.new(boxLeft, boxBottom - cornerLen)
-                                obj.Corners[7].Visible = true; obj.Corners[7].From = Vector2.new(boxRight, boxBottom); obj.Corners[7].To = Vector2.new(boxRight - cornerLen, boxBottom)
-                                obj.Corners[8].Visible = true; obj.Corners[8].From = Vector2.new(boxRight, boxBottom); obj.Corners[8].To = Vector2.new(boxRight, boxBottom - cornerLen)
                             end
                         end
                     end
                 end
             end
             
-            -- 실제 플레이어에게 Charm (Highlight) 적용
             for _, p in pairs(Players:GetPlayers()) do
                 if p ~= player and p.Character then
                     local char = p.Character
                     if not Toggles.Charm_Toggle or not Toggles.Charm_Toggle.Value or not char:FindFirstChild("HumanoidRootPart") or not char:FindFirstChild("Humanoid") or char.Humanoid.Health <= 0 then
-                        -- Charm이 꺼져있으면 기존 Highlight 제거
                         local hl = char:FindFirstChild("CharmHighlight")
                         if hl then hl:Destroy() end
                     else
-                        -- Charm이 켜져있으면 Highlight 적용
                         local hl = char:FindFirstChild("CharmHighlight")
                         if not hl then
                             hl = Instance.new("Highlight")
@@ -1332,7 +1336,6 @@ local success, err = pcall(function()
     SaveManager:BuildConfigSection(Tabs["UI Settings"])
     ThemeManager:ApplyToTab(Tabs["UI Settings"])
     
-    -- 다크 레드 테마 강제 적용
     ThemeManager.Theme = ThemeManager.Theme or {}
     ThemeManager.Theme.Main = Color3.fromRGB(25, 25, 25)
     ThemeManager.Theme.Background = Color3.fromRGB(20, 20, 20)
@@ -1344,7 +1347,6 @@ local success, err = pcall(function()
     ThemeManager.Theme.TabBackground = Color3.fromRGB(30, 30, 30)
     SaveManager:LoadAutoloadConfig()
 
-    -- UI 1회 세팅
     task.spawn(function()
         task.wait(1)
         local logoUrl = "https://raw.githubusercontent.com/salamindeyo03-collab/SLogo/main/RealLast.png"
