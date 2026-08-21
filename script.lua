@@ -174,7 +174,7 @@ local success, err = pcall(function()
     AimbotGroupBox:AddSlider("AimbotDistance", { Text = "Max Distance", Default = 1000, Min = 1, Max = 5000, Rounding = 0, Callback = function(Value) MAX_DISTANCE = Value end })
 
     -- ==========================================
-    -- SILENT AIM 설정 (레인보우 삭제)
+    -- SILENT AIM 설정
     -- ==========================================
     local SA_ENABLED = false
     local SA_FOV = 50
@@ -360,83 +360,144 @@ local success, err = pcall(function()
     TriggerbotGroupBox:AddSlider("TriggerbotDelay", { Text = "Fire Delay (sec)", Default = 0.05, Min = 0.01, Max = 1, Rounding = 2, Callback = function(Value) TB_DELAY = Value end })
 
     -- ==========================================
-    -- RAGEBOT 설정 (화면 유지 및 내 몸통 강제 회전, 항상 헤드샷)
+    -- RAGEBOT (보이드 스팸 및 텔레포트) 설정
     -- ==========================================
-    local RB_ENABLED = false
-    local RB_FOV = 300
-    local RB_HITBOX = "Head" -- 래지봇은 항상 머리 고정
-    local RB_WALLCHECK = true
-    local RB_TEAMCHECK = true
+    local RagebotGroupBox = Tabs.Main:AddRightGroupbox("Ragebot (Void Spam)")
+    
+    -- Toggle 모드 키바인드 (상태가 UI에 보이도록 SyncToggleState = true)
+    local rageToggle = RagebotGroupBox:AddToggle("RagebotToggle", { Text = "Enable Void Spam", Default = false })
+    rageToggle:AddKeyPicker("RagebotKeybind", { 
+        Default = "E", 
+        SyncToggleState = true, 
+        Mode = "Toggle", 
+        Text = "Rage Key", 
+        NoUI = false 
+    })
+    
+    -- 공격 지속 시간 설정
+    RagebotGroupBox:AddSlider("RagebotDuration", { Text = "Attack Duration (sec)", Default = 3, Min = 1, Max = 15, Rounding = 0 })
+    -- 보이드 스팸 세부 설정
+    RagebotGroupBox:AddSlider("VoidSpam_Below", { Text = "Void Depth (studs)", Default = 3, Min = 1, Max = 10, Rounding = 0 })
+    RagebotGroupBox:AddSlider("VoidSpam_Delay", { Text = "Spam Delay (ms)", Default = 50, Min = 10, Max = 200, Rounding = 0 })
+    
+    -- 종료 후 텔레포트 설정
+    RagebotGroupBox:AddToggle("RagebotTeleport", { Text = "Teleport After Attack", Default = true })
+    RagebotGroupBox:AddSlider("Teleport_Distance", { Text = "Teleport Distance", Default = 100, Min = 10, Max = 500, Rounding = 0 })
+    RagebotGroupBox:AddSlider("Teleport_Height", { Text = "Teleport Height", Default = 10, Min = 0, Max = 50, Rounding = 0 })
 
-    local RagebotGroupBox = Tabs.Main:AddRightGroupbox("Ragebot")
-    RagebotGroupBox:AddToggle("RagebotToggle", { Text = "Enable Ragebot", Default = false, Callback = function(Value) RB_ENABLED = Value end })
-    RagebotGroupBox:AddLabel("Ragebot Keybind"):AddKeyPicker("RagebotKeybind", { Default = "MB2", SyncToggleState = false, Mode = "Hold", Text = "Rage Key", NoUI = false })
-    RagebotGroupBox:AddToggle("RagebotTeamCheck", { Text = "Team Check", Default = true, Callback = function(Value) RB_TEAMCHECK = Value end })
-    RagebotGroupBox:AddToggle("RagebotWallCheck", { Text = "Wall Check", Default = true, Callback = function(Value) RB_WALLCHECK = Value end })
-    RagebotGroupBox:AddSlider("RagebotFOV", { Text = "Ragebot FOV Radius", Default = 300, Min = 1, Max = 5000, Rounding = 0, Callback = function(Value) RB_FOV = Value end })
+    local RB_ACTIVE = false
+    local RB_START_TIME = 0
+    local RB_ORIGINAL_POS = nil
+    local voidSpamState = { offset = Vector3.new(0,0,0), timer = 0, changeTimer = 0 }
 
-    -- 래지봇은 마우스 이동 대신 캐릭터의 CFrame을 직접 돌리기 때문에 RenderStepped에서 실행해야 반응이 가장 빠릅니다.
-    RunService.RenderStepped:Connect(function()
-        pcall(function()
-            if RB_ENABLED and not isLobbyVisible() then
-                local isKeybindActive = Options.RagebotKeybind and Options.RagebotKeybind:GetState() or false
-                if isKeybindActive and camera then
-                    local localRoot = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
-                    if localRoot then
-                        local rayParams = RaycastParams.new()
-                        rayParams.FilterType = Enum.RaycastFilterType.Blacklist
-                        rayParams.FilterDescendantsInstances = {player.Character}
-                        rayParams.IgnoreWater = true
-                        
-                        local closest, closestDist3D = nil, math.huge
-                        local mousePos = UserInputService:GetMouseLocation()
-                        
-                        for _, plr in pairs(Players:GetPlayers()) do
-                            if plr ~= player and plr.Character then
-                                local isTeammate = RB_TEAMCHECK and player.Team and plr.Team == player.Team
-                                if not isTeammate then
-                                    local char = plr.Character
-                                    local humanoid = char:FindFirstChildOfClass("Humanoid")
-                                    local targetPart = getHitboxPart(char, RB_HITBOX)
-                                    if targetPart and humanoid and humanoid.Health > 0 and char:FindFirstChild("HumanoidRootPart") then
-                                        local dist3D = (char.HumanoidRootPart.Position - localRoot.Position).Magnitude
-                                        
-                                        local pos, onScreen = camera:WorldToViewportPoint(targetPart.Position)
-                                        if onScreen and pos.Z > 0 then
-                                            local d = (Vector2.new(pos.X, pos.Y) - mousePos).Magnitude
-                                            -- 화면상 FOV 안에 있고, 벽에 막혀있지 않으며, 3D 거리가 가장 가까운 적 선택
-                                            if d < RB_FOV then
-                                                local canSee = true
-                                                if RB_WALLCHECK then
-                                                    local hit = workspace:Raycast(camera.CFrame.Position, (targetPart.Position - camera.CFrame.Position), rayParams)
-                                                    if hit and hit.Instance and not hit.Instance:IsDescendantOf(char) then canSee = false end
-                                                end
-                                                if canSee and dist3D < closestDist3D then 
-                                                    closestDist3D = dist3D 
-                                                    closest = char 
-                                                end
-                                            end
-                                        end
-                                    end
-                                end
-                            end
-                        end
-                        
-                        if closest then
-                            local targetPart = getHitboxPart(closest, RB_HITBOX)
-                            if targetPart and localRoot then
-                                -- 화면(카메라)은 그대로 두고, 내 몸통(HumanoidRootPart)만 상대의 머리를 향해 강제 회전
-                                local targetPos = targetPart.Position
-                                local currentPos = localRoot.Position
-                                
-                                -- 캐릭터가 타겟을 정확히 바라보게 하는 CFrame 생성 (이 게임에서 몸이 정확히 머리를 향해야 헤드샷이 들어감)
-                                localRoot.CFrame = CFrame.new(currentPos, targetPos)
-                            end
-                        end
+    local function getClosestPlayer()
+        local localRoot = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
+        if not localRoot then return nil end
+        local closest, dist = nil, math.huge
+        for _, plr in pairs(Players:GetPlayers()) do
+            if plr ~= player and plr.Character then
+                local targetRoot = plr.Character:FindFirstChild("HumanoidRootPart")
+                local targetHumanoid = plr.Character:FindFirstChildOfClass("Humanoid")
+                if targetRoot and targetHumanoid and targetHumanoid.Health > 0 then
+                    local distance = (localRoot.Position - targetRoot.Position).Magnitude
+                    if distance < dist then
+                        dist = distance
+                        closest = plr
                     end
                 end
             end
-        end)
+        end
+        return closest
+    end
+
+    local RagebotRenderConnection
+    RagebotRenderConnection = RunService.RenderStepped:Connect(function(dt)
+        if not Toggles.RagebotToggle.Value then
+            if RB_ACTIVE then
+                RB_ACTIVE = false
+                -- 종료 처리 (원위치 또는 랜덤 텔레포트)
+                local char = player.Character
+                if char and char:FindFirstChild("HumanoidRootPart") and RB_ORIGINAL_POS then
+                    local hrp = char.HumanoidRootPart
+                    if Toggles.RagebotTeleport.Value then
+                        local dist = Options.Teleport_Distance.Value
+                        local height = Options.Teleport_Height.Value
+                        local angle = math.random() * math.pi * 2
+                        local offset = Vector3.new(math.cos(angle), 0, math.sin(angle)) * dist
+                        hrp.CFrame = CFrame.new(RB_ORIGINAL_POS + offset + Vector3.new(0, height, 0))
+                    else
+                        hrp.CFrame = CFrame.new(RB_ORIGINAL_POS)
+                    end
+                end
+                RB_ORIGINAL_POS = nil
+            end
+            return
+        end
+
+        if not RB_ACTIVE then
+            RB_ACTIVE = true
+            RB_START_TIME = tick()
+            local char = player.Character
+            if char and char:FindFirstChild("HumanoidRootPart") then
+                RB_ORIGINAL_POS = char.HumanoidRootPart.Position
+            end
+        end
+
+        -- 설정된 공격 시간 초과 시 자동 종료
+        if (tick() - RB_START_TIME) >= Options.RagebotDuration.Value then
+            Toggles.RagebotToggle:SetValue(false) -- 자동으로 토글 끄기
+            return
+        end
+
+        local char = player.Character
+        if not char then return end
+        local hrp = char:FindFirstChild("HumanoidRootPart")
+        if not hrp then return end
+
+        local targetPlayer = getClosestPlayer()
+        if not targetPlayer or not targetPlayer.Character then return end
+        local targetRoot = targetPlayer.Character:FindFirstChild("HumanoidRootPart")
+        if not targetRoot then return end
+
+        voidSpamState.timer += dt
+        voidSpamState.changeTimer += dt
+
+        -- 10ms마다 랜덤 위치 오프셋 갱신
+        if voidSpamState.changeTimer >= 0.01 then
+            voidSpamState.changeTimer = 0
+            local dist = math.random() * (2 - 1) + 1
+            local angle = math.random() * math.pi * 2
+            voidSpamState.offset = Vector3.new(math.cos(angle) * dist, 0, math.sin(angle) * dist)
+        end
+
+        -- 설정된 딜레이마다 보이드 스팸 실행
+        if voidSpamState.timer >= (Options.VoidSpam_Delay.Value / 1000) then
+            voidSpamState.timer = 0
+            local belowY = math.random() * (Options.VoidSpam_Below.Value - 1) + 1
+            
+            -- 보이드(땅 밑)로 이동
+            local voidPos = Vector3.new(
+                targetRoot.Position.X + voidSpamState.offset.X,
+                targetRoot.Position.Y - belowY,
+                targetRoot.Position.Z + voidSpamState.offset.Z
+            )
+            hrp.CFrame = CFrame.new(voidPos)
+            task.wait(0.01)
+            
+            -- 원래 위치로 복귀
+            if RB_ORIGINAL_POS then
+                hrp.CFrame = CFrame.new(RB_ORIGINAL_POS)
+            end
+            task.wait(0.01)
+            
+            -- 타겟 바로 옆으로 이동
+            local targetPos = Vector3.new(
+                targetRoot.Position.X + voidSpamState.offset.X,
+                targetRoot.Position.Y + 1,
+                targetRoot.Position.Z + voidSpamState.offset.Z
+            )
+            hrp.CFrame = CFrame.new(targetPos)
+        end
     end)
 
     -- ==========================================
@@ -538,7 +599,7 @@ local success, err = pcall(function()
     })
 
     -- ==========================================
-    -- CHARM (Highlight) 설정 (프리뷰 삭제)
+    -- CHARM (Highlight) 설정
     -- ==========================================
     local CharmGroupBox = Tabs.ESP:AddLeftGroupbox("Charm")
     local charmColor = Color3.fromRGB(0, 255, 127)
@@ -569,7 +630,7 @@ local success, err = pcall(function()
         obj.Lines = {}
         for i = 1, 4 do
             obj.GlowLines[i] = Drawing.new("Line")
-            obj.GlowLines[i].Thickness = 2 -- 얇게 조정 (기존 3)
+            obj.GlowLines[i].Thickness = 2 
             obj.GlowLines[i].Transparency = 0.6
             
             obj.Lines[i] = Drawing.new("Line")
@@ -580,7 +641,7 @@ local success, err = pcall(function()
         obj.Corners = {}
         for i = 1, 8 do
             obj.GlowCorners[i] = Drawing.new("Line")
-            obj.GlowCorners[i].Thickness = 2 -- 얇게 조정 (기존 3)
+            obj.GlowCorners[i].Thickness = 2 
             obj.GlowCorners[i].Transparency = 0.6
             
             obj.Corners[i] = Drawing.new("Line")
@@ -635,7 +696,6 @@ local success, err = pcall(function()
         end
     end
 
-    -- 토글(기능) 생성 후 바로 옆에 :AddColorPicker를 붙임
     ESPGroupBox:AddToggle("ESP_Enable", { Text = "Enable ESP", Default = false })
     
     local boxToggle = ESPGroupBox:AddToggle("ESP_BoxType", { Text = "Box ESP", Default = true })
@@ -668,7 +728,6 @@ local success, err = pcall(function()
 
     Players.PlayerRemoving:Connect(clearESP)
 
-    -- 튕김 방지를 위해 BindToRenderStep 사용 (카메라 렌더링 동기화)
     RunService:BindToRenderStep("ESPRender", Enum.RenderPriority.Camera.Value + 1, function()
         pcall(function()
             for _, p in pairs(Players:GetPlayers()) do
@@ -748,7 +807,7 @@ local success, err = pcall(function()
                             for _, c in ipairs(obj.GlowCorners) do c.Visible = false end
                             for _, c in ipairs(obj.Corners) do c.Visible = false end
                             
-                            if Toggles.ESP_BoxType.Value then -- Box ESP 토글이 켜져있을 때만 렌더링
+                            if Toggles.ESP_BoxType.Value then
                                 obj.GlowLines[1].Visible = true; obj.GlowLines[1].From = Vector2.new(boxLeft, boxTop); obj.GlowLines[1].To = Vector2.new(boxRight, boxTop)
                                 obj.GlowLines[2].Visible = true; obj.GlowLines[2].From = Vector2.new(boxLeft, boxBottom); obj.GlowLines[2].To = Vector2.new(boxRight, boxBottom)
                                 obj.GlowLines[3].Visible = true; obj.GlowLines[3].From = Vector2.new(boxLeft, boxTop); obj.GlowLines[3].To = Vector2.new(boxLeft, boxBottom)
@@ -764,7 +823,6 @@ local success, err = pcall(function()
                 end
             end
             
-            -- 실제 플레이어에게 Charm (Highlight) 적용
             for _, p in pairs(Players:GetPlayers()) do
                 if p ~= player and p.Character then
                     local char = p.Character
@@ -1235,12 +1293,18 @@ local success, err = pcall(function()
         end)
     end)
 
+    -- 완벽한 언로드 처리
     Library:OnUnload(function()
         RunService:UnbindFromRenderStep("ESPRender")
-        WatermarkConnection:Disconnect()
         if AimbotRenderConnection then AimbotRenderConnection:Disconnect() end
+        if RagebotRenderConnection then RagebotRenderConnection:Disconnect() end
+        if WatermarkConnection then WatermarkConnection:Disconnect() end
+        
         pcall(function() if fovCircle then fovCircle.Visible = false fovCircle:Remove() end end)
         pcall(function() if saFovCircle then saFovCircle.Visible = false saFovCircle:Remove() end end)
+        
+        for p, obj in pairs(ESPObjects) do clearESP(p) end
+        
         print("Unloaded!")
         Library.Unloaded = true
     end)
@@ -1263,7 +1327,6 @@ local success, err = pcall(function()
     SaveManager:BuildConfigSection(Tabs["UI Settings"])
     ThemeManager:ApplyToTab(Tabs["UI Settings"])
     
-    -- 다크 레드 테마 강제 적용
     ThemeManager.Theme = ThemeManager.Theme or {}
     ThemeManager.Theme.Main = Color3.fromRGB(25, 25, 25)
     ThemeManager.Theme.Background = Color3.fromRGB(20, 20, 20)
@@ -1275,7 +1338,6 @@ local success, err = pcall(function()
     ThemeManager.Theme.TabBackground = Color3.fromRGB(30, 30, 30)
     SaveManager:LoadAutoloadConfig()
 
-    -- UI 1회 세팅
     task.spawn(function()
         task.wait(1)
         local logoUrl = "https://raw.githubusercontent.com/salamindeyo03-collab/SLogo/main/RealLast.png"
