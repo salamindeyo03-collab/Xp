@@ -1,32 +1,42 @@
 local success, err = pcall(function()
-    -- Cultware UI 라이브러리 로드
-    local Library = loadstring(game:HttpGet("https://raw.githubusercontent.com/Eazvy/UILibs/refs/heads/main/Librarys/Cultware/Example"))()
-    local WindowYSize = 545
-    local WindowTheme = Color3.fromRGB(185, 0, 191) -- 보라색 테마
-    local Window = Library:Window("Necrophilia - All in One", WindowTheme, WindowYSize)
+    local repo = "https://raw.githubusercontent.com/mstudio45/LinoriaLib/main/"
+    local Library = loadstring(game:HttpGet(repo .. "Library.lua"))()
+    local ThemeManager = loadstring(game:HttpGet(repo .. "addons/ThemeManager.lua"))()
+    local SaveManager = loadstring(game:HttpGet(repo .. "addons/SaveManager.lua"))()
 
-    local MainTab = Window:Tab("Main")
-    local VoidTab = Window:Tab("Void Spam")
-    local ESPTab = Window:Tab("ESP")
-    local UITab = Window:Tab("UI Settings")
+    local Options = Library.Options
+    local Toggles = Library.Toggles
 
-    -- Main Tab Sections
-    local AimbotSection = MainTab:Section("Aimbot")
-    local SilentAimSection = MainTab:Section("Silent Aim")
-    local TriggerbotSection = MainTab:Section("Triggerbot")
-    local DHSection = MainTab:Section("Da Hood Features")
-    local UnlockSection = MainTab:Section("Unlock All")
+    Library.ShowToggleFrameInKeybinds = true 
+    Library.ShowCustomCursor = true 
+    Library.NotifySide = "Left" 
 
-    -- Void Tab Sections
-    local VoidSection = VoidTab:Section("Void Movement")
-    local OrbitSection = VoidTab:Section("Orbit")
+    local Window = Library:CreateWindow({
+        Title = "Necrophilia",
+        Center = true, AutoShow = true, Resizable = true,
+        ShowCustomCursor = true, UnlockMouseWhileOpen = true,
+        NotifySide = "Left", TabPadding = 8, MenuFadeTime = 0.2
+    })
 
-    -- ESP Tab Sections
-    local CharmSection = ESPTab:Section("Charm")
-    local ESPSection = ESPTab:Section("ESP Settings")
-    
-    -- UI Settings Tab Sections
-    local MenuSection = UITab:Section("Menu")
+    local Tabs = {
+        Main = Window:AddTab("Main"),
+        Void = Window:AddTab("Void Spam"),
+        ESP = Window:AddTab("ESP"),
+        ["UI Settings"] = Window:AddTab("UI Settings"),
+    }
+
+    local AimbotSection = Tabs.Main:AddLeftGroupbox("Aimbot")
+    local SilentAimSection = Tabs.Main:AddLeftGroupbox("Silent Aim")
+    local TriggerbotSection = Tabs.Main:AddLeftGroupbox("Triggerbot")
+    local DHSection = Tabs.Main:AddRightGroupbox("Da Hood Features")
+    local UnlockSection = Tabs.Main:AddRightGroupbox("Unlock All")
+
+    local VoidSection = Tabs.Void:AddLeftGroupbox("Void Movement")
+    local OrbitSection = Tabs.Void:AddRightGroupbox("Orbit")
+
+    local CharmSection = Tabs.ESP:AddLeftGroupbox("Charm")
+    local ESPSection = Tabs.ESP:AddRightGroupbox("ESP Settings")
+    local MenuSection = Tabs["UI Settings"]:AddLeftGroupbox("Menu")
 
     local Players = game:GetService("Players")
     local RunService = game:GetService("RunService")
@@ -65,9 +75,6 @@ local success, err = pcall(function()
     local TB_WALLCHECK = true
     local TB_DELAY = 0.05
 
-    local RapidFireEnabled = false
-    local NoRecoilEnabled = false
-    local NoSpreadEnabled = false
     local dhAntiStompEnabled = false
     local dhRapidFireEnabled = false
 
@@ -122,14 +129,13 @@ local success, err = pcall(function()
     player.CharacterAdded:Connect(updateChar)
     player.CharacterRemoving:Connect(function() updateChar(nil) end)
 
-    -- 키바인드 입력 처리
+    -- 키바인드 처리
     UserInputService.InputBegan:Connect(function(input, gpe)
         if gpe then return end
         if input.KeyCode == aimbotKeybindEnum then aimbotKeyState = true end
         if input.KeyCode == saKeybindEnum then saKeyState = true end
         if input.KeyCode == tbKeybindEnum then tbKeyState = true end
     end)
-
     UserInputService.InputEnded:Connect(function(input, gpe)
         if input.KeyCode == aimbotKeybindEnum then aimbotKeyState = false end
         if input.KeyCode == saKeybindEnum then saKeyState = false end
@@ -238,15 +244,15 @@ local success, err = pcall(function()
         end)
     end)
 
-    AimbotSection:Toggle("Enable Aimbot", function(v) aimbotEnabled = v end, false)
-    AimbotSection:Keybind("Aimbot Key", function(v) aimbotKeybindEnum = v end, Enum.KeyCode.E)
-    AimbotSection:Dropdown("Aimbot Hitbox", {"Head", "Torso", "Left Arm", "Right Arm", "Left Leg", "Right Leg"}, function(v) aimbotHitbox = v end, "Head")
-    AimbotSection:Toggle("Show FOV Circle", function(v) showFOV = v end, false)
-    AimbotSection:Color("FOV Color", function(v) aimbotFOVColor = v end, Color3.fromRGB(255, 255, 255))
-    AimbotSection:Toggle("Wall Check", function(v) wallCheck = v end, true)
-    AimbotSection:Slider("Smoothness", 10, 1, function(v) SMOOTH_FACTOR = v end, 1)
-    AimbotSection:Slider("FOV Radius", 1000, 1, function(v) AIM_RADIUS = v end, 200)
-    AimbotSection:Slider("Max Distance", 5000, 1, function(v) MAX_DISTANCE = v end, 1000)
+    AimbotSection:AddToggle("AimbotToggle", { Text = "Enable Aimbot", Default = false, Callback = function(v) aimbotEnabled = v end })
+    AimbotSection:AddLabel("Aimbot Keybind"):AddKeyPicker("AimbotKeybind", { Default = "E", SyncToggleState = false, Mode = "Hold", Text = "Aimbot Key", NoUI = false, Callback = function(v) aimbotKeybindEnum = v end })
+    AimbotSection:AddDropdown("AimbotHitbox", { Text = "Aimbot Hitbox", Values = {"Head", "Torso", "Left Arm", "Right Arm", "Left Leg", "Right Leg"}, Default = 1, Callback = function(v) aimbotHitbox = v end })
+    AimbotSection:AddToggle("AimbotShowFOV", { Text = "Show FOV Circle", Default = false, Callback = function(v) showFOV = v end })
+    AimbotSection:AddLabel("FOV Color"):AddColorPicker("AimbotFOVColorPicker", { Default = Color3.fromRGB(255, 255, 255), Title = "Aimbot FOV Color", Transparency = 0, Callback = function(v) aimbotFOVColor = v end })
+    AimbotSection:AddToggle("AimbotWallCheck", { Text = "Wall Check", Default = true, Callback = function(v) wallCheck = v end })
+    AimbotSection:AddSlider("AimbotSmoothness", { Text = "Smoothness", Default = 1, Min = 1, Max = 10, Rounding = 0, Callback = function(v) SMOOTH_FACTOR = v end })
+    AimbotSection:AddSlider("AimbotFOV", { Text = "FOV Radius", Default = 200, Min = 1, Max = 1000, Rounding = 0, Callback = function(v) AIM_RADIUS = v end })
+    AimbotSection:AddSlider("AimbotDistance", { Text = "Max Distance", Default = 1000, Min = 1, Max = 5000, Rounding = 0, Callback = function(v) MAX_DISTANCE = v end })
 
     -- Silent Aim 로직
     local function safeWait(parent, name, timeout)
@@ -327,13 +333,13 @@ local success, err = pcall(function()
         end)
     end)
 
-    SilentAimSection:Toggle("Enable Silent Aim", function(v) SA_ENABLED = v end, false)
-    SilentAimSection:Keybind("Silent Key", function(v) saKeybindEnum = v end, Enum.KeyCode.Q)
-    SilentAimSection:Dropdown("Silent Aim Hitbox", {"Head", "Torso", "Left Arm", "Right Arm", "Left Leg", "Right Leg"}, function(v) saHitbox = v end, "Head")
-    SilentAimSection:Toggle("Wall Check", function(v) SA_WALLCHECK = v end, true)
-    SilentAimSection:Toggle("Show Silent FOV", function(v) SA_SHOW_FOV = v end, true)
-    SilentAimSection:Color("SA FOV Color", function(v) saFOVColor = v end, Color3.fromRGB(255, 0, 0))
-    SilentAimSection:Slider("Silent FOV Radius", 1000, 10, function(v) SA_FOV = v end, 50)
+    SilentAimSection:AddToggle("SilentAimToggle", { Text = "Enable Silent Aim", Default = false, Callback = function(v) SA_ENABLED = v end })
+    SilentAimSection:AddLabel("Silent Keybind"):AddKeyPicker("SilentAimKeybind", { Default = "Q", SyncToggleState = false, Mode = "Hold", Text = "Silent Key", NoUI = false, Callback = function(v) saKeybindEnum = v end })
+    SilentAimSection:AddDropdown("SilentAimHitbox", { Text = "Silent Aim Hitbox", Values = {"Head", "Torso", "Left Arm", "Right Arm", "Left Leg", "Right Leg"}, Default = 1, Callback = function(v) saHitbox = v end })
+    SilentAimSection:AddToggle("SilentAimWallCheck", { Text = "Wall Check", Default = true, Callback = function(v) SA_WALLCHECK = v end })
+    SilentAimSection:AddToggle("SilentAimShowFOV", { Text = "Show Silent FOV", Default = true, Callback = function(v) SA_SHOW_FOV = v end })
+    SilentAimSection:AddLabel("SA FOV Color"):AddColorPicker("SilentAimFOVColorPicker", { Default = Color3.fromRGB(255, 0, 0), Title = "Silent Aim FOV Color", Transparency = 0, Callback = function(v) saFOVColor = v end })
+    SilentAimSection:AddSlider("SilentAimFOV", { Text = "Silent FOV Radius", Default = 50, Min = 10, Max = 1000, Rounding = 0, Callback = function(v) SA_FOV = v end })
 
     -- Triggerbot 로직
     local function isLobbyVisible()
@@ -379,11 +385,11 @@ local success, err = pcall(function()
         end
     end)
 
-    TriggerbotSection:Toggle("Enable Triggerbot", function(v) TB_ENABLED = v end, false)
-    TriggerbotSection:Keybind("Trigger Key", function(v) tbKeybindEnum = v end, Enum.KeyCode.E)
-    TriggerbotSection:Toggle("Wall Check", function(v) TB_WALLCHECK = v end, true)
-    TriggerbotSection:Slider("Trigger FOV Radius", 1000, 1, function(v) TB_FOV = v end, 50)
-    TriggerbotSection:Slider("Fire Delay (ms)", 1000, 10, function(v) TB_DELAY = v / 1000 end, 50)
+    TriggerbotSection:AddToggle("TriggerbotToggle", { Text = "Enable Triggerbot", Default = false, Callback = function(v) TB_ENABLED = v end })
+    TriggerbotSection:AddLabel("Trigger Keybind"):AddKeyPicker("TriggerbotKeybind", { Default = "E", SyncToggleState = false, Mode = "Hold", Text = "Trigger Key", NoUI = false, Callback = function(v) tbKeybindEnum = v end })
+    TriggerbotSection:AddToggle("TriggerbotWallCheck", { Text = "Wall Check", Default = true, Callback = function(v) TB_WALLCHECK = v end })
+    TriggerbotSection:AddSlider("TriggerbotFOV", { Text = "Trigger FOV Radius", Default = 50, Min = 1, Max = 1000, Rounding = 0, Callback = function(v) TB_FOV = v end })
+    TriggerbotSection:AddSlider("TriggerbotDelay", { Text = "Fire Delay (ms)", Default = 50, Min = 10, Max = 1000, Rounding = 0, Callback = function(v) TB_DELAY = v / 1000 end })
 
     -- Da Hood Features
     task.spawn(function()
@@ -395,9 +401,7 @@ local success, err = pcall(function()
                         for _, tool in ipairs(backpack:GetChildren()) do
                             if tool:IsA("Tool") and tool.Name == "Combat" then
                                 local shooting = tool:FindFirstChild("ShootingCooldown")
-                                if shooting then
-                                    shooting.Value = 0.000000001
-                                end
+                                if shooting then shooting.Value = 0.000000001 end
                             end
                         end
                     end
@@ -426,8 +430,8 @@ local success, err = pcall(function()
         end
     end)
 
-    DHSection:Toggle("Enable Rapid Fire", function(v) dhRapidFireEnabled = v end, false)
-    DHSection:Toggle("Enable Anti Stomp", function(v) dhAntiStompEnabled = v end, false)
+    DHSection:AddToggle("DHRapidFire", { Text = "Enable Rapid Fire", Default = false, Callback = function(v) dhRapidFireEnabled = v end })
+    DHSection:AddToggle("DHAntiStomp", { Text = "Enable Anti Stomp", Default = false, Callback = function(v) dhAntiStompEnabled = v end })
 
     -- 보이드 스팸 로직
     local function resetVoidPattern()
@@ -472,11 +476,7 @@ local success, err = pcall(function()
     end
 
     local function getDirectionalLimitOffset()
-        local raw = Vector3.new(
-            math.random(-distMinusX, distPlusX),
-            math.random(-distMinusY, distPlusY),
-            math.random(-distMinusZ, distPlusZ)
-        )
+        local raw = Vector3.new(math.random(-distMinusX, distPlusX), math.random(-distMinusY, distPlusY), math.random(-distMinusZ, distPlusZ))
         if raw.Magnitude <= 0 then return Vector3.zero end
         return raw.Unit * math.min(raw.Magnitude, currentDistance)
     end
@@ -577,16 +577,12 @@ local success, err = pcall(function()
         originalCFrame = nil
     end
 
-    VoidSection:Toggle("Enable Void Movement", function(v)
-        running = v
-        if v then startTeleport() else stopTeleport() end
-    end, false)
-
-    VoidSection:Dropdown("Movement Mode", {"VOID_SPAM", "VOID_HIDE", "RANDOM", "CAMERA", "FORWARD", "DIRECTIONAL"}, function(v) teleportMode = tostring(v) end, "VOID_SPAM")
-    VoidSection:Slider("Distance", 50000000, 50, function(v) currentDistance = v end, 500)
-    VoidSection:Slider("Step Interval (s)", 2, 0.01, function(v) teleportInterval = v end, 0.035)
-    VoidSection:Slider("Jitter Strength", 60, 0, function(v) jitterStrength = v end, 14)
-    VoidSection:Button("Reset Pattern", function() resetVoidPattern() end)
+    VoidSection:AddToggle("VoidMovement", { Text = "Enable Void Movement", Default = false, Callback = function(v) running = v if v then startTeleport() else stopTeleport() end end })
+    VoidSection:AddDropdown("TeleportMode", { Text = "Movement Mode", Values = {"VOID_SPAM", "VOID_HIDE", "RANDOM", "CAMERA", "FORWARD", "DIRECTIONAL"}, Default = 1, Callback = function(v) teleportMode = v end })
+    VoidSection:AddSlider("Distance", { Text = "Distance", Default = 500, Min = 50, Max = 50000000, Rounding = 0, Callback = function(v) currentDistance = v end })
+    VoidSection:AddSlider("TeleportInterval", { Text = "Step Interval (s)", Default = 0.035, Min = 0.01, Max = 2, Rounding = 2, Callback = function(v) teleportInterval = v end })
+    VoidSection:AddSlider("JitterStrength", { Text = "Jitter Strength", Default = 14, Min = 0, Max = 60, Rounding = 0, Callback = function(v) jitterStrength = v end })
+    VoidSection:AddButton({ Text = "Reset Pattern", Func = function() resetVoidPattern() end })
 
     -- Orbit 로직
     RunService.Heartbeat:Connect(function()
@@ -599,12 +595,7 @@ local success, err = pcall(function()
                     orbitAngle = orbitAngle + (0.004 * orbitSpeed)
                     if orbitAngle > math.pi * 2 then orbitAngle = orbitAngle - (math.pi * 2) end
                     
-                    local orbitOffset = Vector3.new(
-                        orbitRange * math.sin(orbitAngle),
-                        orbitHeight,
-                        orbitRange * math.cos(orbitAngle)
-                    )
-                    
+                    local orbitOffset = Vector3.new(orbitRange * math.sin(orbitAngle), orbitHeight, orbitRange * math.cos(orbitAngle))
                     local finalPos = targetRoot.Position + orbitOffset
                     hrp.CFrame = CFrame.lookAt(finalPos, targetRoot.Position)
                     hrp.AssemblyLinearVelocity = Vector3.zero
@@ -613,12 +604,12 @@ local success, err = pcall(function()
         end
     end)
 
-    OrbitSection:Toggle("Enable Orbit", function(v) orbitEnabled = v end, false)
-    OrbitSection:Slider("Orbit Speed", 12, 0.1, function(v) orbitSpeed = v end, 1.8)
-    OrbitSection:Slider("Orbit Range", 60, 2, function(v) orbitRange = v end, 8)
-    OrbitSection:Slider("Orbit Height", 40, -20, function(v) orbitHeight = v end, 4)
+    OrbitSection:AddToggle("OrbitEnabled", { Text = "Enable Orbit", Default = false, Callback = function(v) orbitEnabled = v end })
+    OrbitSection:AddSlider("OrbitSpeed", { Text = "Orbit Speed", Default = 1.8, Min = 0.1, Max = 12, Rounding = 1, Callback = function(v) orbitSpeed = v end })
+    OrbitSection:AddSlider("OrbitRange", { Text = "Orbit Range", Default = 8, Min = 2, Max = 60, Rounding = 0, Callback = function(v) orbitRange = v end })
+    OrbitSection:AddSlider("OrbitHeight", { Text = "Orbit Height", Default = 4, Min = -20, Max = 40, Rounding = 0, Callback = function(v) orbitHeight = v end })
 
-    -- Charm 로직 (항상 모두에게 적용)
+    -- Charm 로직
     RunService.RenderStepped:Connect(function()
         if isUnloaded then return end
         for _, p in pairs(Players:GetPlayers()) do
@@ -641,42 +632,27 @@ local success, err = pcall(function()
         end
     end)
 
-    CharmSection:Toggle("Enable Charm (Highlight)", function(v) charmToggle = v end, false)
-    CharmSection:Color("Charm Color", function(v) charmColor = v end, Color3.fromRGB(0, 255, 127))
+    CharmSection:AddToggle("CharmToggle", { Text = "Enable Charm (Highlight)", Default = false, Callback = function(v) charmToggle = v end })
+    CharmSection:AddLabel("Charm Color"):AddColorPicker("CharmColor", { Default = charmColor, Title = "Charm Color", Transparency = 0, Callback = function(v) charmColor = v end })
 
-    -- ESP 로직 (항상 모두에게 적용 및 튕김 방지)
+    -- ESP 로직
     local ESPObjects = {}
-
     local function createESPObject()
         local obj = {}
         obj.GlowLines, obj.Lines = {}, {}
         for i = 1, 4 do
-            obj.GlowLines[i] = Drawing.new("Line")
-            obj.GlowLines[i].Thickness = 2
-            obj.GlowLines[i].Transparency = 0.6
-            obj.Lines[i] = Drawing.new("Line")
-            obj.Lines[i].Thickness = 1
+            obj.GlowLines[i] = Drawing.new("Line"); obj.GlowLines[i].Thickness = 2; obj.GlowLines[i].Transparency = 0.6
+            obj.Lines[i] = Drawing.new("Line"); obj.Lines[i].Thickness = 1
         end
         obj.GlowCorners, obj.Corners = {}, {}
         for i = 1, 8 do
-            obj.GlowCorners[i] = Drawing.new("Line")
-            obj.GlowCorners[i].Thickness = 2
-            obj.GlowCorners[i].Transparency = 0.6
-            obj.Corners[i] = Drawing.new("Line")
-            obj.Corners[i].Thickness = 1
+            obj.GlowCorners[i] = Drawing.new("Line"); obj.GlowCorners[i].Thickness = 2; obj.GlowCorners[i].Transparency = 0.6
+            obj.Corners[i] = Drawing.new("Line"); obj.Corners[i].Thickness = 1
         end
-        obj.Tracer = Drawing.new("Line")
-        obj.Tracer.Thickness = 1
-        obj.NameText = Drawing.new("Text")
-        obj.NameText.Center = true
-        obj.NameText.Outline = true
-        obj.NameText.Size = 13
-        obj.NameText.Font = 2
-        obj.HealthBarBg = Drawing.new("Square")
-        obj.HealthBarBg.Thickness = 1
-        obj.HealthBarBg.Filled = false
-        obj.HealthBarFill = Drawing.new("Square")
-        obj.HealthBarFill.Filled = true
+        obj.Tracer = Drawing.new("Line"); obj.Tracer.Thickness = 1
+        obj.NameText = Drawing.new("Text"); obj.NameText.Center = true; obj.NameText.Outline = true; obj.NameText.Size = 13; obj.NameText.Font = 2
+        obj.HealthBarBg = Drawing.new("Square"); obj.HealthBarBg.Thickness = 1; obj.HealthBarBg.Filled = false
+        obj.HealthBarFill = Drawing.new("Square"); obj.HealthBarFill.Filled = true
         return obj
     end
 
@@ -687,10 +663,7 @@ local success, err = pcall(function()
         for _, c in ipairs(obj.Lines) do c.Visible = false end
         for _, c in ipairs(obj.GlowCorners) do c.Visible = false end
         for _, c in ipairs(obj.Corners) do c.Visible = false end
-        obj.Tracer.Visible = false
-        obj.NameText.Visible = false
-        obj.HealthBarBg.Visible = false
-        obj.HealthBarFill.Visible = false
+        obj.Tracer.Visible = false; obj.NameText.Visible = false; obj.HealthBarBg.Visible = false; obj.HealthBarFill.Visible = false
     end
 
     local function clearESP(p)
@@ -700,10 +673,8 @@ local success, err = pcall(function()
             for _, c in ipairs(obj.Lines) do pcall(function() c:Remove() end) end
             for _, c in ipairs(obj.GlowCorners) do pcall(function() c:Remove() end) end
             for _, c in ipairs(obj.Corners) do pcall(function() c:Remove() end) end
-            pcall(function() obj.Tracer:Remove() end)
-            pcall(function() obj.NameText:Remove() end)
-            pcall(function() obj.HealthBarBg:Remove() end)
-            pcall(function() obj.HealthBarFill:Remove() end)
+            pcall(function() obj.Tracer:Remove() end); pcall(function() obj.NameText:Remove() end)
+            pcall(function() obj.HealthBarBg:Remove() end); pcall(function() obj.HealthBarFill:Remove() end)
             ESPObjects[p] = nil
         end
     end
@@ -720,12 +691,10 @@ local success, err = pcall(function()
                     else
                         local char = p.Character
                         local root = char.HumanoidRootPart
-                        
                         if not ESPObjects[p] then ESPObjects[p] = createESPObject() end
                         local obj = ESPObjects[p]
                         
                         local rootPos, rootVis = camera:WorldToViewportPoint(root.Position)
-                        
                         if not rootVis or rootPos.Z < 0 then
                             hideESP(p)
                         else
@@ -743,10 +712,7 @@ local success, err = pcall(function()
                             for _, c in ipairs(obj.Lines) do c.Color = espBoxColor end
                             for _, c in ipairs(obj.GlowCorners) do c.Color = espBoxColor end
                             for _, c in ipairs(obj.Corners) do c.Color = espBoxColor end
-                            obj.Tracer.Color = espTracerColor
-                            obj.NameText.Color = espNameColor
-                            obj.HealthBarFill.Color = espHealthColor
-                            obj.HealthBarBg.Color = Color3.fromRGB(0, 0, 0)
+                            obj.Tracer.Color = espTracerColor; obj.NameText.Color = espNameColor; obj.HealthBarFill.Color = espHealthColor; obj.HealthBarBg.Color = Color3.fromRGB(0, 0, 0)
                             
                             if espTracer then
                                 obj.Tracer.Visible = true
@@ -763,20 +729,12 @@ local success, err = pcall(function()
                             end
                             
                             if espHealthBar then
-                                local hp = char.Humanoid.Health
-                                local maxHp = char.Humanoid.MaxHealth
-                                local ratio = hp / maxHp
-                                local barX, barY = boxLeft - 6, boxTop
-                                local barW, barH = 3, height
-                                obj.HealthBarBg.Visible = true
-                                obj.HealthBarBg.Position = Vector2.new(barX, barY)
-                                obj.HealthBarBg.Size = Vector2.new(barW, barH)
-                                obj.HealthBarFill.Visible = true
-                                obj.HealthBarFill.Position = Vector2.new(barX, barY + (barH * (1 - ratio)))
-                                obj.HealthBarFill.Size = Vector2.new(barW, barH * ratio)
+                                local hp = char.Humanoid.Health; local maxHp = char.Humanoid.MaxHealth; local ratio = hp / maxHp
+                                local barX, barY = boxLeft - 6, boxTop; local barW, barH = 3, height
+                                obj.HealthBarBg.Visible = true; obj.HealthBarBg.Position = Vector2.new(barX, barY); obj.HealthBarBg.Size = Vector2.new(barW, barH)
+                                obj.HealthBarFill.Visible = true; obj.HealthBarFill.Position = Vector2.new(barX, barY + (barH * (1 - ratio))); obj.HealthBarFill.Size = Vector2.new(barW, barH * ratio)
                             else
-                                obj.HealthBarBg.Visible = false
-                                obj.HealthBarFill.Visible = false
+                                obj.HealthBarBg.Visible = false; obj.HealthBarFill.Visible = false
                             end
                             
                             for _, c in ipairs(obj.GlowLines) do c.Visible = false end
@@ -802,24 +760,44 @@ local success, err = pcall(function()
         end)
     end)
 
-    ESPSection:Toggle("Enable ESP", function(v) espEnable = v end, false)
-    ESPSection:Toggle("Box ESP", function(v) espBoxType = v end, true)
-    ESPSection:Color("Box Color", function(v) espBoxColor = v end, Color3.fromRGB(255, 255, 255))
-    ESPSection:Toggle("Tracer ESP", function(v) espTracer = v end, false)
-    ESPSection:Color("Tracer Color", function(v) espTracerColor = v end, Color3.fromRGB(255, 255, 255))
-    ESPSection:Toggle("Name ESP", function(v) espName = v end, false)
-    ESPSection:Color("Name Color", function(v) espNameColor = v end, Color3.fromRGB(255, 255, 255))
-    ESPSection:Toggle("Health Bar ESP", function(v) espHealthBar = v end, false)
-    ESPSection:Color("Health Color", function(v) espHealthColor = v end, Color3.fromRGB(255, 255, 255))
+    ESPSection:AddToggle("ESPEnable", { Text = "Enable ESP", Default = false, Callback = function(v) espEnable = v end })
+    ESPSection:AddToggle("ESPBoxType", { Text = "Box ESP", Default = true, Callback = function(v) espBoxType = v end }):AddColorPicker("ESPBoxColor", { Default = espBoxColor, Title = "Box Color", Callback = function(v) espBoxColor = v end })
+    ESPSection:AddToggle("ESPTracer", { Text = "Tracer ESP", Default = false, Callback = function(v) espTracer = v end }):AddColorPicker("ESPTracerColor", { Default = espTracerColor, Title = "Tracer Color", Callback = function(v) espTracerColor = v end })
+    ESPSection:AddToggle("ESPName", { Text = "Name ESP", Default = false, Callback = function(v) espName = v end }):AddColorPicker("ESPNameColor", { Default = espNameColor, Title = "Name Color", Callback = function(v) espNameColor = v end })
+    ESPSection:AddToggle("ESPHealthBar", { Text = "Health Bar ESP", Default = false, Callback = function(v) espHealthBar = v end }):AddColorPicker("ESPHealthColor", { Default = espHealthColor, Title = "Health Color", Callback = function(v) espHealthColor = v end })
 
-    MenuSection:Button("Unload", function()
+    -- UI 설정 및 언로드
+    MenuSection:AddButton("Unload", function()
         isUnloaded = true
         RunService:UnbindFromRenderStep("ESPRender")
         pcall(function() if fovCircle then fovCircle.Visible = false fovCircle:Remove() end end)
         pcall(function() if saFovCircle then saFovCircle.Visible = false saFovCircle:Remove() end end)
         for p, obj in pairs(ESPObjects) do clearESP(p) end
-        if Window.Unload then Window:Unload() end
+        Library:Unload()
     end)
+
+    Library.ToggleKeybind = Options.MenuKeybind 
+    ThemeManager:SetLibrary(Library)
+    SaveManager:SetLibrary(Library)
+    SaveManager:IgnoreThemeSettings()
+    SaveManager:SetIgnoreIndexes({ "MenuKeybind" })
+    ThemeManager:SetFolder("MyScriptHub")
+    SaveManager:SetFolder("MyScriptHub/specific-game")
+    SaveManager:SetSubFolder("specific-place") 
+    SaveManager:BuildConfigSection(Tabs["UI Settings"])
+    
+    -- 이전 설정 로드 무시하고 무조건 보라색(cultware) 테마로 강제 고정
+    ThemeManager.Theme = ThemeManager.Theme or {}
+    ThemeManager.Theme.Main = Color3.fromRGB(30, 30, 30)
+    ThemeManager.Theme.Background = Color3.fromRGB(25, 25, 25)
+    ThemeManager.Theme.Border = Color3.fromRGB(100, 0, 110)
+    ThemeManager.Theme.Text = Color3.fromRGB(255, 255, 255)
+    ThemeManager.Theme.TextDark = Color3.fromRGB(150, 150, 150)
+    ThemeManager.Theme.Accent = Color3.fromRGB(185, 0, 191) -- 보라색
+    ThemeManager.Theme.TabText = Color3.fromRGB(200, 200, 200)
+    ThemeManager.Theme.TabBackground = Color3.fromRGB(40, 40, 40)
+    
+    ThemeManager:ApplyToTab(Tabs["UI Settings"])
 end)
 
 if not success then warn("Script failed to load:", err) end
