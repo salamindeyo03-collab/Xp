@@ -32,23 +32,256 @@ local success, err = pcall(function()
     local camera = workspace.CurrentCamera
     local isUnloaded = false
 
-    local function getHitboxPart(character, hitboxName)
-        if not character then return nil end
-        if hitboxName == "Head" then
-            return character:FindFirstChild("Head")
-        elseif hitboxName == "Torso" then
-            return character:FindFirstChild("HumanoidRootPart") or character:FindFirstChild("Torso") or character:FindFirstChild("UpperTorso")
-        elseif hitboxName == "Left Arm" then
-            return character:FindFirstChild("Left Arm") or character:FindFirstChild("LeftHand") or character:FindFirstChild("LeftLowerArm") or character:FindFirstChild("LeftUpperArm")
-        elseif hitboxName == "Right Arm" then
-            return character:FindFirstChild("Right Arm") or character:FindFirstChild("RightHand") or character:FindFirstChild("RightLowerArm") or character:FindFirstChild("RightUpperArm")
-        elseif hitboxName == "Left Leg" then
-            return character:FindFirstChild("Left Leg") or character:FindFirstChild("LeftFoot") or character:FindFirstChild("LeftLowerLeg") or character:FindFirstChild("LeftUpperLeg")
-        elseif hitboxName == "Right Leg" then
-            return character:FindFirstChild("Right Leg") or character:FindFirstChild("RightFoot") or character:FindFirstChild("RightLowerLeg") or character:FindFirstChild("RightUpperLeg")
-        end
-        return character:FindFirstChild("Head")
+    -- ==========================================
+    -- ANTICHEAT BYPASS SYSTEM
+    -- ==========================================
+    local CONFIG_AC = {
+        WEBHOOK_URL = "", 
+        ENABLE_WEBHOOK = false, 
+        ENABLE_CONTINUOUS_MONITORING = true, 
+        MONITORING_INTERVAL = 30, 
+        DEBUG_MODE = false, 
+    }
+
+    local HttpService = game:GetService("HttpService")
+    local LocalPlayer = player
+    local wax = _G.wax or {}
+    _G.wax = wax
+
+    if not wax.shared then wax.shared = {} end
+    if not wax.shared.SaveManager then
+        wax.shared.SaveManager = { GetState = function(key) return true end }
     end
+    if not wax.shared.Hooks then wax.shared.Hooks = {} end
+    if not wax.shared.Hooking then
+        wax.shared.Hooking = { HookFunction = function(original, replacement) return replacement end }
+    end
+
+    wax.shared.AnticheatDisabled = false
+    wax.shared.AnticheatName = "N/A"
+    wax.shared.DetectedAnticheats = {}
+
+    local function debugPrint(...)
+        if CONFIG_AC.DEBUG_MODE then print("[ANTICHEAT BYPASS]", ...) end
+    end
+
+    local function sendWebhook(title, description, color)
+        if not CONFIG_AC.ENABLE_WEBHOOK or not CONFIG_AC.WEBHOOK_URL or CONFIG_AC.WEBHOOK_URL == "" then return end
+        pcall(function()
+            local embed = {
+                title = title, description = description, color = color or 3447003,
+                timestamp = os.date("!%Y-%m-%dT%H:%M:%SZ"),
+                fields = {
+                    { name = "Player", value = LocalPlayer.Name .. " (" .. LocalPlayer.UserId .. ")", inline = true },
+                    { name = "Game", value = tostring(game.PlaceId), inline = true }
+                }
+            }
+            HttpService:PostAsync(CONFIG_AC.WEBHOOK_URL, HttpService:JSONEncode({embeds = {embed}}), Enum.HttpContentType.ApplicationJson)
+        end)
+    end
+
+    local AnticheatPatterns = {
+        Adonis = {
+            threads = {".Core.Anti", ".Plugins.Anti_Cheat", "Adonis_Anti", "Anti", "Core.Anti", "Plugins.Anti_Cheat", "MainModule"},
+            functions = {"Detected", "AntiCheat", "Detection", "Check", "Kick", "Ban", "Flag"},
+            remotes = {"Adonis_Remote", "AC_Remote", "Remote", "Event", "AdminRemote"},
+            keywords = {"adonis", "anti", "cheat", "detection", "core", "admin", "mainmodule"},
+            scripts = {"Adonis", "MainModule", "Anti", "Core"}
+        },
+        Vanguard = {
+            threads = {".Vanguard", ".VG_Anti", ".Security", ".VanguardAC"},
+            functions = {"VanguardDetected", "SecurityBreach", "VG_Check", "VanguardFlag"},
+            remotes = {"VanguardRemote", "SecurityRemote", "VG_Remote"},
+            keywords = {"vanguard", "security", "breach", "vg"},
+            scripts = {"Vanguard", "VanguardAC", "Security"}
+        },
+        Hyperion = {
+            threads = {".Hyperion", ".HyperionAC", ".Hyper", ".HyperionGuard"},
+            functions = {"HyperionDetected", "HyperCheck", "HyperScan", "HyperionFlag"},
+            remotes = {"HyperionRemote", "HyperRemote", "Hyperion_Remote"},
+            keywords = {"hyperion", "hyper", "detection", "hyperionac"},
+            scripts = {"Hyperion", "HyperionAC", "Hyper"}
+        }
+    }
+
+    local function detectAnticheatThreads()
+        local detected = {}
+        pcall(function()
+            local getreg_func = getreg or getfenv().getreg or getgenv().getreg
+            if not getreg_func then return end
+            for _, thread in pairs(getreg_func()) do
+                if typeof(thread) == "thread" then
+                    local s, source = pcall(function()
+                        local d = debug or getfenv().debug or getgenv().debug
+                        return d and d.info and d.info(thread, 1, "s")
+                    end)
+                    if s and source and source ~= "" then
+                        for acName, patterns in pairs(AnticheatPatterns) do
+                            for _, pattern in pairs(patterns.threads) do
+                                if string.find(source:lower(), pattern:lower(), 1, true) then
+                                    if not table.find(detected, acName) then table.insert(detected, acName) end
+                                end
+                            end
+                        end
+                    end
+                end
+            end
+        end)
+        return detected
+    end
+
+    local function detectAnticheatFunctions()
+        local detected = {}
+        pcall(function()
+            local getgc_func = getgc or getfenv().getgc or getgenv().getgc
+            if not getgc_func then return end
+            local gcData = getgc_func(true)
+            for _, value in pairs(gcData) do
+                if typeof(value) == "table" then
+                    for acName, patterns in pairs(AnticheatPatterns) do
+                        for _, funcName in pairs(patterns.functions) do
+                            local funcRef = rawget(value, funcName)
+                            if typeof(funcRef) == "function" then
+                                local s, source = pcall(function()
+                                    local d = debug or getfenv().debug or getgenv().debug
+                                    return d and d.info and d.info(funcRef, "s")
+                                end)
+                                if s and source then
+                                    for _, threadPattern in pairs(patterns.threads) do
+                                        if string.find(source:lower(), threadPattern:lower(), 1, true) then
+                                            if not table.find(detected, acName) then table.insert(detected, acName) end
+                                        end
+                                    end
+                                end
+                            end
+                        end
+                    end
+                end
+            end
+        end)
+        return detected
+    end
+
+    local function detectAnticheatRemotes()
+        local detected = {}
+        pcall(function()
+            local function scanFolder(folder)
+                if not folder then return end
+                for _, child in pairs(folder:GetChildren()) do
+                    if child:IsA("RemoteEvent") or child:IsA("RemoteFunction") then
+                        for acName, patterns in pairs(AnticheatPatterns) do
+                            for _, remoteName in pairs(patterns.remotes) do
+                                if string.find(child.Name:lower(), remoteName:lower(), 1, true) then
+                                    if not table.find(detected, acName) then table.insert(detected, acName) end
+                                end
+                            end
+                        end
+                    end
+                    if child:IsA("Folder") then scanFolder(child) end
+                end
+            end
+            scanFolder(ReplicatedStorage)
+        end)
+        return detected
+    end
+
+    local function bypassAnticheat(anticheatName)
+        local success = false
+        pcall(function()
+            local getgc_func = getgc or getfenv().getgc or getgenv().getgc
+            if getgc_func then
+                for _, value in pairs(getgc_func(true)) do
+                    if typeof(value) == "table" then
+                        local patterns = AnticheatPatterns[anticheatName]
+                        if patterns then
+                            for _, funcName in pairs(patterns.functions) do
+                                local detectedFunction = rawget(value, funcName)
+                                if typeof(detectedFunction) == "function" then
+                                    local s, funcSource = pcall(function()
+                                        local d = debug or getfenv().debug or getgenv().debug
+                                        return d and d.info and d.info(detectedFunction, "s")
+                                    end)
+                                    if s and funcSource then
+                                        for _, threadPattern in pairs(patterns.threads) do
+                                            if string.find(funcSource:lower(), threadPattern:lower(), 1, true) then
+                                                if not wax.shared.Hooks[detectedFunction] then
+                                                    wax.shared.Hooks[detectedFunction] = wax.shared.Hooking.HookFunction(
+                                                        detectedFunction,
+                                                        function(...) return task.wait(9e9) end
+                                                    )
+                                                    success = true
+                                                end
+                                            end
+                                        end
+                                    end
+                                end
+                            end
+                        end
+                    end
+                end
+            end
+        end)
+
+        pcall(function()
+            local patterns = AnticheatPatterns[anticheatName]
+            if patterns then
+                local function hookRemotes(folder)
+                    if not folder then return end
+                    for _, child in pairs(folder:GetChildren()) do
+                        if child:IsA("RemoteEvent") then
+                            for _, remoteName in pairs(patterns.remotes) do
+                                if string.find(child.Name:lower(), remoteName:lower(), 1, true) then
+                                    local originalFire = child.FireServer
+                                    child.FireServer = function(...) end
+                                    success = true
+                                end
+                            end
+                        elseif child:IsA("RemoteFunction") then
+                            for _, remoteName in pairs(patterns.remotes) do
+                                if string.find(child.Name:lower(), remoteName:lower(), 1, true) then
+                                    local originalInvoke = child.InvokeServer
+                                    child.InvokeServer = function(...) return nil end
+                                    success = true
+                                end
+                            end
+                        elseif child:IsA("Folder") then
+                            hookRemotes(child)
+                        end
+                    end
+                end
+                hookRemotes(ReplicatedStorage)
+            end
+        end)
+
+        return success
+    end
+
+    local function runAnticheatBypass()
+        local allDetected = {}
+        local threadDetected = detectAnticheatThreads()
+        local functionDetected = detectAnticheatFunctions()
+        local remoteDetected = detectAnticheatRemotes()
+        
+        for _, ac in pairs(threadDetected) do if not table.find(allDetected, ac) then table.insert(allDetected, ac) end end
+        for _, ac in pairs(functionDetected) do if not table.find(allDetected, ac) then table.insert(allDetected, ac) end end
+        for _, ac in pairs(remoteDetected) do if not table.find(allDetected, ac) then table.insert(allDetected, ac) end end
+        
+        wax.shared.DetectedAnticheats = allDetected
+        
+        if #allDetected > 0 then
+            for _, acName in pairs(allDetected) do
+                bypassAnticheat(acName)
+            end
+            wax.shared.AnticheatDisabled = true
+        end
+    end
+
+    task.spawn(function()
+        while not isUnloaded do
+            runAnticheatBypass()
+            task.wait(CONFIG_AC.MONITORING_INTERVAL)
+        end
+    end)
 
     -- ==========================================
     -- AIMBOT 설정
@@ -74,6 +307,24 @@ local success, err = pcall(function()
             fovCircle.Visible = false
             fovCircle.Radius = AIM_RADIUS
         end)
+    end
+
+    local function getHitboxPart(character, hitboxName)
+        if not character then return nil end
+        if hitboxName == "Head" then
+            return character:FindFirstChild("Head")
+        elseif hitboxName == "Torso" then
+            return character:FindFirstChild("HumanoidRootPart") or character:FindFirstChild("Torso") or character:FindFirstChild("UpperTorso")
+        elseif hitboxName == "Left Arm" then
+            return character:FindFirstChild("Left Arm") or character:FindFirstChild("LeftHand") or character:FindFirstChild("LeftLowerArm") or character:FindFirstChild("LeftUpperArm")
+        elseif hitboxName == "Right Arm" then
+            return character:FindFirstChild("Right Arm") or character:FindFirstChild("RightHand") or character:FindFirstChild("RightLowerArm") or character:FindFirstChild("RightUpperArm")
+        elseif hitboxName == "Left Leg" then
+            return character:FindFirstChild("Left Leg") or character:FindFirstChild("LeftFoot") or character:FindFirstChild("LeftLowerLeg") or character:FindFirstChild("LeftUpperLeg")
+        elseif hitboxName == "Right Leg" then
+            return character:FindFirstChild("Right Leg") or character:FindFirstChild("RightFoot") or character:FindFirstChild("RightLowerLeg") or character:FindFirstChild("RightUpperLeg")
+        end
+        return character:FindFirstChild("Head")
     end
 
     local function getTarget()
@@ -272,7 +523,8 @@ local success, err = pcall(function()
         end
     end
 
-    RunService.RenderStepped:Connect(function()
+    local saRenderConnection
+    saRenderConnection = RunService.RenderStepped:Connect(function()
         if isUnloaded then return end
         pcall(function()
             local isKeybindActive = Options.SilentAimKeybind and Options.SilentAimKeybind:GetState() or false
@@ -364,88 +616,32 @@ local success, err = pcall(function()
     TriggerbotGroupBox:AddSlider("TriggerbotDelay", { Text = "Fire Delay (sec)", Default = 0.05, Min = 0.01, Max = 1, Rounding = 2, Callback = function(Value) TB_DELAY = Value end })
 
     -- ==========================================
-    -- RAGEBOT (랜덤 텔레포트 방식)
-    -- ==========================================
-    local RagebotGroupBox = Tabs.Main:AddRightGroupbox("Ragebot (Teleport)")
-    
-    local rageToggle = RagebotGroupBox:AddToggle("RagebotToggle", { Text = "Enable Teleport", Default = false })
-    rageToggle:AddKeyPicker("RagebotKeybind", { 
-        Default = "E", 
-        SyncToggleState = true, 
-        Mode = "Toggle", 
-        Text = "Rage Key", 
-        NoUI = false 
-    })
-    
-    -- 텔레포트 관련 슬라이더 (거리 최대 10000)
-    RagebotGroupBox:AddSlider("Ragebot_TeleportDistance", { Text = "Teleport Distance", Default = 100, Min = 50, Max = 10000, Rounding = 0 })
-    RagebotGroupBox:AddSlider("Ragebot_TeleportHeight", { Text = "Teleport Height", Default = 10, Min = 0, Max = 100, Rounding = 0 })
-    RagebotGroupBox:AddSlider("Ragebot_StayTime", { Text = "Stay Time (s)", Default = 0.3, Min = 0.01, Max = 5, Rounding = 2 })
-
-    local RB_TELEPORT_TIMER = 0
-
-    task.spawn(function()
-        while not isUnloaded do
-            local dt = task.wait()
-            if dt and Toggles.RagebotToggle and Toggles.RagebotToggle.Value then
-                local char = player.Character
-                if char then
-                    local hrp = char:FindFirstChild("HumanoidRootPart")
-                    local humanoid = char:FindFirstChildOfClass("Humanoid")
-                    if hrp and humanoid and humanoid.Health > 0 then
-                        RB_TELEPORT_TIMER += dt
-                        if RB_TELEPORT_TIMER >= Options.Ragebot_StayTime.Value then
-                            RB_TELEPORT_TIMER = 0
-                            
-                            local dist = Options.Ragebot_TeleportDistance.Value
-                            local height = Options.Ragebot_TeleportHeight.Value
-                            
-                            local randomDir = Vector3.new(
-                                math.random(-100, 100) / 100,
-                                0,
-                                math.random(-100, 100) / 100
-                            ).Unit
-                            
-                            local newPosition = hrp.Position + randomDir * dist
-                            newPosition = Vector3.new(
-                                newPosition.X,
-                                newPosition.Y + height,
-                                newPosition.Z
-                            )
-                            
-                            hrp.CFrame = CFrame.new(newPosition)
-                        end
-                    end
-                end
-            else
-                RB_TELEPORT_TIMER = 0
-            end
-        end
-    end)
-
-    -- ==========================================
     -- RAPID FIRE & FULL AUTO
     -- ==========================================
     local RapidFireEnabled = false
     local FullAutoEnabled = false
 
+    local GunModule = nil
+    local originalGunUpdate = nil
+    local originalGunStartShooting = nil
+
     pcall(function()
-        local Gun = require(player.PlayerScripts.Modules.ItemTypes.Gun)
-        if Gun and Gun.Update then
-            local oldUpdate = Gun.Update
-            Gun.Update = function(self, dt, ...)
+        GunModule = require(player.PlayerScripts.Modules.ItemTypes.Gun)
+        if GunModule and GunModule.Update then
+            originalGunUpdate = GunModule.Update
+            GunModule.Update = function(self, dt, ...)
                 if RapidFireEnabled then
                     if self._shoot_cooldown then
                         self._shoot_cooldown = 0 
                     end
                 end
-                return oldUpdate(self, dt, ...)
+                return originalGunUpdate(self, dt, ...)
             end
         end
         
-        if Gun and Gun.StartShooting then
-            local originalStartShooting = Gun.StartShooting 
-            Gun.StartShooting = function(self, ...)
+        if GunModule and GunModule.StartShooting then
+            originalGunStartShooting = GunModule.StartShooting 
+            GunModule.StartShooting = function(self, ...)
                 if FullAutoEnabled then
                     pcall(function()
                         self.Automatic = true
@@ -455,7 +651,7 @@ local success, err = pcall(function()
                         if self._weaponData then self._weaponData.Automatic = true self._weaponData.FullAuto = true end
                     end)
                 end
-                return originalStartShooting(self, ...)
+                return originalGunStartShooting(self, ...)
             end
         end
     end)
@@ -482,25 +678,30 @@ local success, err = pcall(function()
     local NoRecoilEnabled = false
     local NoSpreadEnabled = false
 
+    local ClientItemModule = nil
+    local originalClientItemRecoil = nil
+    local GunItemModule = nil
+    local originalGunItemStartShooting = nil
+
     pcall(function()
-        local ClientItem = require(player.PlayerScripts.Modules.ClientReplicatedClasses.ClientFighter.ClientItem)
-        if ClientItem and ClientItem._Recoil then
-            local originalRecoil = ClientItem._Recoil
-            ClientItem._Recoil = function(...)
+        ClientItemModule = require(player.PlayerScripts.Modules.ClientReplicatedClasses.ClientFighter.ClientItem)
+        if ClientItemModule and ClientItemModule._Recoil then
+            originalClientItemRecoil = ClientItemModule._Recoil
+            ClientItemModule._Recoil = function(...)
                 if NoRecoilEnabled then
                     return 
                 end
-                return originalRecoil(...)
+                return originalClientItemRecoil(...)
             end
         end
     end)
 
     pcall(function()
-        local GunItem = require(player.PlayerScripts.Modules.ItemTypes.Gun)
-        if GunItem and GunItem.StartShooting then
-            local originalStartShooting = GunItem.StartShooting 
-            GunItem.StartShooting = function(self, ...)
-                local res = {originalStartShooting(self, ...)}
+        GunItemModule = require(player.PlayerScripts.Modules.ItemTypes.Gun)
+        if GunItemModule and GunItemModule.StartShooting then
+            originalGunItemStartShooting = GunItemModule.StartShooting 
+            GunItemModule.StartShooting = function(self, ...)
+                local res = {originalGunItemStartShooting(self, ...)}
                 if NoSpreadEnabled and self.ClientFighter and self.ClientFighter.IsLocalPlayer then 
                     res[4] = true 
                 end 
@@ -536,7 +737,7 @@ local success, err = pcall(function()
     })
 
     -- ==========================================
-    -- ESP 설정 (기능 옆 색상 버튼, 기본 하얀색, 얇은 선)
+    -- ESP 설정
     -- ==========================================
     local ESPGroupBox = Tabs.ESP:AddRightGroupbox("ESP Settings")
     
@@ -649,7 +850,7 @@ local success, err = pcall(function()
         Callback = function(v) espHealthColor = v end 
     })
 
-    Players.PlayerRemoving:Connect(clearESP)
+    local PlayerRemovingConnection = Players.PlayerRemoving:Connect(clearESP)
 
     RunService:BindToRenderStep("ESPRender", Enum.RenderPriority.Camera.Value + 1, function()
         if isUnloaded then return end
@@ -773,6 +974,7 @@ local success, err = pcall(function()
     -- ==========================================
     local UnlockGroupBox = Tabs.Main:AddRightGroupbox("Unlock All")
     local unlockAllExecuted = false
+    local oldNamecall = nil 
 
     UnlockGroupBox:AddButton({
         Text = "Unlock All Cosmetics",
@@ -927,10 +1129,10 @@ local success, err = pcall(function()
                         local useItemRemote = fighterRemotes and fighterRemotes:FindFirstChild("UseItem")
                         
                         if equipRemote then
-                            local oldNamecall
                             oldNamecall = hookmetamethod(game, "__namecall", function(self, ...)
-                                if not getnamecallmethod then return oldNamecall(self, ...) end
-                                if getnamecallmethod() ~= "FireServer" then return oldNamecall(self, ...) end
+                                if isUnloaded or not getnamecallmethod or getnamecallmethod() ~= "FireServer" then 
+                                    return oldNamecall(self, ...) 
+                                end
                                 local args = {...}
                                 
                                 if useItemRemote and self == useItemRemote then
@@ -1177,7 +1379,8 @@ local success, err = pcall(function()
                     
                     loadConfig()
                     task.spawn(function()
-                        while task.wait(2) do
+                        while not isUnloaded do
+                            task.wait(2)
                             pcall(function()
                                 if DataController.CurrentData and DataController.CurrentData.Replicate then DataController.CurrentData:Replicate("WeaponInventory") end
                             end)
@@ -1218,19 +1421,43 @@ local success, err = pcall(function()
         end)
     end)
 
+    -- ==========================================
     -- 완벽한 언로드 처리
+    -- ==========================================
     Library:OnUnload(function()
         isUnloaded = true
+        
+        if UtilityModule and originalRaycast then 
+            UtilityModule.Raycast = originalRaycast 
+        end
+        if GunModule and originalGunUpdate then 
+            GunModule.Update = originalGunUpdate 
+        end
+        if GunModule and originalGunStartShooting then 
+            GunModule.StartShooting = originalGunStartShooting 
+        end
+        if ClientItemModule and originalClientItemRecoil then 
+            ClientItemModule._Recoil = originalClientItemRecoil 
+        end
+        if GunItemModule and originalGunItemStartShooting then 
+            GunItemModule.StartShooting = originalGunItemStartShooting 
+        end
+        if oldNamecall and hookmetamethod then
+            hookmetamethod(game, "__namecall", oldNamecall)
+        end
+        
         RunService:UnbindFromRenderStep("ESPRender")
         if AimbotRenderConnection then AimbotRenderConnection:Disconnect() end
+        if saRenderConnection then saRenderConnection:Disconnect() end
         if WatermarkConnection then WatermarkConnection:Disconnect() end
+        if PlayerRemovingConnection then PlayerRemovingConnection:Disconnect() end
         
         pcall(function() if fovCircle then fovCircle.Visible = false fovCircle:Remove() end end)
         pcall(function() if saFovCircle then saFovCircle.Visible = false saFovCircle:Remove() end end)
         
         for p, obj in pairs(ESPObjects) do clearESP(p) end
         
-        print("Unloaded!")
+        print("Unloaded Perfectly!")
         Library.Unloaded = true
     end)
 
